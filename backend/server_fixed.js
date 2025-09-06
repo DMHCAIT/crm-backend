@@ -99,20 +99,13 @@ app.get('/api/dashboard/stats', dashboardHandler);
 app.get('/api/analytics/realtime', analyticsHandler);
 
 // Core CRM APIs (full CRUD) - These handlers support all methods (GET, POST, PUT, DELETE)
-app.all('/api/leads', leadsHandler);
-app.all('/api/leads/:id', leadsHandler);
-app.all('/api/students', studentsHandler);
-app.all('/api/students/:id', studentsHandler);
-app.all('/api/users', usersHandler);
-app.all('/api/users/:id', usersHandler);
-app.all('/api/communications', communicationsHandler);
-app.all('/api/communications/:id', communicationsHandler);
-app.all('/api/documents', documentsHandler);
-app.all('/api/documents/:id', documentsHandler);
-app.all('/api/payments', paymentsHandler);
-app.all('/api/payments/:id', paymentsHandler);
-app.all('/api/integrations', integrationsHandler);
-app.all('/api/integrations/:id', integrationsHandler);
+app.all('/api/leads*', leadsHandler);
+app.all('/api/students*', studentsHandler);
+app.all('/api/users*', usersHandler);
+app.all('/api/communications*', communicationsHandler);
+app.all('/api/documents*', documentsHandler);
+app.all('/api/payments*', paymentsHandler);
+app.all('/api/integrations*', integrationsHandler);
 
 // ===========================
 // WEBHOOK ENDPOINTS
