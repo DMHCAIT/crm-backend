@@ -1,0 +1,25 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "env": {
+    "VITE_SUPABASE_URL": "https://cyzbdpsfquetmftlaswk.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5emJkcHNmcXVldG1mdGxhc3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0NzQzMjUsImV4cCI6MjA3MjA1MDMyNX0.n6Fflxbe12IMm5ICkoa6jGM2V3c3aohGU-cGW1WJIRA",
+    "VITE_API_BASE_URL": "https://crm-backend-production-5e32.up.railway.app",
+    "VITE_API_BACKEND_URL": "https://crm-backend-production-5e32.up.railway.app/api",
+    "VITE_APP_NAME": "DMHCA CRM",
+    "VITE_APP_VERSION": "1.0.0",
+    "VITE_ENVIRONMENT": "production",
+    "VITE_ENABLE_REAL_TIME": "true",
+    "VITE_ENABLE_NOTIFICATIONS": "true",
+    "VITE_DEBUG_MODE": "false",
+    "VITE_PRODUCTION_ONLY": "true"
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
