@@ -52,79 +52,93 @@ function checkSupabaseInitialized(res) {
   return true;
 }
 
+// Import API handlers
+const leadsHandler = require('./api/leads');
+const dashboardHandler = require('./api/dashboard');
+const healthHandler = require('./api/health');
+const analyticsHandler = require('./api/analytics');
+const studentsHandler = require('./api/students');
+const usersHandler = require('./api/users');
+const communicationsHandler = require('./api/communications');
+const documentsHandler = require('./api/documents');
+const paymentsHandler = require('./api/payments');
+const integrationsHandler = require('./api/integrations');
+
 // ===========================
-// 1. LEAD CAPTURE ENDPOINTS
+// API ROUTES
 // ===========================
 
-// Website form lead capture
-app.post('/api/leads/capture', async (req, res) => {
+// Health check endpoint
+app.get('/health', healthHandler);
+
+// Dashboard stats
+app.get('/api/dashboard/stats', dashboardHandler);
+
+// Core CRM APIs (full CRUD)
+app.all('/api/leads', leadsHandler);
+app.all('/api/students', studentsHandler);
+app.all('/api/users', usersHandler);
+app.all('/api/communications', communicationsHandler);
+app.all('/api/documents', documentsHandler);
+app.all('/api/payments', paymentsHandler);
+
+// Analytics endpoint
+app.get('/api/analytics/realtime', analyticsHandler);
+
+// Integrations API
+app.all('/api/integrations', integrationsHandler);
+
+// Payment-specific routes (for backwards compatibility)
+app.post('/api/payments/create-order', (req, res) => {
+  req.query.action = 'create-order';
+  paymentsHandler(req, res);
+});
+
+// Calendar appointments (using existing function)
+app.post('/api/calendar/create-appointment', async (req, res) => {
   try {
-    if (!checkSupabaseInitialized(res)) return;
-    
-    const { name, email, phone, course_interest, source = 'website', company, budget } = req.body;
+    const { title, startTime, endTime, attendeeEmail, description, leadId } = req.body;
 
-    // Validate required fields
-    if (!name || !email) {
-      return res.status(400).json({ 
-        error: 'Name and email are required' 
+    if (!title || !startTime || !endTime) {
+      return res.status(400).json({
+        error: 'Title, start time, and end time required'
       });
     }
 
-    // Save lead to Supabase
-    const { data: lead, error } = await supabase
-      .from('leads')
-      .insert([{
-        name,
-        email,
-        phone,
-        company,
-        source,
-        status: 'new',
-        score: 50, // Default score
-        notes: course_interest ? `Interested in: ${course_interest}` : null,
-        budget: budget ? parseFloat(budget) : null,
-        tags: course_interest ? [course_interest] : []
-      }])
-      .select()
-      .single();
+    const event = await createGoogleCalendarEvent({
+      summary: title,
+      description,
+      start: { dateTime: startTime },
+      end: { dateTime: endTime },
+      attendees: attendeeEmail ? [{ email: attendeeEmail }] : []
+    });
 
-    if (error) throw error;
-
-    // Log activity
-    await supabase
-      .from('activities')
-      .insert([{
-        type: 'lead_captured',
-        description: `New lead captured: ${name}`,
-        entity_type: 'lead',
-        entity_id: lead.id,
-        data: { source, course_interest }
-      }]);
-
-    // Send auto-response email (if configured)
-    if (process.env.ENABLE_AUTO_RESPONSE === 'true') {
-      await sendAutoResponseEmail(email, name, course_interest);
+    // Log communication
+    if (supabase) {
+      await supabase
+        .from('communications')
+        .insert([{
+          type: 'meeting',
+          direction: 'outbound',
+          subject: title,
+          content: description,
+          recipient: attendeeEmail,
+          status: 'scheduled',
+          scheduled_at: startTime,
+          lead_id: leadId
+        }]);
     }
 
-    // Send WhatsApp notification to admin (if configured)
-    if (process.env.WHATSAPP_ADMIN_PHONE && phone) {
-      await sendWhatsAppNotification(
-        process.env.WHATSAPP_ADMIN_PHONE,
-        `🎯 New Lead Alert!\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nInterest: ${course_interest || 'Not specified'}\nSource: ${source}`
-      );
-    }
-
-    res.status(201).json({
+    res.json({
       success: true,
-      message: 'Lead captured successfully',
-      leadId: lead.id,
-      data: lead
+      eventId: event.id,
+      meetLink: event.hangoutLink
     });
 
   } catch (error) {
-    console.error('Lead capture error:', error);
+    console.error('Calendar creation error:', error);
     res.status(500).json({
-      error: 'Failed to capture lead',
+      error: 'Failed to create calendar appointment',
       details: error.message
     });
   }
@@ -704,10 +718,39 @@ app.use('*', (req, res) => {
     availableRoutes: [
       'GET /',
       'GET /health',
-      'POST /api/leads/capture',
+      'GET /api/dashboard/stats',
+      'GET /api/analytics/realtime',
+      'GET /api/leads',
+      'POST /api/leads',
+      'PUT /api/leads/:id',
+      'DELETE /api/leads/:id',
+      'GET /api/students',
+      'POST /api/students',
+      'PUT /api/students/:id',
+      'DELETE /api/students/:id',
+      'GET /api/users',
+      'POST /api/users',
+      'PUT /api/users/:id',
+      'DELETE /api/users/:id',
+      'GET /api/communications',
+      'POST /api/communications',
+      'PUT /api/communications/:id',
+      'DELETE /api/communications/:id',
+      'GET /api/documents',
+      'POST /api/documents',
+      'PUT /api/documents/:id',
+      'DELETE /api/documents/:id',
+      'GET /api/payments',
+      'POST /api/payments',
+      'POST /api/payments/create-order',
+      'GET /api/integrations',
+      'POST /api/integrations',
+      'POST /api/calendar/create-appointment',
       'POST /api/whatsapp/send',
       'POST /api/email/send',
-      'GET /api/analytics/realtime'
+      'POST /webhooks/facebook',
+      'POST /webhooks/whatsapp',
+      'POST /webhooks/razorpay'
     ]
   });
 });

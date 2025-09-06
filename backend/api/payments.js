@@ -16,13 +16,46 @@ module.exports = async (req, res) => {
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
+  }
+
+  // Handle GET - Retrieve payments
+  if (req.method === 'GET') {
+    try {
+      const { student_id, status, limit = 50 } = req.query;
+      
+      let query = supabase
+        .from('payments')
+        .select('*, students(name, email)')
+        .order('created_at', { ascending: false })
+        .limit(parseInt(limit));
+
+      // Apply filters
+      if (student_id) query = query.eq('student_id', student_id);
+      if (status) query = query.eq('status', status);
+
+      const { data: payments, error } = await query;
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        data: payments || [],
+        count: payments?.length || 0
+      });
+    } catch (error) {
+      console.error('Payments GET error:', error);
+      return res.status(500).json({
+        error: 'Failed to fetch payments',
+        details: error.message
+      });
+    }
   }
 
   if (req.method === 'POST') {
