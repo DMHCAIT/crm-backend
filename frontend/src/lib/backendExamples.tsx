@@ -8,8 +8,9 @@ import {
   initializeBackend,
   getRealTimeManager,
   getDatabaseManager,
-  getAuthManager,
   getIntegrationManager,
+  getSupabase,
+  getApiClient,
   type RealTimeData,
   type DatabaseLead
 } from './backend';
@@ -101,15 +102,17 @@ export const useLeadsManager = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const databaseManager = getDatabaseManager();
+  const apiClient = getApiClient();
 
   const loadLeads = async () => {
     setLoading(true);
     setError(null);
     try {
-      const leadsData = await databaseManager.getLeads();
-      setLeads(leadsData);
+      const response: any = await apiClient.getLeads();
+      const leadsData = response.data || [];
+      setLeads(leadsData as DatabaseLead[]);
     } catch (err) {
+      console.warn('⚠️ Database connection failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to load leads');
     } finally {
       setLoading(false);
@@ -119,7 +122,7 @@ export const useLeadsManager = () => {
   const createLead = async (leadData: Omit<DatabaseLead, 'id' | 'created_at' | 'updated_at'>) => {
     setLoading(true);
     try {
-      const newLead = await databaseManager.createLead(leadData);
+      const newLead = await apiClient.createLead(leadData) as DatabaseLead;
       setLeads(prev => [newLead, ...prev]);
       return newLead;
     } catch (err) {
@@ -133,7 +136,7 @@ export const useLeadsManager = () => {
   const updateLead = async (id: string, updates: Partial<DatabaseLead>) => {
     setLoading(true);
     try {
-      const updatedLead = await databaseManager.updateLead(id, updates);
+      const updatedLead = await apiClient.updateLead(id, updates) as DatabaseLead;
       setLeads(prev => prev.map(lead => lead.id === id ? updatedLead : lead));
       return updatedLead;
     } catch (err) {
@@ -147,7 +150,7 @@ export const useLeadsManager = () => {
   const deleteLead = async (id: string) => {
     setLoading(true);
     try {
-      await databaseManager.deleteLead(id);
+      await apiClient.deleteLead(id);
       setLeads(prev => prev.filter(lead => lead.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete lead');
@@ -181,14 +184,16 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const authManager = getAuthManager();
+  // Use the modern API client instead of deprecated methods
+  const supabase = getSupabase();
 
   useEffect(() => {
     // Check current user
     const checkUser = async () => {
       try {
-        const currentUser = await authManager.getCurrentUser();
-        setUser(currentUser);
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        setUser(user);
       } catch (err) {
         console.log('No user session found');
       } finally {
@@ -199,7 +204,7 @@ export const useAuth = () => {
     checkUser();
 
     // Listen for auth changes
-    const { data: { subscription } } = authManager.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
       setLoading(false);
     });
@@ -211,9 +216,15 @@ export const useAuth = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await authManager.signIn(email, password);
-      setUser(result.user);
-      return result;
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+      
+      setUser(data.user);
+      return data;
     } catch (err) {
       let errorMessage = 'Sign in failed';
       
@@ -240,11 +251,17 @@ export const useAuth = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await authManager.signUp(email, password);
-      if (result.user) {
-        setUser(result.user);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+
+      if (error) throw error;
+      
+      if (data.user) {
+        setUser(data.user);
       }
-      return result;
+      return data;
     } catch (err) {
       let errorMessage = 'Sign up failed';
       
@@ -270,7 +287,8 @@ export const useAuth = () => {
   const signOut = async () => {
     setLoading(true);
     try {
-      await authManager.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       setUser(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign out failed');
