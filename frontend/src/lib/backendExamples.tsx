@@ -11,8 +11,7 @@ import {
   getAuthManager,
   getIntegrationManager,
   type RealTimeData,
-  type DatabaseLead,
-  type DatabaseStudent
+  type DatabaseLead
 } from './backend';
 
 // ===========================
@@ -200,7 +199,7 @@ export const useAuth = () => {
     checkUser();
 
     // Listen for auth changes
-    const { data: { subscription } } = authManager.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = authManager.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
       setLoading(false);
     });
@@ -222,7 +221,7 @@ export const useAuth = () => {
         if (err.message.includes('Invalid login credentials')) {
           errorMessage = 'Invalid email or password. Please check your credentials.';
         } else if (err.message.includes('Database error')) {
-          errorMessage = 'Database connection error. Try the Demo Login button above.';
+          errorMessage = 'Database connection error. Please contact support for assistance.';
         } else if (err.message.includes('Auth session missing')) {
           errorMessage = 'Authentication session error. Please try again.';
         } else {
@@ -366,7 +365,7 @@ export const useIntegrations = () => {
 export const CRMBackendExample = () => {
   const { isInitialized, error: backendError } = useBackend();
   const { realTimeData, connectionStatus } = useRealTimeData();
-  const { user, signIn, signOut, isAuthenticated } = useAuth();
+  const { user, signOut, isAuthenticated } = useAuth();
   const { leads, createLead } = useLeadsManager();
   const { integrations, testConnection } = useIntegrations();
 
@@ -382,9 +381,7 @@ export const CRMBackendExample = () => {
     return (
       <div>
         <h2>Please Sign In</h2>
-        <button onClick={() => signIn('demo@crm.com', 'demo123456')}>
-          Demo Sign In
-        </button>
+        <p>Please use the login form to access the CRM system</p>
       </div>
     );
   }

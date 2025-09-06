@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .loading { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .info { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 3px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .token-display { 
+            background: #fff3cd; 
+            border: 1px solid #ffeaa7; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔗 Facebook Integration Test</h1>
+    
+    <div class="token-display">
+        <strong>Token:</strong> EAARjf4qcqcABPQ2Fx6BduYOjn1cZCPRO221beobGLHb7T2Q7Bmc1nGMcsPDIZC7UKXPeflqdq2oLqopN6GfQVQvbtAtFTddFJnLu7TO9cS9pbZAb9ckrZAZASZAi8hhitlithGsWYwKnStBymKOtCXyyQCXtZAdJMjzXCxxjTjUZA4HJTZC6QbJfIZBLnVxvAh5q178ugLwQvRRsv1qXXrmLKkmKMGQxcOlD5S5ZB3zNZBpXDZAoZD
+    </div>
+    
+    <div id="results"></div>
+    
+    <button class="btn-primary" onclick="testToken()">Test Token Validity</button>
+    <button class="btn-primary" onclick="testUserInfo()">Get User Info</button>
+    <button class="btn-primary" onclick="testPages()">Get Pages</button>
+    <button class="btn-success" onclick="testLeadgenForms()">Get Lead Gen Forms</button>
+
+    <script>
+        const ACCESS_TOKEN = 'EAARjf4qcqcABPQ2Fx6BduYOjn1cZCPRO221beobGLHb7T2Q7Bmc1nGMcsPDIZC7UKXPeflqdq2oLqopN6GfQVQvbtAtFTddFJnLu7TO9cS9pbZAb9ckrZAZASZAi8hhitlithGsWYwKnStBymKOtCXyyQCXtZAdJMjzXCxxjTjUZA4HJTZC6QbJfIZBLnVxvAh5q178ugLwQvRRsv1qXXrmLKkmKMGQxcOlD5S5ZB3zNZBpXDZAoZD';
+        
+        function addResult(message, type = 'loading') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+            return div;
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        async function testToken() {
+            const result = addResult('🔍 Testing token validity...', 'loading');
+            try {
+                const response = await fetch(`https://graph.facebook.com/me?access_token=${ACCESS_TOKEN}`);
+                const data = await response.json();
+                
+                if (response.ok && data.id) {
+                    result.className = 'test-result success';
+                    result.innerHTML = `✅ Token is valid!<br>
+                        <strong>User ID:</strong> ${data.id}<br>
+                        <strong>Name:</strong> ${data.name || 'Not available'}<br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    throw new Error(data.error?.message || 'Token validation failed');
+                }
+            } catch (error) {
+                result.className = 'test-result error';
+                result.innerHTML = `❌ Token validation failed: ${error.message}`;
+            }
+        }
+        
+        async function testUserInfo() {
+            const result = addResult('👤 Getting user information...', 'loading');
+            try {
+                const response = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${ACCESS_TOKEN}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.className = 'test-result success';
+                    result.innerHTML = `✅ User info retrieved!<br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    throw new Error(data.error?.message || 'Failed to get user info');
+                }
+            } catch (error) {
+                result.className = 'test-result error';
+                result.innerHTML = `❌ User info failed: ${error.message}`;
+            }
+        }
+        
+        async function testPages() {
+            const result = addResult('📄 Getting pages...', 'loading');
+            try {
+                const response = await fetch(`https://graph.facebook.com/me/accounts?access_token=${ACCESS_TOKEN}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.className = 'test-result success';
+                    result.innerHTML = `✅ Pages retrieved! Found ${data.data?.length || 0} pages<br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    throw new Error(data.error?.message || 'Failed to get pages');
+                }
+            } catch (error) {
+                result.className = 'test-result error';
+                result.innerHTML = `❌ Pages retrieval failed: ${error.message}`;
+            }
+        }
+        
+        async function testLeadgenForms() {
+            const result = addResult('📋 Getting lead generation forms...', 'loading');
+            try {
+                // First get pages
+                const pagesResponse = await fetch(`https://graph.facebook.com/me/accounts?access_token=${ACCESS_TOKEN}`);
+                const pagesData = await pagesResponse.json();
+                
+                if (!pagesResponse.ok) {
+                    throw new Error(pagesData.error?.message || 'Failed to get pages');
+                }
+                
+                const pages = pagesData.data || [];
+                if (pages.length === 0) {
+                    result.className = 'test-result info';
+                    result.innerHTML = '⚠️ No pages found. You need a Facebook page to create lead generation forms.';
+                    return;
+                }
+                
+                // Get lead gen forms for each page
+                const allForms = [];
+                for (const page of pages) {
+                    try {
+                        const formsResponse = await fetch(`https://graph.facebook.com/${page.id}/leadgen_forms?access_token=${ACCESS_TOKEN}`);
+                        const formsData = await formsResponse.json();
+                        
+                        if (formsResponse.ok && formsData.data) {
+                            allForms.push({
+                                pageId: page.id,
+                                pageName: page.name,
+                                forms: formsData.data
+                            });
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to get forms for page ${page.id}:`, e);
+                    }
+                }
+                
+                result.className = 'test-result success';
+                result.innerHTML = `✅ Lead generation forms retrieved!<br>
+                    <strong>Pages checked:</strong> ${pages.length}<br>
+                    <strong>Total forms:</strong> ${allForms.reduce((sum, p) => sum + p.forms.length, 0)}<br>
+                    <pre>${JSON.stringify(allForms, null, 2)}</pre>`;
+                    
+            } catch (error) {
+                result.className = 'test-result error';
+                result.innerHTML = `❌ Lead gen forms retrieval failed: ${error.message}`;
+            }
+        }
+        
+        // Auto-run token test on page load
+        window.onload = () => {
+            setTimeout(testToken, 1000);
+        };
+    </script>
+</body>
+</html>

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ErrorBoundary from './components/ErrorBoundary';
+import { NotificationProvider } from './components/NotificationSystem';
 import AuthWrapper from './components/AuthWrapper';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -16,6 +18,7 @@ import Integrations from './components/Integrations';
 import UserProfile from './components/UserProfile';
 import UserManagement from './components/UserManagement';
 import Settings from './components/Settings';
+import DataExport from './components/DataExport';
 
 const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -52,33 +55,39 @@ const App: React.FC = () => {
         return <UserManagement />;
       case 'settings':
         return <Settings />;
+      case 'data-export':
+        return <DataExport />;
       default:
         return <Dashboard onNavigate={setActiveSection} />;
     }
   };
 
   return (
-    <AuthWrapper>
-      <div className="flex h-screen bg-gray-50">
-        {/* Sidebar */}
-        <Sidebar 
-          activeSection={activeSection} 
-          setActiveSection={setActiveSection} 
-        />
-        
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header />
-          
-          {/* Page Content */}
-          <main className="flex-1 overflow-y-auto">
-            <div className="p-6">
-              {renderActiveSection()}
+    <ErrorBoundary>
+      <NotificationProvider>
+        <AuthWrapper>
+          <div className="flex h-screen bg-gray-50">
+            {/* Sidebar */}
+            <Sidebar 
+              activeSection={activeSection} 
+              setActiveSection={setActiveSection} 
+            />
+            
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <Header />
+              
+              {/* Page Content */}
+              <main className="flex-1 overflow-y-auto">
+                <div className="p-6">
+                  {renderActiveSection()}
+                </div>
+              </main>
             </div>
-          </main>
-        </div>
-      </div>
-    </AuthWrapper>
+          </div>
+        </AuthWrapper>
+      </NotificationProvider>
+    </ErrorBoundary>
   );
 };
 

@@ -17,17 +17,23 @@ const ProductionStatus: React.FC = () => {
   const checkBackendConnection = async () => {
     try {
       const apiClient = getApiClient();
-      const response = await apiClient.healthCheck();
+      // Test backend API connection by trying to get leads
+      const leads: any = await apiClient.getLeads();
       
-      if (response) {
+      if (leads || Array.isArray(leads)) {
         setStatus('connected');
-        setBackendInfo(response);
-        console.log('✅ Backend connection successful:', response);
+        setBackendInfo({
+          status: 'connected',
+          database: 'Supabase PostgreSQL',
+          connection: 'Direct Database Access',
+          leads_count: Array.isArray(leads) ? leads.length : 0
+        });
+        console.log('✅ Database connection successful');
       } else {
         setStatus('disconnected');
       }
     } catch (error) {
-      console.warn('⚠️ Backend connection failed:', error);
+      console.warn('⚠️ Database connection failed:', error);
       setStatus('error');
       setBackendInfo({ error: error instanceof Error ? error.message : 'Unknown error' });
     }

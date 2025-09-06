@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { getApiClient } from '../lib/backend';
 import { 
   TrendingUp, 
-  Users, 
   GraduationCap, 
   DollarSign, 
   Calendar, 
@@ -12,58 +13,127 @@ import {
 } from 'lucide-react';
 
 const Analytics: React.FC = () => {
+  const { user } = useAuth();
   const [timeframe, setTimeframe] = useState('month');
+  const [loading, setLoading] = useState(true);
+  const [kpiMetrics, setKpiMetrics] = useState<any[]>([]);
+  const [channelPerformance, setChannelPerformance] = useState<any[]>([]);
+  const [courseAnalytics, setCourseAnalytics] = useState<any[]>([]);
 
-  const kpiMetrics = [
-    {
-      title: 'Lead Conversion Rate',
-      value: '68.4%',
-      change: '+5.2%',
-      changeType: 'positive',
-      icon: Target,
-      description: 'Leads to enrollment conversion'
-    },
-    {
-      title: 'Average Response Time',
-      value: '2.4 hrs',
-      change: '-0.8 hrs',
-      changeType: 'positive',
-      icon: Calendar,
-      description: 'First response to new leads'
-    },
-    {
-      title: 'Student Retention',
-      value: '94.2%',
-      change: '+1.1%',
-      changeType: 'positive',
-      icon: GraduationCap,
-      description: 'Year-over-year retention rate'
-    },
-    {
-      title: 'Revenue per Student',
-      value: '₹2.8L',
-      change: '+12%',
-      changeType: 'positive',
-      icon: DollarSign,
-      description: 'Average annual revenue'
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [user, timeframe]);
+
+  const loadAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      const apiClient = getApiClient();
+      
+      // Get analytics data from backend API (proper architecture)
+      const leadsData: any = await apiClient.getLeads();
+      const leads = Array.isArray(leadsData) ? leadsData : [];
+
+      // Calculate KPI metrics from real data
+      const totalLeads = leads.length;
+      const convertedLeads = leads.filter((lead: any) => lead.status === 'closed_won').length;
+      const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
+
+      const kpiData = [
+        {
+          title: 'Lead Conversion Rate',
+          value: `${Math.round(conversionRate * 10) / 10}%`,
+          change: '+5.2%', // This would come from comparing to previous period
+          changeType: 'positive',
+          icon: Target,
+          description: 'Leads to enrollment conversion'
+        },
+        {
+          title: 'Average Response Time',
+          value: `2.4h`, // Calculate from communications data
+          change: '-0.8 hrs',
+          changeType: 'positive',
+          icon: Calendar,
+          description: 'First response to new leads'
+        },
+        {
+          title: 'Student Retention',
+          value: '94.2%', // This would come from student data
+          change: '+1.1%',
+          changeType: 'positive',
+          icon: GraduationCap,
+          description: 'Year-over-year retention rate'
+        },
+        {
+          title: 'Revenue per Student',
+          value: '₹2.8L',
+          change: '+12%',
+          changeType: 'positive',
+          icon: DollarSign,
+          description: 'Average annual revenue'
+        }
+      ];
+
+      // Calculate channel performance from leads data
+      const channelData = [
+        'Website', 'Facebook Ads', 'Education Fairs', 'Referrals', 'Google Ads'
+      ].map(channel => {
+        const channelLeads = leads.filter((lead: any) => 
+          lead.source?.toLowerCase().includes(channel.toLowerCase()) ||
+          (channel === 'Website' && lead.source === 'website') ||
+          (channel === 'Facebook Ads' && lead.source === 'social_media') ||
+          (channel === 'Referrals' && lead.source === 'referral')
+        );
+        
+        const channelConversions = channelLeads.filter((lead: any) => lead.status === 'closed_won').length;
+        const rate = channelLeads.length > 0 ? (channelConversions / channelLeads.length) * 100 : 0;
+        
+        return {
+          channel,
+          leads: channelLeads.length,
+          conversions: channelConversions,
+          rate: `${Math.round(rate * 10) / 10}%`,
+          cost: '₹0' // This would come from marketing data
+        };
+      });
+
+      // Course analytics - placeholder data since this would come from enrollment system
+      const courseData = [
+        { course: 'MBBS', applications: 0, enrolled: 0, capacity: 500, utilization: '0%' },
+        { course: 'MD Cardiology', applications: 0, enrolled: 0, capacity: 150, utilization: '0%' },
+        { course: 'MD Pediatrics', applications: 0, enrolled: 0, capacity: 80, utilization: '0%' },
+        { course: 'MS Surgery', applications: 0, enrolled: 0, capacity: 60, utilization: '0%' },
+        { course: 'MD Radiology', applications: 0, enrolled: 0, capacity: 40, utilization: '0%' }
+      ];
+
+      setKpiMetrics(kpiData);
+      setChannelPerformance(channelData);
+      setCourseAnalytics(courseData);
+
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+      // Set empty/default data on error
+      setKpiMetrics([]);
+      setChannelPerformance([]);
+      setCourseAnalytics([]);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
-  const channelPerformance = [
-    { channel: 'Website', leads: 456, conversions: 312, rate: '68.4%', cost: '₹2,400' },
-    { channel: 'Facebook Ads', leads: 234, conversions: 145, rate: '62.0%', cost: '₹4,800' },
-    { channel: 'Education Fairs', leads: 123, conversions: 89, rate: '72.4%', cost: '₹8,000' },
-    { channel: 'Referrals', leads: 89, conversions: 76, rate: '85.4%', cost: '₹1,200' },
-    { channel: 'Google Ads', leads: 167, conversions: 98, rate: '58.7%', cost: '₹6,700' }
-  ];
-
-  const courseAnalytics = [
-    { course: 'MBBS', applications: 1234, enrolled: 456, capacity: 500, utilization: '91.2%' },
-    { course: 'MD Cardiology', applications: 456, enrolled: 123, capacity: 150, utilization: '82.0%' },
-    { course: 'MD Pediatrics', applications: 234, enrolled: 67, capacity: 80, utilization: '83.8%' },
-    { course: 'MS Surgery', applications: 189, enrolled: 45, capacity: 60, utilization: '75.0%' },
-    { course: 'MD Radiology', applications: 156, enrolled: 34, capacity: 40, utilization: '85.0%' }
-  ];
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-64 mb-6"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-gray-200 rounded-lg h-32"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">

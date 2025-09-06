@@ -1,8 +1,36 @@
-import React from 'react';
-import { Bell, Search, User } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bell, Search, User, LogOut, ChevronDown } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 import ProductionStatus from './ProductionStatus';
 
 const Header: React.FC = () => {
+  const { user, signOut } = useAuth();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      // Redirect will be handled by AuthWrapper
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
@@ -26,17 +54,49 @@ const Header: React.FC = () => {
             </span>
           </button>
           
-          <div className="flex items-center space-x-3 border-l border-gray-200 pl-4">
+          <div className="relative flex items-center space-x-3 border-l border-gray-200 pl-4">
             <div className="text-right">
-              <p className="text-sm font-medium text-gray-900">Dr. Sarah Johnson</p>
-              <p className="text-xs text-gray-500">Admissions Counselor</p>
+              <p className="text-sm font-medium text-gray-900">{user?.name || 'Dr. Sarah Johnson'}</p>
+              <p className="text-xs text-gray-500">{user?.role || 'Admissions Counselor'}</p>
             </div>
-            <button 
-              className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center hover:shadow-md transition-shadow"
-              onClick={() => window.location.hash = '#profile'}
-            >
-              <User className="w-4 h-4 text-white" />
-            </button>
+            <div className="relative" ref={menuRef}>
+              <button 
+                className="flex items-center space-x-1 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full hover:shadow-md transition-shadow"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+              >
+                <User className="w-4 h-4 text-white ml-2" />
+                <ChevronDown className="w-3 h-3 text-white" />
+              </button>
+              
+              {/* User Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                  <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        window.location.hash = '#profile';
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <User className="w-4 h-4 mr-2" />
+                      Profile
+                    </button>
+                    <hr className="my-1 border-gray-200" />
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        handleLogout();
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

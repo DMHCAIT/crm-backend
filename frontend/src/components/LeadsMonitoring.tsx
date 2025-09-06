@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { getApiClient } from '../lib/backend';
 import { 
   Search, 
   Filter,
@@ -65,70 +66,6 @@ const LeadsMonitoring: React.FC = () => {
     recentConversions: 0
   });
 
-  // Sample leads data with enhanced monitoring features
-  const sampleLeads: Lead[] = [
-    {
-      id: 'LEAD-2024-001',
-      name: 'Dr. Rahul Sharma',
-      email: 'rahul.sharma@email.com',
-      phone: '+91 9876543210',
-      course: 'Fellowship in Cardiology',
-      source: 'Website',
-      status: 'hot_lead',
-      priority: 'high',
-      experience: '5 years',
-      location: 'Delhi',
-      notes: 'Very interested in Cardiology Fellowship. Called twice for fee details.',
-      createdAt: '2024-12-10T10:30:00Z',
-      assignedCounselor: 'Dr. Sarah Johnson',
-      createdBy: 'Dr. Sarah Johnson',
-      score: 89,
-      lastContact: '2024-12-10T14:30:00Z',
-      nextFollowUp: '2024-12-11T10:00:00Z',
-      communicationsCount: 5
-    },
-    {
-      id: 'LEAD-2024-002',
-      name: 'Dr. Priya Patel',
-      email: 'priya.patel@email.com',
-      phone: '+91 9876543211',
-      course: 'PG Diploma in Emergency Medicine',
-      source: 'Facebook Ads',
-      status: 'interested',
-      priority: 'medium',
-      experience: '3 years',
-      location: 'Mumbai',
-      notes: 'Emergency medicine doctor, looking for advanced certification.',
-      createdAt: '2024-12-09T14:20:00Z',
-      assignedCounselor: 'Dr. Michael Chen',
-      createdBy: 'Dr. Sarah Johnson',
-      score: 72,
-      lastContact: '2024-12-09T16:20:00Z',
-      nextFollowUp: '2024-12-12T15:00:00Z',
-      communicationsCount: 3
-    },
-    {
-      id: 'LEAD-2024-003',
-      name: 'Dr. Amit Kumar',
-      email: 'amit.kumar@email.com',
-      phone: '+91 9876543212',
-      course: 'Certification in Diabetes Management',
-      source: 'Education Fair',
-      status: 'follow_up',
-      priority: 'medium',
-      experience: '7 years',
-      location: 'Bangalore',
-      notes: 'General practitioner interested in diabetes specialization.',
-      createdAt: '2024-12-08T09:15:00Z',
-      assignedCounselor: 'Dr. Sarah Johnson',
-      createdBy: 'Dr. Sarah Johnson',
-      score: 65,
-      lastContact: '2024-12-08T11:15:00Z',
-      nextFollowUp: '2024-12-10T09:00:00Z', // Overdue
-      communicationsCount: 2
-    }
-  ];
-
   useEffect(() => {
     loadLeads();
   }, [user]);
@@ -141,21 +78,52 @@ const LeadsMonitoring: React.FC = () => {
     try {
       setLoading(true);
       
-      // In production, this would query Supabase
-      setLeads(sampleLeads);
+      // Get real data from backend API (proper architecture)
+      const apiClient = getApiClient();
+      const leadsData: any = await apiClient.getLeads();
       
-      // Calculate monitoring stats
+      // Convert API data to frontend format
+      const formattedLeads: Lead[] = Array.isArray(leadsData) ? leadsData.map((lead: any) => ({
+        id: lead.id || `LEAD-${Date.now()}-${Math.random().toString(36).substr(2, 3)}`,
+        name: lead.name || 'Unknown Lead',
+        email: lead.email || '',
+        phone: lead.phone || '',
+        course: lead.course || 'Not specified',
+        source: lead.source || 'Unknown',
+        status: lead.status || 'new',
+        priority: lead.priority || 'medium',
+        experience: lead.experience || 'Not specified',
+        location: lead.location || 'Not specified',
+        notes: lead.notes || '',
+        createdAt: lead.created_at || lead.createdAt || new Date().toISOString(),
+        assignedCounselor: lead.assigned_to || lead.assignedCounselor || 'Unassigned',
+        createdBy: lead.created_by || lead.createdBy || 'System',
+        score: lead.score || 0,
+        lastContact: lead.last_contact || lead.lastContact || lead.updated_at || lead.updatedAt || new Date().toISOString(),
+        nextFollowUp: lead.next_follow_up || lead.nextFollowUp || '',
+        communicationsCount: lead.communications_count || lead.communicationsCount || 0
+      })) : [];
+
+      setLeads(formattedLeads);
+      
+      // Calculate monitoring stats from real data
       const stats = {
-        totalLeads: sampleLeads.length,
-        responseRate: 85.2,
-        avgScore: sampleLeads.reduce((sum, lead) => sum + (lead.score || 0), 0) / sampleLeads.length,
-        overdueTasks: sampleLeads.filter(lead => 
-          lead.nextFollowUp && new Date(lead.nextFollowUp) < new Date()
-        ).length,
-        hotLeads: sampleLeads.filter(lead => lead.status === 'hot_lead').length,
-        recentConversions: 8
+        totalLeads: formattedLeads.length,
+        responseRate: 85.2, // This would come from analytics API
+        avgScore: formattedLeads.length > 0 ? 
+          formattedLeads.reduce((sum, lead) => sum + (lead.score || 0), 0) / formattedLeads.length : 0,
+        overdueTasks: formattedLeads.filter(lead => {
+          if (!lead.nextFollowUp) return false;
+          return new Date(lead.nextFollowUp) < new Date();
+        }).length,
+        hotLeads: formattedLeads.filter(lead => lead.status === 'qualified' || lead.status === 'hot').length,
+        recentConversions: formattedLeads.filter(lead => {
+          if (lead.status !== 'closed_won') return false;
+          const daysDiff = (Date.now() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+          return daysDiff <= 7;
+        }).length
       };
-      
+
       setMonitoringStats(stats);
       
     } catch (error) {

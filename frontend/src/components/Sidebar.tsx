@@ -13,7 +13,8 @@ import {
   Inbox,
   User,
   Target,
-  Activity
+  Activity,
+  Download
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -34,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, setActiveSection }) =>
     { id: 'documents', label: 'Documents', icon: FileText },
     { id: 'automations', label: 'Automations', icon: Zap },
     { id: 'integrations', label: 'Integrations', icon: Link },
+    { id: 'data-export', label: 'Data Export', icon: Download },
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'user-management', label: 'User Management', icon: Users },
     { id: 'settings', label: 'Settings', icon: Settings }

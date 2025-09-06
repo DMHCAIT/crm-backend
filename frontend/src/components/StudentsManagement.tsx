@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { getApiClient } from '../lib/backend';
 import { 
   Search, 
   GraduationCap, 
@@ -9,81 +11,62 @@ import {
   Clock, 
   AlertCircle,
   User,
-  BookOpen,
   UserPlus
 } from 'lucide-react';
 
 const StudentsManagement: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('all');
-  const currentUser = 'Dr. Sarah Johnson'; // This would come from auth context
-  const currentUserRole = 'team_leader'; // This would come from auth context
+  const [students, setStudents] = useState<any[]>([]);
+  const currentUser = user?.name || 'Unknown User';
+  const currentUserRole = user?.role || 'team_leader';
 
   // Get converted students from localStorage
   const getConvertedStudents = () => {
     return JSON.parse(localStorage.getItem('convertedStudents') || '[]');
   };
 
-  const students = [
-    {
-      id: 1,
-      name: 'Dr. Ananya Reddy',
-      email: 'ananya.reddy@email.com',
-      phone: '+91 9876543214',
-      course: 'Fellowship in Critical Care',
-      year: 'Module 3 of 4',
-      status: 'currently-learning',
-      enrollmentDate: '2022-08-15',
-      feeStatus: 'paid',
-      documents: 'complete',
-      nextPayment: '2025-02-15',
-      amount: '₹2,50,000'
-    },
-    {
-      id: 2,
-      name: 'Dr. Vikram Singh',
-      email: 'vikram.singh@email.com',
-      phone: '+91 9876543215',
-      course: 'PG Diploma in Emergency Medicine',
-      year: 'Module 1 of 3',
-      status: 'active',
-      enrollmentDate: '2024-08-20',
-      feeStatus: 'pending',
-      documents: 'incomplete',
-      nextPayment: '2025-01-15',
-      amount: '₹3,00,000'
-    },
-    {
-      id: 3,
-      name: 'Dr. Meera Joshi',
-      email: 'meera.joshi@email.com',
-      phone: '+91 9876543216',
-      course: 'Certification in Diabetes Management',
-      year: 'Module 2 of 2',
-      status: 'completed',
-      enrollmentDate: '2021-08-10',
-      feeStatus: 'paid',
-      documents: 'complete',
-      nextPayment: '2025-03-15',
-      amount: '₹2,75,000'
-    },
-    {
-      id: 4,
-      name: 'Dr. Arjun Malik',
-      email: 'arjun.malik@email.com',
-      phone: '+91 9876543217',
-      course: 'Fellowship in Interventional Cardiology',
-      year: 'Module 3 of 6',
-      status: 'on-hold',
-      enrollmentDate: '2023-08-12',
-      feeStatus: 'overdue',
-      documents: 'complete',
-      nextPayment: '2024-12-15',
-      amount: '₹2,85,000'
-    }
-  ];
+  useEffect(() => {
+    loadStudentsData();
+  }, [user]);
 
-  // Combine default students with converted students
-  const allStudents = [...students, ...getConvertedStudents()];
+  const loadStudentsData = async () => {
+    try {
+      // Get real students data from backend API (proper architecture)
+      const apiClient = getApiClient();
+      const studentsData: any = await apiClient.getStudents();
+      
+      // Convert API data to frontend format
+      const formattedStudents = (studentsData || []).map((student: any) => ({
+        id: student.id,
+        name: student.name || 'Unknown Student',
+        email: student.email || '',
+        phone: student.phone || '',
+        course: student.course || 'Not specified',
+        year: 'Module 1 of 1', // This would be calculated from enrollment data
+        status: student.status || 'active',
+        enrollmentDate: student.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+        feeStatus: 'pending', // This would come from payment system
+        documents: 'incomplete', // This would come from document system
+        nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+        amount: '₹0'
+      }));
+
+      // Combine backend students with converted students from localStorage
+      const convertedStudents = getConvertedStudents();
+      const allStudentsData = [...formattedStudents, ...convertedStudents];
+      
+      setStudents(allStudentsData);
+      
+    } catch (error) {
+      console.error('Error loading students data:', error);
+      // Fallback to converted students only
+      setStudents(getConvertedStudents());
+    }
+  };
+
+  // Get the combined students data
+  const allStudents = students;
 
   // Role-based student filtering
   const getAccessibleStudents = () => {

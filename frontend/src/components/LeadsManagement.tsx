@@ -25,7 +25,16 @@ import {
   FileUp,
   ArrowUpDown,
   User,
-  MessageSquare
+  MessageSquare,
+  BarChart3,
+  PieChart,
+  TrendingDown,
+  AlertTriangle,
+  Timer,
+  Eye,
+  Bell,
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 
 // Types and Interfaces
@@ -129,13 +138,13 @@ const LeadsManagement: React.FC = () => {
     try {
       setLoading(true);
       
-      // Load from production Railway API only
+      // Load from backend API (proper architecture)
       const apiClient = getApiClient();
-      const apiLeads = await apiClient.getLeads();
+      const dbLeads = await apiClient.getLeads();
       
-      if (apiLeads && Array.isArray(apiLeads)) {
+      if (dbLeads && Array.isArray(dbLeads)) {
         // Transform API data to match component format
-        const transformedLeads = apiLeads.map((lead: any) => ({
+        const transformedLeads = dbLeads.map((lead: any) => ({
           id: lead.id || lead._id || String(Math.random()),
           fullName: lead.name || lead.fullName || 'Unknown',
           email: lead.email || '',
@@ -399,18 +408,18 @@ const LeadsManagement: React.FC = () => {
 
       setLoading(true);
 
-      // Prepare lead data for production API
+      // Prepare lead data for database insertion
       const leadData = {
         name: newLead.fullName,
         email: newLead.email,
         phone: newLead.phone,
-        source: newLead.source || 'manual',
-        status: newLead.status || 'new',
+        source: (newLead.source || 'manual') as 'website' | 'social_media' | 'referral' | 'manual' | 'advertisement',
+        status: (newLead.status || 'new') as 'new' | 'contacted' | 'qualified' | 'proposal' | 'closed_won' | 'closed_lost',
+        score: 50, // Default score for new leads
         assigned_to: newLead.assignedTo || user?.name || 'Unassigned',
-        notes: `Lead created via manual entry by ${user?.name || 'System'}`
       };
 
-      // Create via production Railway API only
+      // Create via backend API (proper architecture)
       const apiClient = getApiClient();
       const createdLead: any = await apiClient.createLead(leadData);
       
@@ -672,7 +681,194 @@ const LeadsManagement: React.FC = () => {
     };
   };
 
+  // Advanced Monitoring Functions
+  const getAdvancedMetrics = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    // Lead velocity metrics
+    const todayLeads = leads.filter(lead => {
+      const leadDate = new Date(lead.createdAt);
+      const leadDateOnly = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
+      return leadDateOnly.getTime() === today.getTime();
+    });
+    
+    const yesterdayLeads = leads.filter(lead => {
+      const leadDate = new Date(lead.createdAt);
+      const leadDateOnly = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
+      return leadDateOnly.getTime() === yesterday.getTime();
+    });
+    
+    const weekLeads = leads.filter(lead => {
+      const leadDate = new Date(lead.createdAt);
+      return leadDate >= weekAgo;
+    });
+    
+    // Conversion metrics
+    const convertedLeads = leads.filter(lead => lead.status === 'converted');
+    const conversionRate = leads.length > 0 ? (convertedLeads.length / leads.length * 100) : 0;
+    
+    // Response time metrics
+    const followupDueLeads = leads.filter(lead => {
+      if (!lead.followUp) return false;
+      const followupDate = new Date(lead.followUp);
+      return followupDate <= now && lead.status !== 'converted';
+    });
+    
+    // Assignment distribution
+    const assignmentDistribution = leads.reduce((acc, lead) => {
+      const assignee = lead.assignedTo || 'Unassigned';
+      acc[assignee] = (acc[assignee] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Source performance
+    const sourcePerformance = leads.reduce((acc, lead) => {
+      const source = lead.source || 'Unknown';
+      if (!acc[source]) {
+        acc[source] = { total: 0, converted: 0 };
+      }
+      acc[source].total++;
+      if (lead.status === 'converted') {
+        acc[source].converted++;
+      }
+      return acc;
+    }, {} as Record<string, { total: number, converted: number }>);
+    
+    // Activity metrics
+    const lastActivity = leads.reduce((latest, lead) => {
+      const leadUpdate = new Date(lead.updatedAt);
+      return leadUpdate > latest ? leadUpdate : latest;
+    }, new Date(0));
+    
+    return {
+      todayCount: todayLeads.length,
+      yesterdayCount: yesterdayLeads.length,
+      weekCount: weekLeads.length,
+      conversionRate: Math.round(conversionRate * 10) / 10,
+      followupDue: followupDueLeads.length,
+      assignmentDistribution,
+      sourcePerformance,
+      lastActivity,
+      leadVelocity: todayLeads.length - yesterdayLeads.length, // Change from yesterday
+      averageLeadsPerDay: Math.round(weekLeads.length / 7 * 10) / 10
+    };
+  };
+
+  // Real-time monitoring alerts
+  const getMonitoringAlerts = () => {
+    const metrics = getAdvancedMetrics();
+    const alerts = [];
+    
+    // Check for overdue followups
+    if (metrics.followupDue > 0) {
+      alerts.push({
+        type: 'warning',
+        message: `${metrics.followupDue} leads have overdue followups`,
+        action: 'View Overdue',
+        icon: AlertTriangle
+      });
+    }
+    
+    // Check for low lead velocity
+    if (metrics.leadVelocity < -2) {
+      alerts.push({
+        type: 'danger',
+        message: `Lead generation down ${Math.abs(metrics.leadVelocity)} from yesterday`,
+        action: 'Check Sources',
+        icon: TrendingDown
+      });
+    }
+    
+    // Check for unassigned leads
+    const unassigned = metrics.assignmentDistribution['Unassigned'] || 0;
+    if (unassigned > 5) {
+      alerts.push({
+        type: 'warning',
+        message: `${unassigned} leads are unassigned`,
+        action: 'Assign Now',
+        icon: UserCheck
+      });
+    }
+    
+    // Check for low conversion rate
+    if (metrics.conversionRate < 5 && leads.length > 20) {
+      alerts.push({
+        type: 'info',
+        message: `Conversion rate is ${metrics.conversionRate}% - consider optimization`,
+        action: 'View Analytics',
+        icon: BarChart3
+      });
+    }
+    
+    return alerts;
+  };
+
+  // Performance insights
+  const getPerformanceInsights = () => {
+    const metrics = getAdvancedMetrics();
+    const insights = [];
+    
+    // Best performing source
+    const bestSource = Object.entries(metrics.sourcePerformance)
+      .filter(([_, data]) => data.total >= 3)
+      .sort((a, b) => (b[1].converted / b[1].total) - (a[1].converted / a[1].total))[0];
+    
+    if (bestSource) {
+      const rate = Math.round((bestSource[1].converted / bestSource[1].total) * 100);
+      insights.push({
+        type: 'success',
+        title: 'Top Performing Source',
+        message: `${bestSource[0]} has ${rate}% conversion rate`,
+        icon: TrendingUp
+      });
+    }
+    
+    // Most active counselor
+    const topCounselor = Object.entries(metrics.assignmentDistribution)
+      .filter(([name]) => name !== 'Unassigned')
+      .sort((a, b) => b[1] - a[1])[0];
+    
+    if (topCounselor) {
+      insights.push({
+        type: 'info',
+        title: 'Most Active Counselor',
+        message: `${topCounselor[0]} managing ${topCounselor[1]} leads`,
+        icon: User
+      });
+    }
+    
+    // Recent activity
+    const timeSinceLastActivity = Date.now() - metrics.lastActivity.getTime();
+    const hoursSince = Math.floor(timeSinceLastActivity / (1000 * 60 * 60));
+    
+    if (hoursSince < 1) {
+      insights.push({
+        type: 'success',
+        title: 'Recent Activity',
+        message: 'Leads updated within the last hour',
+        icon: Zap
+      });
+    } else if (hoursSince > 24) {
+      insights.push({
+        type: 'warning',
+        title: 'Low Activity',
+        message: `No lead updates for ${hoursSince} hours`,
+        icon: Timer
+      });
+    }
+    
+    return insights;
+  };
+
   const stats = calculateStats();
+  const advancedMetrics = getAdvancedMetrics();
+  const monitoringAlerts = getMonitoringAlerts();
+  const performanceInsights = getPerformanceInsights();
 
   // Get leads updated today count
   const getLeadsUpdatedTodayCount = () => {
@@ -809,6 +1005,180 @@ const LeadsManagement: React.FC = () => {
               </div>
               <Edit3 className="h-8 w-8 text-cyan-600" />
             </div>
+          </div>
+        </div>
+
+        {/* Advanced Monitoring Dashboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          
+          {/* Real-time Alerts */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Bell className="w-5 h-5 mr-2 text-red-500" />
+                Monitoring Alerts
+              </h3>
+              <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                {monitoringAlerts.length}
+              </span>
+            </div>
+            
+            {monitoringAlerts.length === 0 ? (
+              <div className="text-center py-4">
+                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">All systems normal</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {monitoringAlerts.map((alert, index) => {
+                  const IconComponent = alert.icon;
+                  return (
+                    <div key={index} className={`p-3 rounded-lg border-l-4 ${
+                      alert.type === 'danger' ? 'border-red-500 bg-red-50' :
+                      alert.type === 'warning' ? 'border-yellow-500 bg-yellow-50' :
+                      'border-blue-500 bg-blue-50'
+                    }`}>
+                      <div className="flex items-start">
+                        <IconComponent className={`w-5 h-5 mr-2 mt-0.5 ${
+                          alert.type === 'danger' ? 'text-red-500' :
+                          alert.type === 'warning' ? 'text-yellow-500' :
+                          'text-blue-500'
+                        }`} />
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-800">{alert.message}</p>
+                          <button className={`text-xs mt-1 font-medium ${
+                            alert.type === 'danger' ? 'text-red-600' :
+                            alert.type === 'warning' ? 'text-yellow-600' :
+                            'text-blue-600'
+                          }`}>
+                            {alert.action} →
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Performance Metrics */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
+                Performance Metrics
+              </h3>
+              <button className="text-xs text-blue-600 hover:text-blue-800">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Conversion Rate</span>
+                <div className="flex items-center">
+                  <span className="text-lg font-bold text-green-600">{advancedMetrics.conversionRate}%</span>
+                  {advancedMetrics.conversionRate > 10 ? (
+                    <TrendingUp className="w-4 h-4 text-green-500 ml-1" />
+                  ) : (
+                    <TrendingDown className="w-4 h-4 text-red-500 ml-1" />
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Leads Today</span>
+                <div className="flex items-center">
+                  <span className="text-lg font-bold text-blue-600">{advancedMetrics.todayCount}</span>
+                  <span className={`text-xs ml-2 px-2 py-1 rounded-full ${
+                    advancedMetrics.leadVelocity > 0 ? 'bg-green-100 text-green-800' :
+                    advancedMetrics.leadVelocity < 0 ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {advancedMetrics.leadVelocity > 0 ? '+' : ''}{advancedMetrics.leadVelocity}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Overdue Followups</span>
+                <span className={`text-lg font-bold ${
+                  advancedMetrics.followupDue > 0 ? 'text-red-600' : 'text-green-600'
+                }`}>
+                  {advancedMetrics.followupDue}
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Avg/Day (Week)</span>
+                <span className="text-lg font-bold text-purple-600">{advancedMetrics.averageLeadsPerDay}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Performance Insights */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Eye className="w-5 h-5 mr-2 text-purple-500" />
+                Insights
+              </h3>
+            </div>
+            
+            {performanceInsights.length === 0 ? (
+              <div className="text-center py-4">
+                <PieChart className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">No insights available</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {performanceInsights.map((insight, index) => {
+                  const IconComponent = insight.icon;
+                  return (
+                    <div key={index} className={`p-3 rounded-lg ${
+                      insight.type === 'success' ? 'bg-green-50 border border-green-200' :
+                      insight.type === 'warning' ? 'bg-yellow-50 border border-yellow-200' :
+                      'bg-blue-50 border border-blue-200'
+                    }`}>
+                      <div className="flex items-start">
+                        <IconComponent className={`w-5 h-5 mr-2 mt-0.5 ${
+                          insight.type === 'success' ? 'text-green-500' :
+                          insight.type === 'warning' ? 'text-yellow-500' :
+                          'text-blue-500'
+                        }`} />
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{insight.title}</p>
+                          <p className="text-xs text-gray-600">{insight.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Assignment Distribution Chart */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Users className="w-5 h-5 mr-2 text-indigo-500" />
+            Team Workload Distribution
+          </h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {Object.entries(advancedMetrics.assignmentDistribution).map(([counselor, count]) => (
+              <div key={counselor} className="text-center">
+                <div className="bg-indigo-100 rounded-lg p-4 mb-2">
+                  <User className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
+                  <span className="text-2xl font-bold text-indigo-800">{count}</span>
+                </div>
+                <p className="text-xs text-gray-600 truncate" title={counselor}>
+                  {counselor}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </div>

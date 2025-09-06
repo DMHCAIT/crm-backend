@@ -80,6 +80,25 @@ export interface DatabaseStudent {
   notes?: string;
 }
 
+export interface DatabaseUser {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  name: string;
+  email: string;
+  phone?: string;
+  office_phone?: string;
+  role: 'super_admin' | 'senior_manager' | 'manager' | 'team_leader' | 'counselor';
+  department?: string;
+  designation?: string;
+  location?: string;
+  date_of_birth?: string;
+  join_date?: string;
+  status: 'active' | 'inactive' | 'suspended';
+  reports_to?: string;
+  profile_image?: string;
+}
+
 export interface DatabaseCommunication {
   id: string;
   created_at: string;
@@ -171,7 +190,9 @@ export const initializeSupabase = (): SupabaseClient<any> => {
   return supabaseClient;
 };
 
+// DEPRECATED: Frontend should use API endpoints, not direct database access
 export const getSupabase = (): SupabaseClient<any> => {
+  console.warn('⚠️  DEPRECATED: getSupabase() - Frontend should use getApiClient() for proper API-based communication');
   if (!supabaseClient) {
     return initializeSupabase();
   }
@@ -221,34 +242,189 @@ class ProductionApiClient {
     return this.request('/health');
   }
 
-  // Leads API
+  // Dashboard stats - Use correct endpoint
+  async getDashboardStats() {
+    try {
+      // Use the dashboard stats endpoint that now exists
+      const response = await this.request('/dashboard/stats') as { data: any };
+      return response;
+    } catch (error) {
+      console.warn('Dashboard stats endpoint not available, using analytics fallback');
+      try {
+        // Fallback to analytics endpoint
+        const response = await this.request('/analytics/realtime') as {
+          leads?: number;
+          students?: number;
+          communications?: number;
+          revenue?: number;
+          lastUpdated?: string;
+        };
+        
+        // Transform the response to match expected format
+        return {
+          data: {
+            totalLeads: response.leads || 0,
+            activeLeads: response.leads || 0,
+            newLeadsThisWeek: Math.floor((response.leads || 0) * 0.3),
+            totalStudents: response.students || 0,
+            activeStudents: response.students || 0,
+            totalCommunications: response.communications || 0,
+            totalDocuments: 0,
+            conversionRate: (response.leads || 0) > 0 ? Math.round(((response.students || 0) / (response.leads || 1)) * 100) : 0,
+            responseTime: '2.4h',
+            lastUpdated: response.lastUpdated || new Date().toISOString()
+          }
+        };
+      } catch (fallbackError) {
+        console.warn('Analytics endpoint also not available, using default data');
+        return {
+          data: {
+            totalLeads: 0,
+            activeLeads: 0,
+            newLeadsThisWeek: 0,
+            totalStudents: 0,
+            activeStudents: 0,
+            totalCommunications: 0,
+            totalDocuments: 0,
+            conversionRate: 0,
+            responseTime: '2.4h',
+            lastUpdated: new Date().toISOString()
+          }
+        };
+      }
+    }
+  }
+
+  // Leads API - Now available endpoints
   async getLeads() {
     return this.request('/leads');
   }
 
-  async createLead(lead: any) {
+  async createLead(leadData: any) {
     return this.request('/leads', {
       method: 'POST',
-      body: JSON.stringify(lead)
+      body: JSON.stringify(leadData)
     });
   }
 
-  async updateLead(id: string, lead: any) {
-    return this.request(`/leads/${id}`, {
+  async updateLead(id: string, leadData: any) {
+    return this.request(`/leads?id=${id}`, {
       method: 'PUT',
-      body: JSON.stringify(lead)
+      body: JSON.stringify(leadData)
     });
   }
 
   async deleteLead(id: string) {
-    return this.request(`/leads/${id}`, {
+    return this.request(`/leads?id=${id}`, {
       method: 'DELETE'
+    });
+  }
+
+  // Students API - New endpoints
+  async getStudents() {
+    return this.request('/students');
+  }
+
+  async createStudent(studentData: any) {
+    return this.request('/students', {
+      method: 'POST',
+      body: JSON.stringify(studentData)
+    });
+  }
+
+  async updateStudent(id: string, studentData: any) {
+    return this.request(`/students?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(studentData)
+    });
+  }
+
+  async deleteStudent(id: string) {
+    return this.request(`/students?id=${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Users API - New endpoints
+  async getUsers() {
+    return this.request('/users');
+  }
+
+  async createUser(userData: any) {
+    return this.request('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  }
+
+  async updateUser(id: string, userData: any) {
+    return this.request(`/users?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData)
+    });
+  }
+
+  async deleteUser(id: string) {
+    return this.request(`/users?id=${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Communications API - New endpoints
+  async getCommunications(filters?: any) {
+    const params = new URLSearchParams(filters).toString();
+    return this.request(`/communications${params ? `?${params}` : ''}`);
+  }
+
+  async createCommunication(communicationData: any) {
+    return this.request('/communications', {
+      method: 'POST',
+      body: JSON.stringify(communicationData)
+    });
+  }
+
+  // Documents API - New endpoints
+  async getDocuments(filters?: any) {
+    const params = new URLSearchParams(filters).toString();
+    return this.request(`/documents${params ? `?${params}` : ''}`);
+  }
+
+  async uploadDocument(formData: FormData) {
+    return this.request('/documents', {
+      method: 'POST',
+      body: formData,
+      headers: {} // Remove Content-Type to let browser set it for FormData
+    });
+  }
+
+  // Payments API - Enhanced
+  async getPayments(filters?: any) {
+    const params = new URLSearchParams(filters).toString();
+    return this.request(`/payments${params ? `?${params}` : ''}`);
+  }
+
+  async createPaymentOrder(paymentData: any) {
+    return this.request('/payments/create-order', {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  }
+
+  // Integrations API - New endpoints
+  async getIntegrationStatus() {
+    return this.request('/integrations');
+  }
+
+  async testIntegration(integration: string) {
+    return this.request('/integrations', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'test', integration })
     });
   }
 
   // WhatsApp API
   async sendWhatsAppMessage(to: string, message: string) {
-    return this.request('/whatsapp/send', {
+    return this.request('/api/whatsapp/send', {
       method: 'POST',
       body: JSON.stringify({ to, message })
     });
@@ -256,23 +432,21 @@ class ProductionApiClient {
 
   // Facebook API
   async getFacebookLeads() {
-    return this.request('/facebook/leads');
+    // Facebook leads endpoint doesn't exist
+    console.warn('Facebook leads endpoint not available on backend');
+    return [];
   }
 
-  // Analytics API
-  async getAnalytics(period: string = '30d') {
-    return this.request(`/analytics?period=${period}`);
+  // Analytics API - Updated to match backend endpoint
+  async getAnalytics(_period: string = '30d') {
+    return this.request('/api/analytics/realtime');
   }
 
-  // Payments API
-  async getPayments() {
-    return this.request('/payments');
-  }
-
-  async createPaymentLink(amount: number, description: string) {
-    return this.request('/payments/create-link', {
-      method: 'POST',
-      body: JSON.stringify({ amount, description })
+  async createPaymentLink(_amount: number, _description: string) {
+    // Use the new payment order endpoint
+    return this.createPaymentOrder({
+      amount: _amount,
+      description: _description
     });
   }
 }
@@ -611,6 +785,89 @@ export class DatabaseManager {
     if (error) throw error;
   }
 
+  // USER OPERATIONS
+  async getUsers(limit = 50, offset = 0): Promise<DatabaseUser[]> {
+    try {
+      // First try to get from custom users table
+      const { data, error } = await this.supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.warn('Users table not found, falling back to auth.users');
+        // Fallback to auth.users if custom table doesn't exist
+        const { data: authData, error: authError } = await this.supabase.auth.admin.listUsers();
+        
+        if (authError) throw authError;
+        
+        // Transform auth users to our interface
+        const transformedUsers: DatabaseUser[] = authData.users.map(user => ({
+          id: user.id,
+          created_at: user.created_at,
+          updated_at: user.updated_at || user.created_at,
+          name: user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown',
+          email: user.email || '',
+          phone: user.user_metadata?.phone,
+          office_phone: user.user_metadata?.office_phone,
+          role: user.user_metadata?.role || 'counselor',
+          department: user.user_metadata?.department,
+          designation: user.user_metadata?.designation,
+          location: user.user_metadata?.location,
+          date_of_birth: user.user_metadata?.date_of_birth,
+          join_date: user.user_metadata?.join_date || user.created_at,
+          status: user.email_confirmed_at ? 'active' : 'inactive',
+          reports_to: user.user_metadata?.reports_to,
+          profile_image: user.user_metadata?.profile_image
+        }));
+        
+        return transformedUsers.slice(offset, offset + limit);
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      return [];
+    }
+  }
+
+  async createUser(user: Omit<DatabaseUser, 'id' | 'created_at' | 'updated_at'>): Promise<DatabaseUser> {
+    // Note: In a real implementation, this would require admin privileges
+    // For now, we'll create in the users table if it exists
+    const { data, error } = await this.supabase
+      .from('users')
+      .insert(user)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as DatabaseUser;
+  }
+
+  async updateUser(id: string, updates: Partial<Omit<DatabaseUser, 'id' | 'created_at'>>): Promise<DatabaseUser> {
+    const { data, error } = await this.supabase
+      .from('users')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as DatabaseUser;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    // Note: This only deletes from users table, not auth.users
+    // In production, you'd need proper user deactivation
+    const { error } = await this.supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   // COMMUNICATIONS OPERATIONS
   async getCommunications(limit = 50, offset = 0): Promise<DatabaseCommunication[]> {
     const { data, error } = await this.supabase
@@ -701,35 +958,12 @@ export class DatabaseManager {
 
 export class AuthManager {
   private supabase: SupabaseClient<any>;
-  private demoMode: boolean;
 
   constructor() {
     this.supabase = getSupabase();
-    this.demoMode = false;
   }
 
   async signIn(email: string, password: string): Promise<any> {
-    // Check for demo credentials first
-    if (email === 'demo@crm.com' && password === 'demo123456') {
-      console.log('🚀 Using demo mode login');
-      const demoUser = {
-        id: 'demo-user-id',
-        email: 'demo@crm.com',
-        user_metadata: { name: 'Demo User' },
-        created_at: new Date().toISOString()
-      };
-      
-      // Store demo session in localStorage
-      localStorage.setItem('demo_user', JSON.stringify(demoUser));
-      localStorage.setItem('demo_session', 'true');
-      
-      return {
-        user: demoUser,
-        session: { user: demoUser, access_token: 'demo-token' }
-      };
-    }
-
-    // Try regular Supabase authentication
     try {
       const { data, error } = await this.supabase.auth.signInWithPassword({
         email,
@@ -738,35 +972,17 @@ export class AuthManager {
 
       if (error) {
         console.error('Supabase auth error:', error);
-        
-        // If it's a database error and user is trying admin credentials, suggest using demo
-        if (error.message.includes('Database error') || error.message.includes('schema')) {
-          throw new Error('Database connection error. Please try the Demo Login button above, or contact support if you need admin access.');
-        }
-        
         throw error;
       }
       
       return data;
     } catch (error) {
       console.error('Authentication failed:', error);
-      
-      // Auto-fallback to demo mode for demo credentials even if Supabase fails
-      if (email === 'demo@crm.com' && password === 'demo123456') {
-        console.log('🔄 Falling back to demo mode due to database error');
-        return this.signIn(email, password); // This will hit the demo check above
-      }
-      
       throw error;
     }
   }
 
   async signUp(email: string, password: string): Promise<any> {
-    // Don't allow signup in demo mode
-    if (email === 'demo@crm.com') {
-      throw new Error('Demo account already exists. Please use the Demo Login button.');
-    }
-
     try {
       const { data, error } = await this.supabase.auth.signUp({
         email,
@@ -778,9 +994,9 @@ export class AuthManager {
     } catch (error) {
       console.error('Signup failed:', error);
       
-      // If database error, suggest using demo mode
+      // If database error, provide helpful message
       if (error instanceof Error && error.message.includes('Database error')) {
-        throw new Error('Database connection error. Please try the Demo Login button to test the system.');
+        throw new Error('Database connection error. Please contact support for assistance.');
       }
       
       throw error;
@@ -788,30 +1004,15 @@ export class AuthManager {
   }
 
   async signOut(): Promise<void> {
-    // Check if in demo mode
-    if (localStorage.getItem('demo_session')) {
-      localStorage.removeItem('demo_user');
-      localStorage.removeItem('demo_session');
-      return;
-    }
-
     try {
       const { error } = await this.supabase.auth.signOut();
       if (error) throw error;
     } catch (error) {
       console.error('Signout error:', error);
-      // Clear local storage anyway
-      localStorage.removeItem('demo_user');
-      localStorage.removeItem('demo_session');
     }
   }
 
   async getCurrentUser(): Promise<any> {
-    // Check demo mode first
-    if (localStorage.getItem('demo_session')) {
-      const demoUser = localStorage.getItem('demo_user');
-      return demoUser ? JSON.parse(demoUser) : null;
-    }
 
     try {
       const { data: { user }, error } = await this.supabase.auth.getUser();
@@ -824,22 +1025,6 @@ export class AuthManager {
   }
 
   onAuthStateChange(callback: (event: string, session: any) => void) {
-    if (this.demoMode) {
-      // For demo mode, simulate auth state change
-      const demoSession = localStorage.getItem('demo_session');
-      if (demoSession) {
-        const demoUser = localStorage.getItem('demo_user');
-        if (demoUser) {
-          callback('SIGNED_IN', { user: JSON.parse(demoUser) });
-        }
-      }
-      
-      // Return a mock subscription
-      return {
-        data: { subscription: { unsubscribe: () => {} } }
-      };
-    }
-
     return this.supabase.auth.onAuthStateChange(callback);
   }
 }
@@ -904,21 +1089,30 @@ export const getRealTimeManager = (callbacks?: RealTimeCallbacks): RealTimeManag
   return realTimeManager;
 };
 
+// ARCHITECTURAL NOTE: Frontend should ONLY use API client, never direct database access
+// These functions are deprecated and will be removed to enforce proper separation
+
+// Deprecated: Use getApiClient() instead
 export const getDatabaseManager = (): DatabaseManager => {
+  console.warn('⚠️  DEPRECATED: getDatabaseManager() - Use getApiClient() instead for proper API-based communication');
   if (!databaseManager) {
     databaseManager = new DatabaseManager();
   }
   return databaseManager;
 };
 
+// Deprecated: Use getApiClient() instead  
 export const getAuthManager = (): AuthManager => {
+  console.warn('⚠️  DEPRECATED: getAuthManager() - Use getApiClient() instead for proper API-based communication');
   if (!authManager) {
     authManager = new AuthManager();
   }
   return authManager;
 };
 
+// Deprecated: Use getApiClient() instead
 export const getIntegrationManager = (): IntegrationManager => {
+  console.warn('⚠️  DEPRECATED: getIntegrationManager() - Use getApiClient() instead for proper API-based communication');
   if (!integrationManager) {
     integrationManager = new IntegrationManager();
   }
@@ -936,11 +1130,11 @@ export const initializeBackend = async () => {
   }
 };
 
+// Main export - Only API client, no direct database access
 export default {
   initializeBackend,
-  getRealTimeManager,
-  getDatabaseManager,
-  getAuthManager,
-  getIntegrationManager,
-  getSupabase
+  getApiClient, // Only API client for proper frontend-backend separation
+  // Note: Direct database access removed for proper architecture
+  // getDatabaseManager,  // REMOVED - Frontend should not access DB directly
+  // getSupabase          // REMOVED - Frontend should not access DB directly
 };

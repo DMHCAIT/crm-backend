@@ -152,14 +152,14 @@ const Integrations: React.FC = () => {
       try {
         setLoading(true);
         
-        // Get leads count from production API
+        // Get leads count from backend API (proper architecture)
         let leadsCount = 0;
         try {
           const apiClient = getApiClient();
-          const leads = await apiClient.getLeads();
+          const leads: any = await apiClient.getLeads();
           leadsCount = Array.isArray(leads) ? leads.length : 0;
         } catch (err) {
-          console.warn('Could not fetch leads count from production API:', err);
+          console.warn('Could not fetch leads count from API:', err);
         }
 
         const activeIntegrationsCount = integrations.filter(i => i.status === 'connected').length;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Mail, Lock, Eye, EyeOff, GraduationCap, User } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, GraduationCap } from 'lucide-react';
 
 const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -33,26 +33,6 @@ const LoginForm: React.FC = () => {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setEmail('demo@crm.com');
-    setPassword('demo123456');
-    try {
-      await signIn('demo@crm.com', 'demo123456');
-    } catch (err) {
-      console.error('Demo login error:', err);
-    }
-  };
-
-  const handleAdminLogin = async () => {
-    setEmail('admin@dmhca.com');
-    setPassword('Admin123456!');
-    try {
-      await signIn('admin@dmhca.com', 'Admin123456!');
-    } catch (err) {
-      console.error('Admin login error:', err);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
@@ -67,48 +47,10 @@ const LoginForm: React.FC = () => {
           </p>
         </div>
 
-        {/* Quick Login Buttons */}
-        {!isSignUp && (
-          <div className="mb-6 space-y-2">
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={loading}
-              className="w-full bg-green-100 hover:bg-green-200 text-green-800 py-2 px-4 rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
-            >
-              🚀 Demo Login (Always Works)
-            </button>
-            <button
-              type="button"
-              onClick={handleAdminLogin}
-              disabled={loading}
-              className="w-full bg-purple-100 hover:bg-purple-200 text-purple-800 py-2 px-4 rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
-            >
-              👑 Admin Login (Requires Setup)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEmail('test@dmhca.com');
-                setPassword('Test123456!');
-              }}
-              disabled={loading}
-              className="w-full bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 px-4 rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
-            >
-              👤 Test User Login
-            </button>
-          </div>
-        )}
-
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <p className="text-red-800 text-sm">{error}</p>
-            {error.includes('Database error') && (
-              <p className="text-red-600 text-xs mt-1">
-                💡 Try the Demo Login button above while we fix the database connection
-              </p>
-            )}
           </div>
         )}
 
@@ -196,12 +138,8 @@ const LoginForm: React.FC = () => {
         {/* Development Note */}
         <div className="mt-6 p-3 bg-gray-50 rounded-lg">
           <p className="text-xs text-gray-600 text-center">
-            <strong>Dev Note:</strong> This connects to your Supabase instance
+            <strong>Note:</strong> Please use your registered credentials to access the CRM system
           </p>
-          <div className="text-xs text-gray-500 text-center mt-2">
-            <p>🟢 Demo: demo@crm.com / demo123456</p>
-            <p>🟣 Admin: admin@dmhca.com / Admin123456!</p>
-          </div>
         </div>
       </div>
     </div>

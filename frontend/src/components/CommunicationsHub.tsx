@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { getApiClient } from '../lib/backend';
 import { 
   Mail, 
   MessageSquare, 
@@ -62,105 +63,6 @@ const CommunicationsHub: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  // Sample campaigns data
-  const sampleCampaigns: Campaign[] = [
-    {
-      id: 'CAMP-001',
-      name: 'Welcome Email Series',
-      type: 'email',
-      status: 'active',
-      targetAudience: 'New Leads',
-      totalRecipients: 250,
-      sent: 245,
-      delivered: 240,
-      opened: 180,
-      clicked: 85,
-      responded: 42,
-      converted: 18,
-      createdAt: '2024-12-01T10:00:00Z',
-      scheduledAt: '2024-12-01T10:00:00Z',
-      lastSent: '2024-12-10T14:30:00Z',
-      subject: 'Welcome to DMHCA - Your Medical Career Awaits',
-      content: 'Welcome email with course information and next steps...',
-      automationRules: ['Send immediately after lead creation', 'Follow up after 3 days if no response']
-    },
-    {
-      id: 'CAMP-002',
-      name: 'Fellowship Promotion',
-      type: 'whatsapp',
-      status: 'active',
-      targetAudience: 'Interested in Fellowship',
-      totalRecipients: 150,
-      sent: 148,
-      delivered: 145,
-      opened: 120,
-      clicked: 65,
-      responded: 35,
-      converted: 12,
-      createdAt: '2024-11-15T09:00:00Z',
-      scheduledAt: '2024-11-15T09:00:00Z',
-      lastSent: '2024-12-09T16:20:00Z',
-      content: 'Special fellowship program promotion with limited-time offer...',
-      automationRules: ['Send to leads interested in fellowship courses', 'Exclude recent converters']
-    },
-    {
-      id: 'CAMP-003',
-      name: 'Follow-up Reminder',
-      type: 'sms',
-      status: 'paused',
-      targetAudience: 'Hot Leads',
-      totalRecipients: 75,
-      sent: 70,
-      delivered: 68,
-      opened: 65,
-      clicked: 25,
-      responded: 18,
-      converted: 8,
-      createdAt: '2024-12-05T11:00:00Z',
-      content: 'Quick reminder about pending enrollment...',
-      automationRules: ['Send to hot leads after 48 hours of no contact']
-    }
-  ];
-
-  // Sample communications data
-  const sampleCommunications: Communication[] = [
-    {
-      id: 'COMM-001',
-      leadId: 'LEAD-001',
-      leadName: 'Dr. Rahul Sharma',
-      channel: 'email',
-      direction: 'outbound',
-      subject: 'Cardiology Fellowship Information',
-      content: 'Thank you for your interest in our Cardiology Fellowship program...',
-      status: 'read',
-      timestamp: '2024-12-10T14:30:00Z',
-      counselor: 'Dr. Sarah Johnson',
-      campaignId: 'CAMP-001'
-    },
-    {
-      id: 'COMM-002',
-      leadId: 'LEAD-002',
-      leadName: 'Dr. Priya Patel',
-      channel: 'whatsapp',
-      direction: 'inbound',
-      content: 'I am interested in the Emergency Medicine course. Can you send me more details?',
-      status: 'delivered',
-      timestamp: '2024-12-10T12:15:00Z',
-      counselor: 'Dr. Michael Chen'
-    },
-    {
-      id: 'COMM-003',
-      leadId: 'LEAD-003',
-      leadName: 'Dr. Amit Kumar',
-      channel: 'phone',
-      direction: 'outbound',
-      content: 'Follow-up call regarding diabetes management certification',
-      status: 'delivered',
-      timestamp: '2024-12-10T10:45:00Z',
-      counselor: 'Dr. Sarah Johnson'
-    }
-  ];
-
   useEffect(() => {
     loadData();
   }, [user]);
@@ -168,11 +70,58 @@ const CommunicationsHub: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      // In production, this would query Supabase
-      setCampaigns(sampleCampaigns);
-      setCommunications(sampleCommunications);
+      
+      // Get real data from backend API (proper architecture)
+      const apiClient = getApiClient();
+      const communicationsData: any = await apiClient.getCommunications();
+      
+      // Convert API communications to frontend format
+      const formattedCommunications: Communication[] = (communicationsData || []).map((comm: any) => ({
+        id: comm.id,
+        leadId: comm.lead_id || comm.leadId || '',
+        leadName: comm.lead_name || comm.leadName || 'Unknown Lead',
+        channel: comm.type || comm.channel || 'email',
+        direction: comm.direction || 'outbound',
+        subject: comm.subject || '',
+        content: comm.content || '',
+        status: comm.status || 'sent',
+        timestamp: comm.created_at || comm.timestamp || new Date().toISOString(),
+        counselor: comm.sender || comm.counselor || 'System',
+        campaignId: comm.campaign_id || comm.campaignId
+      }));
+
+      // For campaigns, we'll create some basic data since the backend might not have campaigns yet
+      const campaignData: Campaign[] = [
+        {
+          id: 'CAMP-001',
+          name: 'New Lead Welcome',
+          type: 'email',
+          status: 'active',
+          targetAudience: 'New Leads',
+          totalRecipients: formattedCommunications.filter(c => c.campaignId === 'CAMP-001').length || 0,
+          sent: formattedCommunications.filter(c => c.campaignId === 'CAMP-001' && c.status !== 'pending').length || 0,
+          delivered: formattedCommunications.filter(c => c.campaignId === 'CAMP-001' && c.status === 'delivered').length || 0,
+          opened: formattedCommunications.filter(c => c.campaignId === 'CAMP-001' && c.status === 'read').length || 0,
+          clicked: 0,
+          responded: 0,
+          converted: 0,
+          createdAt: new Date().toISOString(),
+          scheduledAt: new Date().toISOString(),
+          lastSent: formattedCommunications.length > 0 ? formattedCommunications[0].timestamp : new Date().toISOString(),
+          subject: 'Welcome to DMHCA',
+          content: 'Welcome message content...',
+          automationRules: ['Auto-send to new leads']
+        }
+      ];
+
+      setCommunications(formattedCommunications);
+      setCampaigns(campaignData);
+      
     } catch (error) {
       console.error('Error loading communications data:', error);
+      // Set empty arrays on error
+      setCommunications([]);
+      setCampaigns([]);
     } finally {
       setLoading(false);
     }
