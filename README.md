@@ -1,111 +1,154 @@
-# 🎯 DMHCA CRM - Complete Business Management System
+# DMHCA CRM Backend
 
-## 🌟 **Overview**
-A comprehensive CRM system built with React/TypeScript frontend, Express.js backend, and Supabase PostgreSQL database. Features real-time lead management, student tracking, multi-channel communications, and automated workflows.
+A comprehensive CRM backend API built with Node.js, Express, and integrated with Supabase, WhatsApp Business API, and Facebook API.
 
-## 🏗️ **Architecture**
-```
-Frontend (React/TS) → Vercel
-     ↓ API calls
-Backend (Express.js) → Railway  
-     ↓ Database queries
-Database (PostgreSQL) → Supabase
-```
+## Features
 
-## 📁 **Project Structure**
-```
-project/
-├── frontend/          # React/TypeScript app (Deploy to Vercel)
-├── backend/           # Express.js API (Deploy to Railway)
-├── database/          # PostgreSQL schema (Setup in Supabase)
-├── DEPLOYMENT_STEPS.md    # Complete deployment guide
-└── README.md          # This file
-```
+- **Lead Management**: Complete CRUD operations for leads with real-time updates
+- **Student Management**: Manage student data and academic information
+- **User Management**: Authentication and user role management
+- **WhatsApp Integration**: Send messages and manage WhatsApp Business API
+- **Facebook Integration**: Manage Facebook leads and communications
+- **Analytics**: Comprehensive analytics and reporting
+- **Document Management**: File upload and document handling
+- **Payment Processing**: Payment tracking and management
+- **Real-time Communications**: WebSocket support for real-time updates
 
-## 🚀 **Quick Start - Development**
+## Tech Stack
 
-### **1. Database Setup**
-```bash
-# Run in Supabase SQL Editor
-# Copy content from: database/database-setup-complete.sql
-```
-
-### **2. Backend Setup**
-```bash
-cd backend
-npm install
-npm run dev  # Starts on http://localhost:3001
-```
-
-### **3. Frontend Setup**
-```bash
-cd frontend
-npm install
-npm run dev  # Starts on http://localhost:5173
-```
-
-### **4. Login**
-- Email: `admin@dmhca.com`
-- Password: `YourSecurePassword123!`
-
-## 🌐 **Production Deployment**
-
-### **Quick Deploy (30 minutes):**
-1. **Database**: Upload `database/database-setup-complete.sql` to Supabase
-2. **Backend**: Deploy `backend/` folder to Railway
-3. **Frontend**: Deploy `frontend/` folder to Vercel
-
-**👉 See [DEPLOYMENT_STEPS.md](DEPLOYMENT_STEPS.md) for detailed instructions**
-
-## ✨ **Features**
-- 👥 **Lead Management**: Full pipeline tracking
-- 🎓 **Student Management**: Course tracking & progress
-- 💬 **Multi-Channel Communications**: Email, SMS, WhatsApp
-- 📊 **Real-time Analytics**: Live dashboards
-- 🔐 **Role-based Access**: 5-tier permission system
-- 🔄 **Auto Workflows**: Intelligent automation
-- 📱 **Mobile Responsive**: Works on all devices
-
-## 🛠️ **Tech Stack**
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
-- **Backend**: Express.js, Node.js
+- **Runtime**: Node.js 16+
+- **Framework**: Express.js
 - **Database**: Supabase (PostgreSQL)
-- **Hosting**: Vercel (Frontend) + Railway (Backend)
-- **Real-time**: Supabase Realtime
 - **Authentication**: Supabase Auth
+- **File Storage**: Supabase Storage
+- **Real-time**: Supabase Real-time subscriptions
 
-## 📋 **Environment Variables**
+## API Endpoints
 
-### **Frontend (.env)**
+### Core APIs
+- `/api/health` - Health check endpoint
+- `/api/leads` - Lead management
+- `/api/students` - Student management
+- `/api/users` - User management
+- `/api/analytics` - Analytics and reporting
+- `/api/dashboard` - Dashboard data
+- `/api/documents` - Document management
+- `/api/payments` - Payment processing
+- `/api/communications` - Communication hub
+- `/api/integrations` - External integrations
+
+### Integration APIs
+- `/api/whatsapp` - WhatsApp Business API integration
+- `/api/facebook` - Facebook API integration
+
+## Environment Variables
+
+Create a `.env` file with the following variables:
+
 ```env
-VITE_SUPABASE_URL=https://cyzbdpsfquetmftlaswk.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_API_BASE_URL=https://your-app.railway.app
-```
-
-### **Backend (.env)**
-```env
-SUPABASE_URL=https://cyzbdpsfquetmftlaswk.supabase.co
-SUPABASE_SERVICE_KEY=your_supabase_service_key
+# Server Configuration
+PORT=3001
 NODE_ENV=production
-PORT=$PORT
+
+# Supabase Configuration
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_KEY=your_supabase_service_key
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# WhatsApp Business API
+WHATSAPP_TOKEN=your_whatsapp_token
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_VERIFY_TOKEN=your_verify_token
+
+# Facebook API
+FACEBOOK_ACCESS_TOKEN=your_facebook_access_token
+FACEBOOK_PAGE_ID=your_facebook_page_id
+
+# Frontend URLs (for CORS)
+FRONTEND_URL=https://your-frontend-domain.com
 ```
 
-## 🎉 **Live Demo**
-- **Frontend**: https://your-crm.vercel.app
-- **Backend**: https://your-app.railway.app
-- **Database**: Supabase Dashboard
+## Installation
 
-## 📞 **Support**
-- 📧 Email: admin@dmhca.com
-- 🔗 GitHub: [Repository Link]
-- 📖 Docs: See `DEPLOYMENT_STEPS.md`
+1. Clone the repository
+```bash
+git clone https://github.com/DMHCAIT/crm-backend.git
+cd crm-backend
+```
 
-## 🔄 **Updates**
-- **Auto-deploy**: Push to GitHub for automatic updates
-- **Database**: Manual updates via Supabase SQL Editor
-- **Monitoring**: Built-in health checks
+2. Install dependencies
+```bash
+npm install
+```
 
----
+3. Set up environment variables
+```bash
+cp .env.example .env
+# Edit .env with your actual values
+```
 
-**Status**: ✅ Production Ready | **Version**: 1.0.0 | **Last Update**: August 2025
+4. Start the server
+```bash
+# Development
+npm run dev
+
+# Production
+npm start
+```
+
+## Deployment
+
+### Railway Deployment
+
+This project is configured for Railway deployment with `railway.json`:
+
+1. Connect your GitHub repository to Railway
+2. Set up environment variables in Railway dashboard
+3. Deploy automatically on push to main branch
+
+### Manual Deployment
+
+1. Build and start:
+```bash
+npm install
+npm start
+```
+
+## API Documentation
+
+### Health Check
+```
+GET /api/health
+```
+
+### Lead Management
+```
+GET /api/leads - Get all leads
+POST /api/leads - Create new lead
+PUT /api/leads/:id - Update lead
+DELETE /api/leads/:id - Delete lead
+```
+
+### Student Management
+```
+GET /api/students - Get all students
+POST /api/students - Create new student
+PUT /api/students/:id - Update student
+DELETE /api/students/:id - Delete student
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Support
+
+For support, email support@dmhca.com or create an issue in the GitHub repository.
