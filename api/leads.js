@@ -9,7 +9,12 @@ const supabase = createClient(
 
 module.exports = async (req, res) => {
   // Set CORS headers for production domain
-  const allowedOrigins = ['https://www.crmdmhca.com', 'https://crmdmhca.com', 'http://localhost:5173'];
+  const allowedOrigins = [
+    'https://www.crmdmhca.com', 
+    'https://crmdmhca.com', 
+    'https://crm-frontend-final-nnmy850zp-dmhca.vercel.app',
+    'http://localhost:5173'
+  ];
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -142,15 +147,6 @@ module.exports = async (req, res) => {
     res.status(500).json({
       error: 'Internal server error',
       message: error.message
-    });
-  }
-};
-
-  } catch (error) {
-    console.error('Lead capture error:', error);
-    res.status(500).json({
-      error: 'Failed to capture lead',
-      details: error.message
     });
   }
 };

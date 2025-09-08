@@ -83,6 +83,7 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'development',
+    lastDeploy: '2025-09-08T07:30:00Z', // Force redeploy
     features: {
       cors: 'enabled',
       supabase: supabase ? 'connected' : 'not configured',
