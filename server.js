@@ -11,7 +11,14 @@ const PORT = process.env.PORT || 3001;
 // Enhanced CORS configuration
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://www.crmdmhca.com', 'https://crmdmhca.com'] 
+    ? [
+        'https://www.crmdmhca.com', 
+        'https://crmdmhca.com',
+        'https://crm-frontend-final-nnmy850zp-dmhca.vercel.app',
+        'https://crm-frontend-final.vercel.app',
+        // Allow all Vercel subdomains for your project
+        /https:\/\/crm-frontend-final.*\.vercel\.app$/
+      ] 
     : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
