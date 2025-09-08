@@ -78,12 +78,13 @@ const integrationsHandler = require('./api/integrations');
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'DMHCA CRM API Server',
+    message: 'DMHCA CRM API Server - UPDATED VERSION',
     status: 'running',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: '2.0.0', // Version bump to force redeploy
     environment: process.env.NODE_ENV || 'development',
-    lastDeploy: '2025-09-08T07:30:00Z', // Force redeploy
+    lastDeploy: '2025-09-08T07:45:00Z', // Updated timestamp
+    deploymentForced: true, // Flag to identify new deployment
     features: {
       cors: 'enabled',
       supabase: supabase ? 'connected' : 'not configured',

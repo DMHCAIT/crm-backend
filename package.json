@@ -1,7 +1,7 @@
 {
   "name": "dmhca-crm-server",
-  "version": "1.0.0",
-  "description": "DMHCA CRM API Server with Real Integrations",
+  "version": "2.0.0",
+  "description": "DMHCA CRM API Server with Real Integrations - UPDATED",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
