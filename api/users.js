@@ -24,6 +24,44 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // Handle GET /profile - Get current user profile
+    if (req.method === 'GET' && req.url?.includes('/profile')) {
+      // In a real implementation, you would get user ID from JWT token
+      // For now, return sample profile data
+      const userProfile = {
+        id: 'USR-2024-001',
+        name: 'Demo User',
+        email: 'demo@dmhca.in',
+        phone: '+91 9876543210',
+        role: 'Senior DMHCA Admissions Counselor',
+        department: 'MBBS Admissions',
+        location: 'New Delhi',
+        joinDate: '2023-01-15',
+        avatar: null,
+        status: 'active',
+        permissions: ['leads.view', 'leads.edit', 'students.view', 'communications.send'],
+        preferences: {
+          notifications: {
+            email: true,
+            whatsapp: true,
+            sms: false,
+            push: true
+          },
+          autoAssignment: true,
+          followUpReminders: true,
+          workingHours: {
+            start: '09:00',
+            end: '18:00'
+          }
+        }
+      };
+
+      return res.json({
+        success: true,
+        data: userProfile
+      });
+    }
+
     // Handle GET - Retrieve users
     if (req.method === 'GET') {
       const { data: users, error } = await supabase
