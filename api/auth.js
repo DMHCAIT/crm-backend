@@ -90,26 +90,36 @@ async function handleLogin(req, res) {
       });
     }
 
-    // Get user profile from users table
-    const { data: userProfile, error: profileError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
+    // Try to get user profile from users table, fallback to auth data
+    let userProfile = null;
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
 
-    if (profileError || !userProfile) {
-      return res.status(404).json({
-        success: false,
-        message: 'User profile not found'
-      });
+      if (!profileError && profileData) {
+        userProfile = profileData;
+      }
+    } catch (profileErr) {
+      console.warn('Could not fetch user profile:', profileErr.message);
     }
+
+    // Use profile data if available, otherwise use auth data
+    const userData = userProfile || {
+      id: signInData.user.id,
+      email: signInData.user.email,
+      name: signInData.user.user_metadata?.name || email.split('@')[0],
+      role: 'user'
+    };
 
     // Generate JWT token
     const token = jwt.sign(
       { 
-        id: userProfile.id,
-        email: userProfile.email,
-        role: userProfile.role 
+        id: userData.id,
+        email: userData.email,
+        role: userData.role 
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
@@ -119,10 +129,10 @@ async function handleLogin(req, res) {
       success: true,
       token,
       user: {
-        id: userProfile.id,
-        email: userProfile.email,
-        name: userProfile.name,
-        role: userProfile.role
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role
       }
     });
   } catch (error) {
@@ -163,38 +173,54 @@ async function handleRegister(req, res) {
       });
     }
 
-    // Create user profile in users table
-    const { data: userProfile, error: profileError } = await supabase
-      .from('users')
-      .insert([
-        {
-          id: signUpData.user.id,
-          email,
-          name,
-          role: 'user',
-          status: 'active',
-          created_at: new Date().toISOString()
-        }
-      ])
-      .select()
-      .single();
+    // Try to create user profile in users table, but don't fail if it doesn't work
+    let userProfile = null;
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('users')
+        .insert([
+          {
+            id: signUpData.user.id,
+            email,
+            name,
+            role: 'user',
+            status: 'active',
+            created_at: new Date().toISOString()
+          }
+        ])
+        .select()
+        .single();
 
-    if (profileError) {
-      console.error('Profile creation error:', profileError);
-      return res.status(500).json({
-        success: false,
-        message: 'User created but profile setup failed'
-      });
+      if (!profileError) {
+        userProfile = profileData;
+      } else {
+        console.warn('Profile creation warning:', profileError.message);
+      }
+    } catch (profileErr) {
+      console.warn('Profile table might not exist:', profileErr.message);
     }
+
+    // Generate JWT token with user data from Supabase Auth
+    const token = jwt.sign(
+      { 
+        id: signUpData.user.id,
+        email: signUpData.user.email,
+        name: name,
+        role: 'user'
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
 
     res.json({
       success: true,
-      message: 'User registered successfully. Please check your email for verification.',
+      message: 'User registered successfully.',
+      token,
       user: {
-        id: userProfile.id,
-        email: userProfile.email,
-        name: userProfile.name,
-        role: userProfile.role
+        id: signUpData.user.id,
+        email: signUpData.user.email,
+        name: name,
+        role: userProfile ? userProfile.role : 'user'
       }
     });
   } catch (error) {
