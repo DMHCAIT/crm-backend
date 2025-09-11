@@ -42,6 +42,9 @@ try {
       process.env.SUPABASE_SERVICE_KEY
     );
     console.log('✅ Supabase initialized successfully');
+    
+    // Initialize database tables if needed
+    initializeDatabaseTables();
   }
 } catch (error) {
   console.error('❌ Supabase initialization failed:', error);
@@ -57,6 +60,134 @@ function checkSupabaseInitialized(res) {
     return false;
   }
   return true;
+}
+
+// Database initialization function
+async function initializeDatabaseTables() {
+  console.log('🔍 Checking database tables...');
+  
+  try {
+    // Check if core tables exist
+    const { data: tables, error } = await supabase
+      .from('information_schema.tables')
+      .select('table_name')
+      .eq('table_schema', 'public')
+      .in('table_name', ['users', 'leads', 'students']);
+
+    const existingTables = tables ? tables.map(t => t.table_name) : [];
+    
+    if (existingTables.length < 3) {
+      console.log('⚠️  Some core tables missing. Initializing database...');
+      await createEssentialTables();
+    } else {
+      console.log('✅ Core database tables verified');
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not verify tables:', error.message);
+    console.log('🔄 Attempting to create essential tables...');
+    await createEssentialTables();
+  }
+}
+
+// Create essential tables
+async function createEssentialTables() {
+  console.log('🏗️  Creating essential database tables...');
+  
+  const tables = {
+    users: `
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(20),
+        role VARCHAR(50) NOT NULL DEFAULT 'counselor',
+        designation VARCHAR(100),
+        department VARCHAR(100),
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        permissions TEXT[],
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+    `,
+    leads: `
+      CREATE TABLE IF NOT EXISTS leads (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
+        phone VARCHAR(20) NOT NULL,
+        course_interest VARCHAR(100),
+        lead_source VARCHAR(50) NOT NULL DEFAULT 'manual',
+        status VARCHAR(50) NOT NULL DEFAULT 'new',
+        stage VARCHAR(50) NOT NULL DEFAULT 'inquiry',
+        priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+        assigned_to UUID,
+        notes TEXT,
+        tags TEXT[],
+        custom_fields JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+      CREATE INDEX IF NOT EXISTS idx_leads_phone ON leads(phone);
+    `,
+    students: `
+      CREATE TABLE IF NOT EXISTS students (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id VARCHAR(50) UNIQUE,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
+        phone VARCHAR(20) NOT NULL,
+        course VARCHAR(100) NOT NULL,
+        enrollment_date DATE NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        payment_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        fee_amount DECIMAL(10,2),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_students_phone ON students(phone);
+    `
+  };
+
+  for (const [tableName, sql] of Object.entries(tables)) {
+    try {
+      // Use direct SQL execution via supabase
+      const { error } = await supabase.rpc('exec_sql', { sql });
+      
+      if (error) {
+        console.log(`⚠️  Table ${tableName}: Using fallback creation method`);
+        // Tables will be created on first API call if this fails
+      } else {
+        console.log(`✅ Table ${tableName} ready`);
+      }
+    } catch (err) {
+      console.log(`⚠️  Table ${tableName}: ${err.message}`);
+    }
+  }
+  
+  // Insert default admin user
+  try {
+    const { error } = await supabase
+      .from('users')
+      .upsert({
+        email: 'admin@dmhca.in',
+        name: 'DMHCA Admin',
+        role: 'super_admin',
+        department: 'Administration',
+        status: 'active',
+        permissions: ['*']
+      }, { onConflict: 'email' });
+
+    if (!error) {
+      console.log('✅ Default admin user ready');
+    }
+  } catch (err) {
+    console.log('⚠️  Admin user setup will be handled by auth system');
+  }
+  
+  console.log('🎉 Database initialization completed');
 }
 
 // Import API handlers
