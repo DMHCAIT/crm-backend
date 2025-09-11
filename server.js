@@ -61,12 +61,12 @@ function checkSupabaseInitialized(res) {
 
 // Import API handlers
 const authHandler = require('./api/auth');
-const leadsHandler = require('./api/leads');
+const leadsHandler = require('./api/leads-simple'); // Using simple version with fallbacks
 const dashboardHandler = require('./api/dashboard');
 const healthHandler = require('./api/health');
 const analyticsHandler = require('./api/analytics');
 const studentsHandler = require('./api/students');
-const usersHandler = require('./api/users');
+const usersHandler = require('./api/users-simple'); // Using simple version with fallbacks
 const communicationsHandler = require('./api/communications');
 const documentsHandler = require('./api/documents');
 const paymentsHandler = require('./api/payments');
