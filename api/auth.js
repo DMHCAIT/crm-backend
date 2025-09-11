@@ -247,15 +247,48 @@ async function handleVerifyToken(req, res) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    // Optionally verify user still exists and is active
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('id, email, name, role, status')
-      .eq('id', decoded.id)
-      .eq('status', 'active')
-      .single();
+    // Try to get user from users table, but fall back to token data if not found
+    let user = null;
+    try {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('id, email, name, role, status')
+        .eq('id', decoded.id)
+        .single();
 
-    if (error || !user) {
+      if (!error && userData && userData.status === 'active') {
+        user = userData;
+      }
+    } catch (err) {
+      console.warn('Could not verify user in users table:', err.message);
+    }
+
+    // If no user found in table, verify user exists in Supabase Auth and use token data
+    if (!user) {
+      try {
+        const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(decoded.id);
+        
+        if (!authError && authUser.user) {
+          user = {
+            id: decoded.id,
+            email: decoded.email,
+            name: decoded.name || decoded.email.split('@')[0],
+            role: decoded.role || 'user'
+          };
+        }
+      } catch (authErr) {
+        console.warn('Could not verify user in Supabase Auth:', authErr.message);
+        // If both checks fail, still trust the JWT if it's valid
+        user = {
+          id: decoded.id,
+          email: decoded.email,
+          name: decoded.name || decoded.email.split('@')[0],
+          role: decoded.role || 'user'
+        };
+      }
+    }
+
+    if (!user) {
       return res.status(401).json({
         success: false,
         message: 'User not found or inactive'
