@@ -1,4 +1,4 @@
-// Real-tmodule.exports = async (req, res) => {
+module.exports = async (req, res) => {
   // Set CORS headers for production domain
   const allowedOrigins = ['https://www.crmdmhca.com', 'https://crmdmhca.com', 'http://localhost:5173'];
   const origin = req.headers.origin;

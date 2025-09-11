@@ -60,6 +60,7 @@ function checkSupabaseInitialized(res) {
 }
 
 // Import API handlers
+const authHandler = require('./api/auth');
 const leadsHandler = require('./api/leads');
 const dashboardHandler = require('./api/dashboard');
 const healthHandler = require('./api/health');
@@ -106,6 +107,12 @@ app.get('/api/dashboard/stats', dashboardHandler);
 
 // Analytics endpoint
 app.get('/api/analytics/realtime', analyticsHandler);
+
+// Authentication endpoints
+app.all('/api/auth/login', authHandler);
+app.all('/api/auth/register', authHandler);
+app.all('/api/auth/verify', authHandler);
+app.all('/api/auth/refresh', authHandler);
 
 // Core CRM APIs (full CRUD) - These handlers support all methods (GET, POST, PUT, DELETE)
 app.all('/api/leads', leadsHandler);
