@@ -86,7 +86,44 @@ async function handleLogin(req, res) {
   }
 
   try {
-    // Check if user exists in Supabase auth
+    // First, try direct database authentication for admin users
+    const { data: dbUser, error: dbError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (dbUser && dbUser.password_hash) {
+      // This is a direct database user (admin), check password hash
+      const isValidPassword = await bcrypt.compare(password, dbUser.password_hash);
+      
+      if (isValidPassword) {
+        // Generate JWT token for database user
+        const token = jwt.sign(
+          { 
+            id: dbUser.id,
+            email: dbUser.email,
+            role: dbUser.role 
+          },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRES_IN }
+        );
+
+        return res.json({
+          success: true,
+          token,
+          user: {
+            id: dbUser.id,
+            email: dbUser.email,
+            name: dbUser.name,
+            username: dbUser.username,
+            role: dbUser.role
+          }
+        });
+      }
+    }
+
+    // If no direct database match, try Supabase auth
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password
