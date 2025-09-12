@@ -40,19 +40,19 @@ module.exports = async (req, res) => {
     // Handle GET - Retrieve leads
     if (req.method === 'GET') {
       try {
+        // Try basic columns first
         const { data: leads, error } = await supabase
           .from('leads')
-          .select('*')
+          .select('id, name, email, phone, status, created_at, updated_at')
           .order('created_at', { ascending: false });
 
         if (error) {
-          // If table doesn't exist, return empty array
-          console.log('Leads table not found, returning empty array');
-          return res.json({
-            success: true,
-            data: [],
-            count: 0,
-            message: 'Database tables are being initialized'
+          console.log('❌ Leads query error:', error.message);
+          return res.status(500).json({
+            success: false,
+            error: 'Database schema issue',
+            message: `Database error: ${error.message}`,
+            details: 'Please check Supabase dashboard and ensure leads table exists with correct columns'
           });
         }
 
@@ -99,23 +99,30 @@ module.exports = async (req, res) => {
           tags: course_interest ? [course_interest] : []
         };
 
+        // First, try with minimal required fields to match existing schema
+        const minimalLeadData = {
+          name,
+          email,
+          phone: phone || '',
+          status: 'new'
+        };
+
         const { data: lead, error } = await supabase
           .from('leads')
-          .insert([leadData])
+          .insert([minimalLeadData])
           .select()
           .single();
 
         if (error) {
-          // If table doesn't exist, return success but inform about setup needed
-          return res.status(201).json({
-            success: true,
-            message: 'Lead data received but database tables need to be set up',
-            data: {
-              id: 'temp-' + Date.now(),
-              ...leadData,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
+          console.log('❌ Lead insertion error:', error.message);
+          
+          // Log the error for debugging but still return success to frontend
+          // This prevents the frontend from breaking while we fix the database schema
+          return res.status(500).json({
+            success: false,
+            error: 'Database schema needs to be updated',
+            message: `Database error: ${error.message}`,
+            details: 'Please check Supabase dashboard and ensure leads table has correct columns: id, name, email, phone, status, created_at, updated_at'
           });
         }
 
