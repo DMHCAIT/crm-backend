@@ -67,20 +67,33 @@ async function initializeDatabaseTables() {
   console.log('🔍 Checking database tables...');
   
   try {
-    // Check if core tables exist
-    const { data: tables, error } = await supabase
-      .from('information_schema.tables')
-      .select('table_name')
-      .eq('table_schema', 'public')
-      .in('table_name', ['users', 'leads', 'students']);
-
-    const existingTables = tables ? tables.map(t => t.table_name) : [];
+    // Check if core tables exist by trying to query them directly
+    const requiredTables = ['users', 'leads', 'students'];
+    const existingTables = [];
     
-    if (existingTables.length < 3) {
-      console.log('⚠️  Some core tables missing. Initializing database...');
+    for (const tableName of requiredTables) {
+      try {
+        const { data, error } = await supabase
+          .from(tableName)
+          .select('*')
+          .limit(1);
+
+        if (!error) {
+          existingTables.push(tableName);
+          console.log(`✅ Table ${tableName}: Verified`);
+        }
+      } catch (err) {
+        console.log(`⚠️  Table ${tableName}: Not accessible`);
+      }
+    }
+    
+    if (existingTables.length < requiredTables.length) {
+      const missingTables = requiredTables.filter(table => !existingTables.includes(table));
+      console.log(`⚠️  Some core tables missing: ${missingTables.join(', ')}`);
+      console.log('🔄 Initializing missing tables...');
       await createEssentialTables();
     } else {
-      console.log('✅ Core database tables verified');
+      console.log('✅ All core database tables verified');
     }
   } catch (error) {
     console.warn('⚠️  Could not verify tables:', error.message);
