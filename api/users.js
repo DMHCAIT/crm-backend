@@ -1,6 +1,10 @@
-// Simple users API with fallback data
+// Users API Handler for Admin User Management
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { v4: uuidv4 } = require('uuid');
 
+// Initialize Supabase conditionally
 let supabase;
 try {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
@@ -13,17 +17,35 @@ try {
   console.log('Users module: Supabase initialization failed:', error.message);
 }
 
-module.exports = async (req, res) => {
-  // CORS headers
-  const allowedOrigins = [
-    'https://www.crmdmhca.com', 
-    'https://crmdmhca.com', 
-    'https://crm-frontend-final-nnmy850zp-dmhca.vercel.app',
-    'https://crm-frontend-final.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:5174'
-  ];
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// Middleware to verify admin role
+async function verifyAdminRole(req) {
+  const authHeader = req.headers.authorization;
   
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('No valid token provided');
+  }
+
+  const token = authHeader.substring(7);
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Check if user has admin role
+    if (!decoded.role || (decoded.role !== 'super_admin' && decoded.role !== 'admin')) {
+      throw new Error('Admin access required');
+    }
+    
+    return decoded;
+  } catch (error) {
+    throw new Error('Invalid token or insufficient permissions');
+  }
+}
+
+module.exports = async (req, res) => {
+  // Set CORS headers
+  const allowedOrigins = ['https://www.crmdmhca.com', 'https://crmdmhca.com', 'http://localhost:5173'];
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -33,210 +55,235 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
+  }
+
+  if (!supabase) {
+    return res.status(500).json({
+      success: false,
+      error: 'Database connection not available'
+    });
   }
 
   try {
-    // Handle GET - Retrieve users
-    if (req.method === 'GET') {
-      try {
-        const { data: users, error } = await supabase
-          .from('users')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          // Return sample user data if table doesn't exist
-          const sampleUsers = [
-            {
-              id: 'user-1',
-              name: 'Santhosh DMHCA',
-              email: 'santhosh@dmhca.in',
-              role: 'admin',
-              department: 'Admissions',
-              status: 'active',
-              created_at: new Date().toISOString()
-            }
-          ];
-
-          return res.json({
-            success: true,
-            data: sampleUsers,
-            count: sampleUsers.length,
-            message: 'Using sample data - database tables need setup'
-          });
-        }
-
-        return res.json({
-          success: true,
-          data: users || [],
-          count: users?.length || 0
-        });
-      } catch (dbError) {
-        // Return sample data as fallback
-        const sampleUsers = [
-          {
-            id: 'user-1',
-            name: 'Santhosh DMHCA',
-            email: 'santhosh@dmhca.in',
-            role: 'admin',
-            department: 'Admissions',
-            status: 'active',
-            created_at: new Date().toISOString()
-          }
-        ];
-
-        return res.json({
-          success: true,
-          data: sampleUsers,
-          count: sampleUsers.length,
-          message: 'Using sample data - database tables need setup'
-        });
-      }
-    }
-
-    // Handle POST - Create new user
-    if (req.method === 'POST') {
-      const { name, email, phone, role = 'counselor', department, designation } = req.body;
-
-      if (!name || !email) {
-        return res.status(400).json({
-          success: false,
-          error: 'Name and email are required'
-        });
-      }
-
-      try {
-        const userData = {
-          name,
-          email,
-          phone,
-          role,
-          department,
-          designation,
-          status: 'active',
-          permissions: role === 'admin' ? ['*'] : ['read', 'write']
-        };
-
-        const { data: user, error } = await supabase
-          .from('users')
-          .insert([userData])
-          .select()
-          .single();
-
-        if (error) {
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to create user'
-          });
-        }
-
-        return res.status(201).json({
-          success: true,
-          message: 'User created successfully',
-          data: user
-        });
-
-      } catch (dbError) {
-        return res.status(500).json({
-          success: false,
-          error: 'Database error during user creation'
-        });
-      }
-    }
-
-    // Handle PUT - Update user
-    if (req.method === 'PUT') {
-      const userId = req.query.id || req.params?.id;
+    switch (req.method) {
+      case 'GET':
+        await handleGetUsers(req, res);
+        break;
       
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          error: 'User ID is required for update'
-        });
-      }
-
-      const updateData = req.body;
-      delete updateData.id;
-      updateData.updated_at = new Date().toISOString();
-
-      try {
-        const { data: updatedUser, error } = await supabase
-          .from('users')
-          .update(updateData)
-          .eq('id', userId)
-          .select()
-          .single();
-
-        if (error) {
-          return res.status(404).json({
-            success: false,
-            error: 'User not found or update failed'
-          });
-        }
-
-        return res.json({
-          success: true,
-          message: 'User updated successfully',
-          data: updatedUser
-        });
-
-      } catch (dbError) {
-        return res.status(500).json({
-          success: false,
-          error: 'Database error during update'
-        });
-      }
-    }
-
-    // Handle DELETE - Delete user
-    if (req.method === 'DELETE') {
-      const userId = req.query.id || req.params?.id;
+      case 'POST':
+        await handleCreateUser(req, res);
+        break;
       
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          error: 'User ID is required for deletion'
-        });
-      }
-
-      try {
-        const { data: deletedUser, error } = await supabase
-          .from('users')
-          .delete()
-          .eq('id', userId)
-          .select()
-          .single();
-
-        if (error) {
-          return res.status(404).json({
-            success: false,
-            error: 'User not found or deletion failed'
-          });
-        }
-
-        return res.json({
-          success: true,
-          message: 'User deleted successfully',
-          data: deletedUser
-        });
-
-      } catch (dbError) {
-        return res.status(500).json({
-          success: false,
-          error: 'Database error during deletion'
-        });
-      }
+      case 'PUT':
+        await handleUpdateUser(req, res);
+        break;
+      
+      case 'DELETE':
+        await handleDeleteUser(req, res);
+        break;
+      
+      default:
+        res.status(405).json({ error: 'Method not allowed' });
     }
-
-    return res.status(405).json({ error: 'Method not allowed' });
-
   } catch (error) {
     console.error('Users API error:', error);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: 'Please check database configuration'
+      details: error.message
     });
   }
 };
+
+async function handleGetUsers(req, res) {
+  try {
+    // Verify admin role
+    await verifyAdminRole(req);
+
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, email, name, username, role, status, department, designation, join_date, created_at, last_login, login_count')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      users: users || []
+    });
+  } catch (error) {
+    res.status(error.message.includes('Admin access') ? 403 : 500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+async function handleCreateUser(req, res) {
+  try {
+    // Verify admin role
+    await verifyAdminRole(req);
+
+    const { email, password, name, username, role, department, designation, phone } = req.body;
+
+    if (!email || !password || !name || !username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, password, name, and username are required'
+      });
+    }
+
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .or(`email.eq.${email},username.eq.${username}`)
+      .single();
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email or username already exists'
+      });
+    }
+
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Create user
+    const userId = uuidv4();
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert([
+        {
+          id: userId,
+          email,
+          name,
+          username,
+          password_hash: hashedPassword,
+          role: role || 'user',
+          status: 'active',
+          department: department || null,
+          designation: designation || null,
+          phone: phone || null,
+          join_date: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ])
+      .select('id, email, name, username, role, status, department, designation, join_date')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      message: 'User created successfully',
+      user: newUser
+    });
+  } catch (error) {
+    res.status(error.message.includes('Admin access') ? 403 : 500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+async function handleUpdateUser(req, res) {
+  try {
+    // Verify admin role
+    await verifyAdminRole(req);
+
+    const userId = req.query.id || req.body.id;
+    const { name, username, role, department, designation, phone, status, password } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (name) updateData.name = name;
+    if (username) updateData.username = username;
+    if (role) updateData.role = role;
+    if (department !== undefined) updateData.department = department;
+    if (designation !== undefined) updateData.designation = designation;
+    if (phone !== undefined) updateData.phone = phone;
+    if (status) updateData.status = status;
+
+    // If password is provided, hash it
+    if (password) {
+      const saltRounds = 10;
+      updateData.password_hash = await bcrypt.hash(password, saltRounds);
+    }
+
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select('id, email, name, username, role, status, department, designation, join_date')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      user: updatedUser
+    });
+  } catch (error) {
+    res.status(error.message.includes('Admin access') ? 403 : 500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+async function handleDeleteUser(req, res) {
+  try {
+    // Verify admin role
+    await verifyAdminRole(req);
+
+    const userId = req.query.id;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    res.status(error.message.includes('Admin access') ? 403 : 500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}

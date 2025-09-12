@@ -247,6 +247,31 @@ app.all('/api/auth/logout', authHandler);
 app.all('/api/auth/verify', authHandler);
 app.all('/api/auth/refresh', authHandler);
 
+// Admin creation endpoint (special setup endpoint)
+app.post('/create-admin', async (req, res) => {
+  try {
+    const createAdminUser = require('./create-admin-direct');
+    const admin = await createAdminUser();
+    
+    res.json({
+      success: true,
+      message: 'Admin user created successfully',
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        username: admin.username,
+        role: admin.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Core CRM APIs (full CRUD) - These handlers support all methods (GET, POST, PUT, DELETE)
 // Routes with /api prefix (existing)
 app.all('/api/leads', leadsHandler);
