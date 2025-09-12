@@ -40,11 +40,11 @@ module.exports = async (req, res) => {
     // Handle GET - Retrieve leads
     if (req.method === 'GET') {
       try {
-        // Try basic columns first
+        // Select all columns matching the new schema
         const { data: leads, error } = await supabase
           .from('leads')
-          .select('id, name, email, phone, status, created_at, updated_at')
-          .order('created_at', { ascending: false });
+          .select('id, fullName, email, phone, country, branch, qualification, source, course, status, assignedTo, followUp, priority, notes, tags, createdAt, updatedAt')
+          .order('createdAt', { ascending: false });
 
         if (error) {
           console.log('❌ Leads query error:', error.message);
@@ -74,55 +74,67 @@ module.exports = async (req, res) => {
 
     // Handle POST - Create new lead
     if (req.method === 'POST') {
-      const { name, email, phone, course_interest, source = 'website', company, budget } = req.body;
+      const { 
+        fullName, 
+        email, 
+        phone, 
+        country, 
+        branch, 
+        qualification, 
+        source = 'manual', 
+        course, 
+        assignedTo, 
+        followUp,
+        priority = 'medium',
+        notes,
+        // Legacy support for old field names
+        name,
+        course_interest 
+      } = req.body;
+
+      // Use fullName if provided, otherwise fall back to name
+      const leadName = fullName || name;
+      const leadCourse = course || course_interest;
 
       // Validate required fields
-      if (!name || !email) {
+      if (!leadName || !email) {
         return res.status(400).json({ 
           success: false,
-          error: 'Name and email are required' 
+          error: 'Full name and email are required' 
         });
       }
 
       try {
-        // Try to insert into database
+        // Create lead data matching the new schema
         const leadData = {
-          name,
-          email,
-          phone,
-          company,
-          source,
-          status: 'new',
-          score: 50,
-          notes: course_interest ? `Interested in: ${course_interest}` : null,
-          budget: budget ? parseFloat(budget) : null,
-          tags: course_interest ? [course_interest] : []
-        };
-
-        // First, try with minimal required fields to match existing schema
-        const minimalLeadData = {
-          name,
+          fullName: leadName,
           email,
           phone: phone || '',
-          status: 'new'
+          country: country || '',
+          branch: branch || '',
+          qualification: qualification || '',
+          source,
+          course: leadCourse || '',
+          status: 'new',
+          assignedTo: assignedTo || '',
+          followUp: followUp || '',
+          priority,
+          notes: notes || ''
         };
 
         const { data: lead, error } = await supabase
           .from('leads')
-          .insert([minimalLeadData])
+          .insert([leadData])
           .select()
           .single();
 
         if (error) {
           console.log('❌ Lead insertion error:', error.message);
-          
-          // Log the error for debugging but still return success to frontend
-          // This prevents the frontend from breaking while we fix the database schema
           return res.status(500).json({
             success: false,
-            error: 'Database schema needs to be updated',
+            error: 'Database error during lead creation',
             message: `Database error: ${error.message}`,
-            details: 'Please check Supabase dashboard and ensure leads table has correct columns: id, name, email, phone, status, created_at, updated_at'
+            details: 'Lead creation failed. Please check the data and try again.'
           });
         }
 
@@ -162,8 +174,21 @@ module.exports = async (req, res) => {
         });
       }
 
-      const updateData = req.body;
+      const updateData = { ...req.body };
       delete updateData.id; // Remove ID from update data
+      
+      // Handle field name mapping for legacy support
+      if (updateData.name && !updateData.fullName) {
+        updateData.fullName = updateData.name;
+        delete updateData.name;
+      }
+      if (updateData.course_interest && !updateData.course) {
+        updateData.course = updateData.course_interest;
+        delete updateData.course_interest;
+      }
+      
+      // Update timestamps
+      updateData.updatedAt = new Date().toISOString();
       updateData.updated_at = new Date().toISOString();
 
       try {
