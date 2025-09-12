@@ -3,11 +3,18 @@ const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 
-// Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+// Initialize Supabase conditionally
+let supabase;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+  }
+} catch (error) {
+  console.log('Auth module: Supabase initialization failed:', error.message);
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
@@ -38,6 +45,8 @@ module.exports = async (req, res) => {
           await handleLogin(req, res);
         } else if (endpoint === 'register') {
           await handleRegister(req, res);
+        } else if (endpoint === 'logout') {
+          await handleLogout(req, res);
         } else if (endpoint === 'refresh') {
           await handleRefreshToken(req, res);
         } else {
@@ -348,6 +357,54 @@ async function handleRefreshToken(req, res) {
     res.status(401).json({
       success: false,
       message: 'Invalid or expired token'
+    });
+  }
+}
+
+async function handleLogout(req, res) {
+  try {
+    // For JWT-based auth, logout is handled client-side by removing the token
+    // We can optionally log the logout event or invalidate tokens server-side
+    
+    const authHeader = req.headers.authorization;
+    let userId = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = decoded.id;
+      } catch (error) {
+        // Token might be expired, that's OK for logout
+      }
+    }
+
+    // Optionally log the logout event
+    if (userId && supabase) {
+      try {
+        await supabase
+          .from('user_sessions')
+          .update({ 
+            status: 'logged_out',
+            logged_out_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .eq('status', 'active');
+      } catch (error) {
+        // Ignore session logging errors
+        console.log('Session logging error:', error.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during logout'
     });
   }
 }

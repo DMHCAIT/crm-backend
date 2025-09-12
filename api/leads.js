@@ -1,10 +1,17 @@
 // Simple leads API with fallback data
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+let supabase;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+  }
+} catch (error) {
+  console.log('Leads module: Supabase initialization failed:', error.message);
+}
 
 module.exports = async (req, res) => {
   // CORS headers
@@ -133,6 +140,90 @@ module.exports = async (req, res) => {
             status: 'new',
             created_at: new Date().toISOString()
           }
+        });
+      }
+    }
+
+    // Handle PUT - Update lead
+    if (req.method === 'PUT') {
+      const leadId = req.query.id || req.params?.id;
+      
+      if (!leadId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Lead ID is required for update'
+        });
+      }
+
+      const updateData = req.body;
+      delete updateData.id; // Remove ID from update data
+      updateData.updated_at = new Date().toISOString();
+
+      try {
+        const { data: updatedLead, error } = await supabase
+          .from('leads')
+          .update(updateData)
+          .eq('id', leadId)
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found or update failed'
+          });
+        }
+
+        return res.json({
+          success: true,
+          message: 'Lead updated successfully',
+          data: updatedLead
+        });
+
+      } catch (dbError) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database error during update'
+        });
+      }
+    }
+
+    // Handle DELETE - Delete lead
+    if (req.method === 'DELETE') {
+      const leadId = req.query.id || req.params?.id;
+      
+      if (!leadId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Lead ID is required for deletion'
+        });
+      }
+
+      try {
+        const { data: deletedLead, error } = await supabase
+          .from('leads')
+          .delete()
+          .eq('id', leadId)
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found or deletion failed'
+          });
+        }
+
+        return res.json({
+          success: true,
+          message: 'Lead deleted successfully',
+          data: deletedLead
+        });
+
+      } catch (dbError) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database error during deletion'
         });
       }
     }

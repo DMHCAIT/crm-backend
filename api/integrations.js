@@ -2,11 +2,18 @@
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 
-// Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+// Initialize Supabase conditionally
+let supabase;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+  }
+} catch (error) {
+  console.log('Integrations module: Supabase initialization failed:', error.message);
+}
 
 module.exports = async (req, res) => {
   // Set CORS headers for production domain

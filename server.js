@@ -243,10 +243,12 @@ app.get('/api/analytics/realtime', analyticsHandler);
 // Authentication endpoints
 app.all('/api/auth/login', authHandler);
 app.all('/api/auth/register', authHandler);
+app.all('/api/auth/logout', authHandler);
 app.all('/api/auth/verify', authHandler);
 app.all('/api/auth/refresh', authHandler);
 
 // Core CRM APIs (full CRUD) - These handlers support all methods (GET, POST, PUT, DELETE)
+// Routes with /api prefix (existing)
 app.all('/api/leads', leadsHandler);
 app.all('/api/leads/:id', leadsHandler);
 app.all('/api/students', studentsHandler);
@@ -259,8 +261,22 @@ app.all('/api/documents', documentsHandler);
 app.all('/api/documents/:id', documentsHandler);
 app.all('/api/payments', paymentsHandler);
 app.all('/api/payments/:id', paymentsHandler);
+app.post('/api/payments/create-order', paymentsHandler);
 app.all('/api/integrations', integrationsHandler);
 app.all('/api/integrations/:id', integrationsHandler);
+
+// Routes without /api prefix (for frontend compatibility)
+app.all('/leads', leadsHandler);
+app.all('/students', studentsHandler);
+app.all('/users', usersHandler);
+app.all('/communications', communicationsHandler);
+app.all('/documents', documentsHandler);
+app.all('/payments', paymentsHandler);
+app.post('/payments/create-order', paymentsHandler);
+app.all('/integrations', integrationsHandler);
+
+// Dashboard stats (additional route)
+app.get('/dashboard/stats', dashboardHandler);
 
 // ===========================
 // WEBHOOK ENDPOINTS

@@ -1,7 +1,45 @@
-const { supabase } = require('../config/supabaseClient');
+// Real-time Analytics API
+const { createClient } = require('@supabase/supabase-js');
 
-// Get real-time analytics data
-const getRealTimeAnalytics = async (req, res) => {
+// Initialize Supabase conditionally  
+let supabase;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+  }
+} catch (error) {
+  console.log('Analytics module: Supabase initialization failed:', error.message);
+}
+
+module.exports = async (req, res) => {
+  // Set CORS headers
+  const allowedOrigins = [
+    'https://www.crmdmhca.com', 
+    'https://crmdmhca.com', 
+    'https://crm-frontend-final-nnmy850zp-dmhca.vercel.app',
+    'https://crm-frontend-final.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:5174'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
     try {
         console.log('Starting analytics aggregation...');
         
@@ -107,8 +145,4 @@ const getRealTimeAnalytics = async (req, res) => {
             details: error.message
         });
     }
-};
-
-module.exports = {
-    getRealTimeAnalytics
 };

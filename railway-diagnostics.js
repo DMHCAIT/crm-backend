@@ -1,6 +1,9 @@
 // Railway Deployment Diagnostic Script
 // This script helps identify common Railway + Supabase deployment issues
 
+// Load environment variables
+require('dotenv').config();
+
 console.log('🔍 RAILWAY + SUPABASE DEPLOYMENT DIAGNOSTICS');
 console.log('=' .repeat(60));
 
