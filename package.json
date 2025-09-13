@@ -4,11 +4,9 @@
   "description": "DMHCA CRM API Server with Authentication System - PRODUCTION READY",
   "main": "server.js",
   "scripts": {
-    "start": "node server-basic.js",
-    "minimal": "node server-minimal.js",
+    "start": "node server.js",
     "dev": "nodemon server.js",
     "local": "node server.js",
-    "full": "node railway-start.js",
     "build": "echo 'No build step needed for server'",
     "deploy": "npm start"
   },
