@@ -1,4 +1,5 @@
 // Create Super Admin User with Proper Password Hashing
+require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
 const readline = require('readline');

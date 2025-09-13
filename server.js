@@ -194,12 +194,12 @@ try {
   const leadsHandler = require('./api/leads.js');
   const studentsHandler = require('./api/students.js');
   const communicationsHandler = require('./api/enhanced-communications.js');
-  const analyticsHandler = require('./api/analytics.js');
-  const automationsHandler = require('./api/automations.js');
-  const documentsHandler = require('./api/documents.js');
+  const analyticsHandler = require('./api/enhanced-analytics.js');
+  const automationsHandler = require('./api/enhanced-automation.js');
+  const documentsHandler = require('./api/enhanced-documents.js');
   const integrationsHandler = require('./api/integrations.js');
-  const notificationsHandler = require('./api/notifications.js');
-  const settingsHandler = require('./api/settings.js');
+  const notificationsHandler = require('./api/enhanced-notifications.js');
+  const settingsHandler = require('./api/enhanced-system-settings.js');
 
   // Setup API routes
   app.all('/api/users/*', usersHandler);
