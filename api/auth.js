@@ -57,6 +57,16 @@ module.exports = async (req, res) => {
       case 'GET':
         if (endpoint === 'verify') {
           await handleVerifyToken(req, res);
+        } else if (endpoint === 'sessions') {
+          await handleGetUserSessions(req, res);
+        } else {
+          res.status(404).json({ error: 'Auth endpoint not found' });
+        }
+        break;
+
+      case 'DELETE':
+        if (endpoint === 'revoke-session') {
+          await handleRevokeSession(req, res);
         } else {
           res.status(404).json({ error: 'Auth endpoint not found' });
         }
@@ -109,6 +119,9 @@ async function handleLogin(req, res) {
           { expiresIn: JWT_EXPIRES_IN }
         );
 
+        // Log the admin login session
+        const sessionId = await createUserSession(dbUser.id, req);
+
         return res.json({
           success: true,
           token,
@@ -118,7 +131,8 @@ async function handleLogin(req, res) {
             name: dbUser.name,
             username: dbUser.username,
             role: dbUser.role
-          }
+          },
+          session_id: sessionId
         });
       }
     }
@@ -171,6 +185,9 @@ async function handleLogin(req, res) {
       { expiresIn: JWT_EXPIRES_IN }
     );
 
+    // Log the login session
+    const sessionId = await createUserSession(userData.id, req);
+
     res.json({
       success: true,
       token,
@@ -179,7 +196,8 @@ async function handleLogin(req, res) {
         email: userData.email,
         name: userData.name,
         role: userData.role
-      }
+      },
+      session_id: sessionId
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -444,4 +462,230 @@ async function handleLogout(req, res) {
       message: 'Error during logout'
     });
   }
+}
+
+// Enhanced User Session Management Functions
+
+async function createUserSession(userId, req) {
+  try {
+    if (!supabase) return null;
+
+    const sessionData = {
+      user_id: userId,
+      ip_address: getClientIP(req),
+      user_agent: req.headers['user-agent'] || 'Unknown',
+      status: 'active',
+      created_at: new Date().toISOString(),
+      last_activity: new Date().toISOString()
+    };
+
+    const { data: session, error } = await supabase
+      .from('user_sessions')
+      .insert([sessionData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to create user session:', error);
+      return null;
+    }
+
+    return session.id;
+  } catch (error) {
+    console.error('Session creation error:', error);
+    return null;
+  }
+}
+
+async function handleGetUserSessions(req, res) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'No valid token provided'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const userId = decoded.id;
+
+    const { limit = 10, offset = 0, status } = req.query;
+
+    let query = supabase
+      .from('user_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data: sessions, error } = await query;
+
+    if (error) throw error;
+
+    // Add session metadata
+    const sessionsWithMetadata = sessions?.map(session => ({
+      ...session,
+      is_current_session: isCurrentSession(session, req),
+      device_info: parseUserAgent(session.user_agent),
+      location_info: getLocationFromIP(session.ip_address)
+    })) || [];
+
+    res.json({
+      success: true,
+      sessions: sessionsWithMetadata,
+      total_count: sessionsWithMetadata.length
+    });
+  } catch (error) {
+    console.error('Get user sessions error:', error);
+    
+    if (error.name === 'JsonWebTokenError') {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid token'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch user sessions',
+        details: error.message
+      });
+    }
+  }
+}
+
+async function handleRevokeSession(req, res) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'No valid token provided'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const userId = decoded.id;
+
+    const { sessionId } = req.query;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Session ID is required'
+      });
+    }
+
+    // Verify the session belongs to the user
+    const { data: session, error: fetchError } = await supabase
+      .from('user_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    // Revoke the session
+    const { error: revokeError } = await supabase
+      .from('user_sessions')
+      .update({
+        status: 'revoked',
+        revoked_at: new Date().toISOString(),
+        revoked_by: userId
+      })
+      .eq('id', sessionId);
+
+    if (revokeError) throw revokeError;
+
+    res.json({
+      success: true,
+      message: 'Session revoked successfully',
+      session_id: sessionId
+    });
+  } catch (error) {
+    console.error('Revoke session error:', error);
+    
+    if (error.name === 'JsonWebTokenError') {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid token'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to revoke session',
+        details: error.message
+      });
+    }
+  }
+}
+
+// Helper functions for session management
+function getClientIP(req) {
+  return req.headers['x-forwarded-for'] ||
+         req.headers['x-real-ip'] ||
+         req.connection?.remoteAddress ||
+         req.socket?.remoteAddress ||
+         (req.connection?.socket ? req.connection.socket.remoteAddress : null) ||
+         'Unknown';
+}
+
+function isCurrentSession(session, req) {
+  const currentIP = getClientIP(req);
+  const currentUserAgent = req.headers['user-agent'] || 'Unknown';
+  
+  return session.ip_address === currentIP && 
+         session.user_agent === currentUserAgent &&
+         session.status === 'active';
+}
+
+function parseUserAgent(userAgent) {
+  if (!userAgent || userAgent === 'Unknown') {
+    return { browser: 'Unknown', os: 'Unknown', device: 'Unknown' };
+  }
+
+  // Simple user agent parsing (can be enhanced with a proper library)
+  let browser = 'Unknown';
+  let os = 'Unknown';
+  let device = 'Desktop';
+
+  // Browser detection
+  if (userAgent.includes('Chrome')) browser = 'Chrome';
+  else if (userAgent.includes('Firefox')) browser = 'Firefox';
+  else if (userAgent.includes('Safari')) browser = 'Safari';
+  else if (userAgent.includes('Edge')) browser = 'Edge';
+
+  // OS detection
+  if (userAgent.includes('Windows')) os = 'Windows';
+  else if (userAgent.includes('Mac')) os = 'macOS';
+  else if (userAgent.includes('Linux')) os = 'Linux';
+  else if (userAgent.includes('Android')) os = 'Android';
+  else if (userAgent.includes('iOS')) os = 'iOS';
+
+  // Device detection
+  if (userAgent.includes('Mobile') || userAgent.includes('Android')) device = 'Mobile';
+  else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) device = 'Tablet';
+
+  return { browser, os, device };
+}
+
+function getLocationFromIP(ipAddress) {
+  // Mock implementation - integrate with IP geolocation service
+  return {
+    country: 'Unknown',
+    city: 'Unknown',
+    region: 'Unknown'
+  };
 }
