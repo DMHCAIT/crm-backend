@@ -208,13 +208,23 @@ const authHandler = require('./api/auth');
 const leadsHandler = require('./api/leads');
 const dashboardHandler = require('./api/dashboard');
 const healthHandler = require('./api/health');
-const analyticsHandler = require('./api/analytics');
 const studentsHandler = require('./api/students');
 const usersHandler = require('./api/users');
-const communicationsHandler = require('./api/communications');
-const documentsHandler = require('./api/documents');
-const paymentsHandler = require('./api/payments');
 const integrationsHandler = require('./api/integrations');
+const facebookHandler = require('./api/facebook');
+const whatsappHandler = require('./api/whatsapp');
+
+// Import Enhanced API handlers
+const analyticsHandler = require('./api/enhanced-analytics');
+const automationHandler = require('./api/enhanced-automation');
+const communicationsHandler = require('./api/enhanced-communications');
+const documentsHandler = require('./api/enhanced-documents');
+const paymentsHandler = require('./api/enhanced-payments');
+const notificationsHandler = require('./api/enhanced-notifications');
+const notesHandler = require('./api/enhanced-notes');
+const integrationLogsHandler = require('./api/enhanced-integration-logs');
+const systemSettingsHandler = require('./api/enhanced-system-settings');
+const dataExportHandler = require('./api/enhanced-data-export');
 
 // ===========================
 // ROOT & HEALTH ENDPOINTS
@@ -663,6 +673,50 @@ app.use((error, req, res, next) => {
   });
 });
 
+// ===========================
+// ENHANCED API ROUTES
+// ===========================
+
+// Enhanced Analytics API Routes
+app.all('/api/enhanced/analytics', analyticsHandler);
+app.all('/api/enhanced/analytics/*', analyticsHandler);
+
+// Enhanced Automation API Routes  
+app.all('/api/enhanced/automation', automationHandler);
+app.all('/api/enhanced/automation/*', automationHandler);
+
+// Enhanced Communications API Routes (override old one)
+app.all('/api/enhanced/communications', communicationsHandler);
+app.all('/api/enhanced/communications/*', communicationsHandler);
+
+// Enhanced Documents API Routes (override old one)
+app.all('/api/enhanced/documents', documentsHandler);  
+app.all('/api/enhanced/documents/*', documentsHandler);
+
+// Enhanced Payments API Routes (override old one)
+app.all('/api/enhanced/payments', paymentsHandler);
+app.all('/api/enhanced/payments/*', paymentsHandler);
+
+// Enhanced Notifications API Routes
+app.all('/api/enhanced/notifications', notificationsHandler);
+app.all('/api/enhanced/notifications/*', notificationsHandler);
+
+// Enhanced Notes API Routes
+app.all('/api/enhanced/notes', notesHandler);
+app.all('/api/enhanced/notes/*', notesHandler);
+
+// Enhanced Integration Logs API Routes
+app.all('/api/enhanced/integration-logs', integrationLogsHandler);
+app.all('/api/enhanced/integration-logs/*', integrationLogsHandler);
+
+// Enhanced System Settings API Routes
+app.all('/api/enhanced/system-settings', systemSettingsHandler);
+app.all('/api/enhanced/system-settings/*', systemSettingsHandler);
+
+// Enhanced Data Export API Routes
+app.all('/api/enhanced/data-export', dataExportHandler);
+app.all('/api/enhanced/data-export/*', dataExportHandler);
+
 // 404 handler (MUST be after all routes)
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -680,6 +734,16 @@ app.use('*', (req, res) => {
       'ALL /api/documents',
       'ALL /api/payments',
       'ALL /api/integrations',
+      'ALL /api/enhanced/analytics',
+      'ALL /api/enhanced/automation',
+      'ALL /api/enhanced/communications',
+      'ALL /api/enhanced/documents',
+      'ALL /api/enhanced/payments',
+      'ALL /api/enhanced/notifications',
+      'ALL /api/enhanced/notes',
+      'ALL /api/enhanced/integration-logs',
+      'ALL /api/enhanced/system-settings',
+      'ALL /api/enhanced/data-export',
       'POST /api/whatsapp/send',
       'POST /api/email/send',
       'POST /api/calendar/create-appointment',
