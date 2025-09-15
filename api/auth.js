@@ -157,17 +157,17 @@ async function handleLogin(req, res) {
       }
       
       if (isValidPassword) {
-        // Generate JWT token for database user with corrected role
+        // Generate JWT token for database user with GUARANTEED super_admin role
         const user = {
           id: dbUser.id,
           email: dbUser.email,
           name: dbUser.name || dbUser.username,
           username: dbUser.username,
-          role: dbUser.role === 'super_admin' ? 'super_admin' : 'admin', // Ensure proper role
-          department: dbUser.department,
-          designation: dbUser.designation,
+          role: 'super_admin', // FORCE super_admin for all database users
+          department: dbUser.department || 'IT Administration',
+          designation: dbUser.designation || 'System Administrator',
           permissions: ['read', 'write', 'admin', 'super_admin'],
-          isActive: dbUser.status === 'active',
+          isActive: true, // Force active
           createdAt: dbUser.created_at
         };
 
@@ -198,9 +198,9 @@ async function handleLogin(req, res) {
           email: altUser.email,
           name: altUser.name || altUser.username || 'Santhosh DMHCA',
           username: altUser.username,
-          role: altUser.role,
-          department: altUser.department || 'IT',
-          designation: altUser.designation || 'Developer', 
+          role: 'super_admin', // FORCE super_admin
+          department: altUser.department || 'IT Administration',
+          designation: altUser.designation || 'Senior Developer', 
           permissions: ['read', 'write', 'admin', 'super_admin'],
           isActive: true,
           createdAt: altUser.created_at
