@@ -364,27 +364,25 @@ app.post('/api/users', async (req, res) => {
   }
   
   try {
+    console.log('🔍 Supabase status for users API:', { 
+      available: !!supabase, 
+      url: !!SUPABASE_URL, 
+      key: !!SUPABASE_SERVICE_KEY 
+    });
+    
     if (!supabase) {
-      console.log('⚠️ Supabase not available, returning mock success');
-      // Return success even if database fails (for development)
-      const mockUser = {
-        id: Date.now().toString(),
-        ...userData,
-        created_at: new Date().toISOString()
-      };
-      return res.json({ 
-        success: true, 
-        message: 'User creation request processed (database not available)', 
-        user: mockUser 
+      console.log('⚠️ Supabase not available, returning error');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Database connection not available' 
       });
     }
     
-    // Prepare user data with proper structure
+    // Prepare user data with proper structure (removing assigned_to field that doesn't exist in production)
     const userToInsert = {
       name: userData.name,
       email: userData.email,
       role: userData.role || 'user',
-      assigned_to: userData.assignedTo || null,
       permissions: userData.permissions || '{}',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -439,6 +437,11 @@ app.get('/api/users/me', async (req, res) => {
     const userEmail = req.user?.email || req.user?.username;
     
     console.log('🔍 Looking up profile for user:', { userId, userEmail });
+    console.log('🔍 Supabase status:', { 
+      available: !!supabase, 
+      url: !!SUPABASE_URL, 
+      key: !!SUPABASE_SERVICE_KEY 
+    });
     
     if (!supabase) {
       console.log('⚠️ Database not available, using fallback profile');
@@ -658,16 +661,28 @@ app.get('/api/dashboard/stats', async (req, res) => {
 // INLINE NOTES API - REAL DATA FROM DATABASE
 app.post('/api/notes', async (req, res) => {
   console.log('📝 Notes API called - creating note');
+  console.log('📝 Request body:', req.body);
   
   try {
+    console.log('🔍 Supabase status for notes:', { 
+      available: !!supabase, 
+      url: !!SUPABASE_URL, 
+      key: !!SUPABASE_SERVICE_KEY 
+    });
+    
     if (!supabase) {
-      throw new Error('Database not available');
+      console.log('⚠️ Database not available for notes');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Database connection not available' 
+      });
     }
 
     const { title, content, leadId, studentId, category = 'general' } = req.body;
     
     // Validate required fields
     if (!title || !content) {
+      console.log('❌ Missing required fields:', { title: !!title, content: !!content });
       return res.status(400).json({ 
         success: false, 
         error: 'Title and content are required' 
