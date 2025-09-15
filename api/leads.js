@@ -192,8 +192,8 @@ module.exports = async (req, res) => {
         delete updateData.course_interest;
       }
       
-      // Update timestamps
-      updateData.updatedAt = new Date().toISOString();
+      // Update timestamp (database trigger will handle updated_at automatically)
+      // Only set updated_at if no database trigger exists
       updateData.updated_at = new Date().toISOString();
 
       try {
