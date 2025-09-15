@@ -784,17 +784,71 @@ app.get('/', (req, res) => {
   });
 });
 
+// Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    status: 'healthy',
-    uptime: process.uptime(),
+  res.json({ 
+    status: 'healthy', 
     timestamp: new Date().toISOString(),
-    services: {
-      database: SUPABASE_URL ? 'connected' : 'not configured',
-      authentication: JWT_SECRET ? 'configured' : 'not configured'
+    version: '1.0.0',
+    database: {
+      supabase_connected: !!supabase,
+      supabase_url_set: !!SUPABASE_URL,
+      supabase_key_set: !!SUPABASE_SERVICE_KEY
     }
   });
+});
+
+// Debug endpoint for production diagnosis
+app.get('/api/debug/connection', async (req, res) => {
+  console.log('🔍 Debug connection check requested');
+  
+  try {
+    const connectionStatus = {
+      supabase_client: !!supabase,
+      supabase_url: !!SUPABASE_URL,
+      supabase_key: !!SUPABASE_SERVICE_KEY,
+      environment: process.env.NODE_ENV || 'development',
+      timestamp: new Date().toISOString()
+    };
+    
+    if (supabase) {
+      // Test a simple query to verify connection
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('count')
+          .limit(1);
+          
+        connectionStatus.database_test = {
+          success: !error,
+          error: error?.message || null,
+          canQuery: !!data
+        };
+      } catch (testError) {
+        connectionStatus.database_test = {
+          success: false,
+          error: testError.message,
+          canQuery: false
+        };
+      }
+    }
+    
+    res.json({
+      success: true,
+      connection: connectionStatus
+    });
+  } catch (error) {
+    console.error('Debug connection check failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      connection: {
+        supabase_client: !!supabase,
+        supabase_url: !!SUPABASE_URL,
+        supabase_key: !!SUPABASE_SERVICE_KEY
+      }
+    });
+  }
 });
 
 // Add /api/health endpoint for frontend compatibility
