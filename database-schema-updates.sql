@@ -1,9 +1,15 @@
 -- Database Schema Updates for Enhanced CRM Backend
 -- Run this script to align your database with the implemented APIs
 
--- 0. Add assigned_to column to users table (CRITICAL FIX)
+-- 0. Add missing columns to users table (CRITICAL FIXES)
+
+-- Add assigned_to column for user assignment functionality
 ALTER TABLE public.users 
 ADD COLUMN IF NOT EXISTS assigned_to uuid;
+
+-- Add permissions column for role-based access control
+ALTER TABLE public.users 
+ADD COLUMN IF NOT EXISTS permissions text DEFAULT '["read", "write"]';
 
 -- Add foreign key constraint and index for assigned_to
 ALTER TABLE public.users 
@@ -12,7 +18,9 @@ FOREIGN KEY (assigned_to) REFERENCES public.users(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_users_assigned_to ON public.users(assigned_to);
 
+-- Add comments for documentation
 COMMENT ON COLUMN public.users.assigned_to IS 'References the user ID of who this user is assigned to (supervisor/manager)';
+COMMENT ON COLUMN public.users.permissions IS 'JSON array of user permissions for role-based access control';
 
 -- 1. Create missing data_exports table for enhanced-data-export.js
 CREATE TABLE IF NOT EXISTS public.data_exports (
