@@ -408,11 +408,19 @@ app.post('/api/users', async (req, res) => {
       }
     }
 
-    // Prepare user data with proper structure (including assigned_to field)
+    // Generate username from email if not provided
+    const username = userData.username || userData.email?.split('@')[0] || userData.name?.toLowerCase().replace(/\s+/g, '') || 'user';
+    
+    // Prepare user data with proper structure (matching actual database schema)
     const userToInsert = {
       name: userData.name,
+      username: username, // Required field in database
       email: userData.email,
+      password_hash: userData.password_hash || '$2b$10$default_password_hash', // Provide default if not set
+      phone: userData.phone || '',
       role: userData.role || 'user',
+      department: userData.department || '',
+      status: userData.status || 'active',
       assigned_to: assignedToUuid,
       permissions: userData.permissions || '["read", "write"]',
       created_at: new Date().toISOString(),
