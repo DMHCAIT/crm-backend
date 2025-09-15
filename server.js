@@ -15,6 +15,20 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
+// Initialize Supabase client globally
+let supabase = null;
+try {
+  if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+    const { createClient } = require('@supabase/supabase-js');
+    supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    console.log('🗄️ Supabase client initialized successfully');
+  } else {
+    console.log('⚠️ Supabase credentials missing - running in fallback mode');
+  }
+} catch (error) {
+  console.log('❌ Supabase initialization failed:', error.message);
+}
+
 console.log('🚀 Starting DMHCA CRM Backend Server...');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
@@ -336,38 +350,83 @@ app.delete('/api/users', async (req, res) => {
 
 // INLINE USER CREATE/UPDATE API - 100% RELIABLE
 app.post('/api/users', async (req, res) => {
-  console.log('➕ User POST API called');
+  console.log('➕ User POST API called with data:', req.body);
   
   const userData = req.body;
   
-  try {
-    const { createClient } = require('@supabase/supabase-js');
-    
-    if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-      
-      // Insert new user
-      const { data: newUser, error } = await supabase
-        .from('users')
-        .insert([userData])
-        .select()
-        .single();
-        
-      if (!error && newUser) {
-        console.log(`✅ User created successfully:`, newUser.email);
-        return res.json({ success: true, user: newUser });
-      } else {
-        console.log('❌ Insert error:', error?.message);
-        return res.status(500).json({ success: false, error: 'Failed to create user' });
-      }
-    }
-  } catch (error) {
-    console.log('⚠️ Database insert failed:', error.message);
+  // Validate required fields
+  if (!userData.email || !userData.name) {
+    console.log('❌ Missing required fields:', { email: userData.email, name: userData.name });
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Email and name are required fields' 
+    });
   }
   
-  // Return success even if database fails (for development)
-  console.log(`⚠️ Simulated creation of user ${userData.email} (database not available)`);
-  res.json({ success: true, message: 'User creation request processed', user: userData });
+  try {
+    if (!supabase) {
+      console.log('⚠️ Supabase not available, returning mock success');
+      // Return success even if database fails (for development)
+      const mockUser = {
+        id: Date.now().toString(),
+        ...userData,
+        created_at: new Date().toISOString()
+      };
+      return res.json({ 
+        success: true, 
+        message: 'User creation request processed (database not available)', 
+        user: mockUser 
+      });
+    }
+    
+    // Prepare user data with proper structure
+    const userToInsert = {
+      name: userData.name,
+      email: userData.email,
+      role: userData.role || 'user',
+      assigned_to: userData.assignedTo || null,
+      permissions: userData.permissions || '{}',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    console.log('📝 Inserting user data:', userToInsert);
+    
+    // Insert new user
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert([userToInsert])
+      .select()
+      .single();
+      
+    if (error) {
+      console.log('❌ Supabase insert error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        error: `Database error: ${error.message}` 
+      });
+    }
+    
+    if (newUser) {
+      console.log(`✅ User created successfully:`, newUser.email);
+      return res.json({ success: true, user: newUser });
+    }
+    
+    console.log('❌ No user returned from database');
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to create user - no data returned' 
+    });
+    
+  } catch (error) {
+    console.log('⚠️ Database insert failed with exception:', error.message);
+    console.log('📊 Error details:', error);
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: `Server error: ${error.message}` 
+    });
+  }
 });
 
 // INLINE USER PROFILE API - 100% RELIABLE
