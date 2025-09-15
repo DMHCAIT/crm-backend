@@ -4,6 +4,7 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const app = express();
@@ -411,12 +412,16 @@ app.post('/api/users', async (req, res) => {
     // Generate username from email if not provided
     const username = userData.username || userData.email?.split('@')[0] || userData.name?.toLowerCase().replace(/\s+/g, '') || 'user';
     
+    // Hash password - use 'admin123' as default if no password provided
+    const plainPassword = userData.password || 'admin123';
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+    
     // Prepare user data with proper structure (matching actual database schema)
     const userToInsert = {
       name: userData.name,
       username: username, // Required field in database
       email: userData.email,
-      password_hash: userData.password_hash || '$2b$10$default_password_hash', // Provide default if not set
+      password_hash: hashedPassword, // Use properly hashed password
       phone: userData.phone || '',
       role: userData.role || 'user',
       department: userData.department || '',

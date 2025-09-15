@@ -108,7 +108,9 @@ async function handleLogin(req, res) {
       { email: 'santhosh@dmhca.edu', password: 'admin123', name: 'Santhosh DMHCA', role: 'super_admin' },
       { email: 'nikhil@crm.com', password: 'nikhil123', name: 'Nikhil Kumar', role: 'admin' },
       { email: 'akshay@crm.com', password: 'akshay123', name: 'Akshay Sharma', role: 'admin' },
-      { email: 'demo@crm.com', password: 'demo123', name: 'Demo User', role: 'admin' }
+      { email: 'demo@crm.com', password: 'demo123', name: 'Demo User', role: 'admin' },
+      { email: 'admin@dmhca.com', password: 'admin123', name: 'Navya DMHCA', role: 'manager' },
+      { email: 'adminn@dmhca.com', password: 'admin123', name: 'Nithya DMHCA', role: 'team_leader' }
     ];
 
     const validUser = adminCredentials.find(user => 
@@ -151,8 +153,14 @@ async function handleLogin(req, res) {
       
       // Check if password is bcrypt hash or plaintext
       if (dbUser.password_hash.startsWith('$2')) {
-        // It's a bcrypt hash
-        isValidPassword = await bcrypt.compare(password, dbUser.password_hash);
+        // Check if it's the default placeholder hash
+        if (dbUser.password_hash === '$2b$10$default_password_hash') {
+          // For users with default hash, accept 'admin123' as password
+          isValidPassword = (password === 'admin123');
+        } else {
+          // It's a real bcrypt hash
+          isValidPassword = await bcrypt.compare(password, dbUser.password_hash);
+        }
       } else {
         // It's plaintext (for your existing user: santhosh@dmhca.in / Santhu@123)
         isValidPassword = (password === dbUser.password_hash);
