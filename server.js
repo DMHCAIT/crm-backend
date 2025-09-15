@@ -378,13 +378,43 @@ app.post('/api/users', async (req, res) => {
       });
     }
     
+    // Handle assigned_to field - convert email to UUID if needed
+    let assignedToUuid = null;
+    if (userData.assignedTo) {
+      // If assignedTo looks like an email, find the corresponding user UUID
+      if (userData.assignedTo.includes('@')) {
+        console.log('🔍 Converting email to UUID for assigned_to:', userData.assignedTo);
+        try {
+          const { data: assignedUser, error: assignedError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', userData.assignedTo)
+            .single();
+          
+          if (assignedUser && !assignedError) {
+            assignedToUuid = assignedUser.id;
+            console.log('✅ Found UUID for assigned user:', assignedToUuid);
+          } else {
+            console.log('⚠️ No user found with email:', userData.assignedTo);
+            assignedToUuid = null;
+          }
+        } catch (err) {
+          console.log('⚠️ Error looking up assigned user:', err.message);
+          assignedToUuid = null;
+        }
+      } else {
+        // Assume it's already a UUID
+        assignedToUuid = userData.assignedTo;
+      }
+    }
+
     // Prepare user data with proper structure (including assigned_to field)
     const userToInsert = {
       name: userData.name,
       email: userData.email,
       role: userData.role || 'user',
-      assigned_to: userData.assignedTo || null,
-      permissions: userData.permissions || '{}',
+      assigned_to: assignedToUuid,
+      permissions: userData.permissions || '["read", "write"]',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
