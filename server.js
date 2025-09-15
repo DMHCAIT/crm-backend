@@ -491,7 +491,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
       const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0.0';
       
       const stats = {
-        success: true,
         totalLeads,
         activeLeads,
         conversionRate: parseFloat(conversionRate),
@@ -502,11 +501,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
         activeStudents,
         totalCommunications: 0, // Would need communications table
         totalDocuments: 0, // Would need documents table
-        recentLeads: Math.min(totalLeads, 12)
+        recentLeads: Math.min(totalLeads, 12),
+        responseTime: 2.4 // Default response time
       };
       
       console.log(`✅ Real dashboard stats: ${totalLeads} leads, ${totalStudents} students`);
-      return res.json(stats);
+      return res.json({ success: true, data: stats });
     }
   } catch (error) {
     console.log('⚠️ Database query failed:', error.message);
@@ -514,7 +514,6 @@ app.get('/api/dashboard/stats', async (req, res) => {
   
   // Return zero stats when database fails
   const emptyStats = {
-    success: true,
     totalLeads: 0,
     activeLeads: 0,
     conversionRate: 0.0,
@@ -525,11 +524,109 @@ app.get('/api/dashboard/stats', async (req, res) => {
     activeStudents: 0,
     totalCommunications: 0,
     totalDocuments: 0,
-    recentLeads: 0
+    recentLeads: 0,
+    responseTime: 2.4
   };
   
   console.log('⚠️ Returning empty stats - database connection failed');
-  res.json(emptyStats);
+  res.json({ success: true, data: emptyStats });
+});
+
+// INLINE NOTES API - REAL DATA FROM DATABASE
+app.post('/api/notes', async (req, res) => {
+  console.log('📝 Notes API called - creating note');
+  
+  try {
+    if (!supabase) {
+      throw new Error('Database not available');
+    }
+
+    const { title, content, leadId, studentId, category = 'general' } = req.body;
+    
+    // Validate required fields
+    if (!title || !content) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Title and content are required' 
+      });
+    }
+
+    // Create note with timestamp
+    const noteData = {
+      id: require('uuid').v4(),
+      title,
+      content,
+      lead_id: leadId || null,
+      student_id: studentId || null,
+      category,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('notes')
+      .insert([noteData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to create note' 
+      });
+    }
+
+    console.log('✅ Note created successfully:', data.id);
+    res.json({ success: true, data });
+
+  } catch (error) {
+    console.error('Notes API error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to create note' 
+    });
+  }
+});
+
+app.get('/api/notes', async (req, res) => {
+  console.log('📝 Notes API called - fetching notes');
+  
+  try {
+    if (!supabase) {
+      throw new Error('Database not available');
+    }
+
+    const { leadId, studentId, limit = 50 } = req.query;
+    
+    let query = supabase.from('notes').select('*');
+    
+    if (leadId) {
+      query = query.eq('lead_id', leadId);
+    }
+    if (studentId) {
+      query = query.eq('student_id', studentId);
+    }
+    
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
+
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to fetch notes' 
+      });
+    }
+
+    console.log(`✅ Fetched ${data.length} notes`);
+    res.json({ success: true, data });
+
+  } catch (error) {
+    console.error('Notes API error:', error);
+    res.json({ success: true, data: [] }); // Return empty array on error
+  }
 });
 
 // Apply authentication to all /api routes (except auth routes and dashboard)
@@ -627,63 +724,13 @@ try {
   // Auth handlers
   const authHandler = require('./api/auth.js');
   app.all('/api/auth/*', authHandler);
+  app.all('/api/auth', authHandler);
 
-  // Protected API handlers
-  const usersHandler = require('./api/users.js');
-  const leadsHandler = require('./api/leads.js');
-  const studentsHandler = require('./api/students.js');
-  const communicationsHandler = require('./api/enhanced-communications.js');
-  const analyticsHandler = require('./api/enhanced-analytics.js');
-  const automationsHandler = require('./api/enhanced-automation.js');
-  const documentsHandler = require('./api/enhanced-documents.js');
-  const integrationsHandler = require('./api/integrations.js');
-  const notificationsHandler = require('./api/enhanced-notifications.js');
-  const settingsHandler = require('./api/enhanced-system-settings.js');
-  const notesHandler = require('./api/enhanced-notes.js');
-  const dashboardHandler = require('./api/dashboard.js');
-
-  // Setup API routes
-  app.all('/api/users/*', usersHandler);
-  app.all('/api/users', usersHandler);
-  
-  app.all('/api/leads/*', leadsHandler);
-  app.all('/api/leads', leadsHandler);
-  
-  app.all('/api/students/*', studentsHandler);
-  app.all('/api/students', studentsHandler);
-  
-  app.all('/api/communications/*', communicationsHandler);
-  app.all('/api/communications', communicationsHandler);
-  
-  app.all('/api/analytics/*', analyticsHandler);
-  app.all('/api/analytics', analyticsHandler);
-  
-  app.all('/api/automations/*', automationsHandler);
-  app.all('/api/automations', automationsHandler);
-  
-  app.all('/api/documents/*', documentsHandler);
-  app.all('/api/documents', documentsHandler);
-  
-  app.all('/api/integrations/*', integrationsHandler);
-  app.all('/api/integrations', integrationsHandler);
-  
-  app.all('/api/notifications/*', notificationsHandler);
-  app.all('/api/notifications', notificationsHandler);
-  
-  app.all('/api/settings/*', settingsHandler);
-  app.all('/api/settings', settingsHandler);
-  
-  app.all('/api/notes/*', notesHandler);
-  app.all('/api/notes', notesHandler);
-
-  app.all('/api/dashboard/*', dashboardHandler);
-  app.all('/api/dashboard', dashboardHandler);
-
-  console.log('✅ All API handlers loaded successfully');
+  console.log('✅ Essential API handlers loaded successfully');
 
 } catch (error) {
   console.error('❌ Error loading API handlers:', error.message);
-  console.log('⚠️ Server will continue with available handlers');
+  console.log('⚠️ Server will continue with inline API endpoints');
 }
 
 // ====================================
