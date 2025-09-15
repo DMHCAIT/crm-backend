@@ -17,7 +17,7 @@ try {
   console.log('Users module: Supabase initialization failed:', error.message);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025';
 
 // Middleware to verify admin role
 async function verifyAdminRole(req) {

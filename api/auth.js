@@ -16,7 +16,7 @@ try {
   console.log('Auth module: Supabase initialization failed:', error.message);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 module.exports = async (req, res) => {
