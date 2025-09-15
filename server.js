@@ -474,6 +474,127 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+// INLINE USER UPDATE API - 100% RELIABLE
+app.put('/api/users', async (req, res) => {
+  console.log('✏️ User PUT API called with data:', req.body);
+  console.log('🔍 Query params:', req.query);
+  
+  const userId = req.query.id || req.body.id;
+  const userData = req.body;
+  
+  // Validate required fields
+  if (!userId) {
+    console.log('❌ Missing user ID');
+    return res.status(400).json({ 
+      success: false, 
+      error: 'User ID is required for update' 
+    });
+  }
+  
+  try {
+    console.log('🔍 Supabase status for user update:', { 
+      available: !!supabase, 
+      url: !!SUPABASE_URL, 
+      key: !!SUPABASE_SERVICE_KEY 
+    });
+    
+    if (!supabase) {
+      console.log('⚠️ Supabase not available, returning error');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Database connection not available' 
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    // Update fields if provided
+    if (userData.name) updateData.name = userData.name;
+    if (userData.username) updateData.username = userData.username;
+    if (userData.email) updateData.email = userData.email;
+    if (userData.phone !== undefined) updateData.phone = userData.phone;
+    if (userData.role) updateData.role = userData.role;
+    if (userData.department !== undefined) updateData.department = userData.department;
+    if (userData.designation !== undefined) updateData.designation = userData.designation;
+    if (userData.location !== undefined) updateData.location = userData.location;
+    if (userData.status) updateData.status = userData.status;
+    if (userData.branch !== undefined) updateData.branch = userData.branch;
+
+    // Handle assigned_to field - convert email to UUID if needed
+    if (userData.assignedTo !== undefined) {
+      let assignedToUuid = null;
+      if (userData.assignedTo && userData.assignedTo.includes('@')) {
+        try {
+          const { data: assignedUser, error: assignedError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', userData.assignedTo)
+            .single();
+          
+          if (assignedUser && !assignedError) {
+            assignedToUuid = assignedUser.id;
+          }
+        } catch (err) {
+          console.log('⚠️ Error looking up assigned user:', err.message);
+        }
+      } else if (userData.assignedTo) {
+        assignedToUuid = userData.assignedTo;
+      }
+      updateData.assigned_to = assignedToUuid;
+    }
+
+    // Handle password update - hash if provided
+    if (userData.password) {
+      console.log('🔒 Hashing new password for user update');
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
+      updateData.password_hash = hashedPassword;
+    }
+    
+    console.log('📝 Updating user with data:', { ...updateData, password_hash: updateData.password_hash ? '[HASHED]' : undefined });
+    
+    // Update user in database
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select()
+      .single();
+      
+    if (error) {
+      console.log('❌ Supabase update error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        error: `Database error: ${error.message}` 
+      });
+    }
+    
+    if (updatedUser) {
+      console.log(`✅ User updated successfully:`, updatedUser.email);
+      // Don't return password hash in response
+      const { password_hash, ...userResponse } = updatedUser;
+      return res.json({ success: true, user: userResponse });
+    }
+
+    console.log('❌ No user returned from database update');
+    return res.status(404).json({ 
+      success: false, 
+      error: 'User not found or update failed' 
+    });
+    
+  } catch (error) {
+    console.log('⚠️ Database update failed with exception:', error.message);
+    console.log('📊 Error details:', error);
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: `Server error: ${error.message}` 
+    });
+  }
+});
+
 // INLINE USER PROFILE API - 100% RELIABLE
 app.get('/api/users/me', async (req, res) => {
   console.log('👤 User Profile API called');
