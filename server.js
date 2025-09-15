@@ -420,8 +420,11 @@ app.post('/api/users', async (req, res) => {
       phone: userData.phone || '',
       role: userData.role || 'user',
       department: userData.department || '',
+      designation: userData.designation || '',
+      location: userData.location || '',
       status: userData.status || 'active',
       assigned_to: assignedToUuid,
+      branch: userData.branch || null, // Support branch field (Delhi, Hyderabad, Kashmir)
       permissions: userData.permissions || '["read", "write"]',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

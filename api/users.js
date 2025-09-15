@@ -316,7 +316,7 @@ async function handleUpdateUser(req, res) {
     await verifyAdminRole(req);
 
     const userId = req.query.id || req.body.id;
-    const { name, username, role, department, designation, phone, status, password } = req.body;
+    const { name, username, role, department, designation, phone, status, password, branch, assignedTo } = req.body;
 
     if (!userId) {
       return res.status(400).json({
@@ -336,6 +336,32 @@ async function handleUpdateUser(req, res) {
     if (designation !== undefined) updateData.designation = designation;
     if (phone !== undefined) updateData.phone = phone;
     if (status) updateData.status = status;
+    if (branch !== undefined) updateData.branch = branch;
+    
+    // Handle assigned_to field - convert email to UUID if needed
+    if (assignedTo !== undefined) {
+      let assignedToUuid = null;
+      if (assignedTo && assignedTo.includes('@')) {
+        // If assignedTo looks like an email, find the corresponding user UUID
+        try {
+          const { data: assignedUser, error: assignedError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', assignedTo)
+            .single();
+          
+          if (assignedUser && !assignedError) {
+            assignedToUuid = assignedUser.id;
+          }
+        } catch (err) {
+          console.log('⚠️ Error looking up assigned user:', err.message);
+        }
+      } else if (assignedTo) {
+        // Assume it's already a UUID
+        assignedToUuid = assignedTo;
+      }
+      updateData.assigned_to = assignedToUuid;
+    }
 
     // If password is provided, hash it
     if (password) {
