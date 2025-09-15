@@ -19,32 +19,78 @@ console.log('🚀 Starting DMHCA CRM Backend Server...');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
 
-// CORS Configuration
+// CORS Configuration - ENHANCED FOR PRODUCTION
 const corsOptions = {
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'https://crm-frontend-dmhca.vercel.app',
-    'https://dmhca-crm-frontend.vercel.app',
-    'https://www.crmdmhca.com',
-    'https://crmdmhca.com',
-    // Allow any vercel.app subdomain for deployment flexibility
-    /^https:\/\/[\w-]+\.vercel\.app$/
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://crm-frontend-dmhca.vercel.app',
+      'https://dmhca-crm-frontend.vercel.app',
+      'https://www.crmdmhca.com',
+      'https://crmdmhca.com'
+    ];
+    
+    // Check exact match first
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check vercel.app pattern
+    if (/^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+    
+    console.log(`❌ CORS blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS policy'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-requested-with'],
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 };
 
 app.use(cors(corsOptions));
+
+// Explicit preflight handler for all routes
+app.options('*', cors(corsOptions));
+
+// Additional CORS headers for extra compatibility
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (
+    origin === 'https://www.crmdmhca.com' || 
+    origin === 'https://crmdmhca.com' ||
+    origin.includes('vercel.app') ||
+    origin.includes('localhost')
+  )) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-api-key');
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Request Logging Middleware
+// Enhanced Request Logging Middleware
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.path} - IP: ${req.ip}`);
+  const origin = req.headers.origin || 'no-origin';
+  console.log(`[${timestamp}] ${req.method} ${req.path} - Origin: ${origin} - IP: ${req.ip}`);
   next();
 });
 
