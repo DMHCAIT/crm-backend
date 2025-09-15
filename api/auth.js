@@ -106,6 +106,8 @@ async function handleLogin(req, res) {
     const adminCredentials = [
       { email: 'admin@crm.com', password: 'admin123', name: 'CRM Administrator', role: 'super_admin' },
       { email: 'santhosh@dmhca.edu', password: 'admin123', name: 'Santhosh DMHCA', role: 'super_admin' },
+      { email: 'nikhil@crm.com', password: 'nikhil123', name: 'Nikhil Kumar', role: 'admin' },
+      { email: 'akshay@crm.com', password: 'akshay123', name: 'Akshay Sharma', role: 'admin' },
       { email: 'demo@crm.com', password: 'demo123', name: 'Demo User', role: 'admin' }
     ];
 

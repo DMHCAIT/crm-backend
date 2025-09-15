@@ -430,23 +430,87 @@ app.post('/api/users', async (req, res) => {
 });
 
 // INLINE USER PROFILE API - 100% RELIABLE
-app.get('/api/users/me', (req, res) => {
+app.get('/api/users/me', async (req, res) => {
   console.log('👤 User Profile API called');
   
-  // Return current user profile
-  const userProfile = {
-    id: 1,
-    name: 'Santhosh DMHCA',
-    email: 'santhosh@dmhca.in',
-    role: 'super_admin',
-    department: 'IT Administration',
-    status: 'active',
-    permissions: ['read', 'write', 'admin', 'super_admin'],
-    created_at: '2024-01-01T00:00:00Z',
-    last_login: new Date().toISOString()
-  };
-  
-  res.json({ success: true, user: userProfile });
+  try {
+    // Get user info from JWT token (set by authenticateToken middleware)
+    const userId = req.user?.id;
+    const userEmail = req.user?.email || req.user?.username;
+    
+    console.log('🔍 Looking up profile for user:', { userId, userEmail });
+    
+    if (!supabase) {
+      console.log('⚠️ Database not available, using fallback profile');
+      // Fallback based on authenticated user info
+      const fallbackProfile = {
+        id: userId || 'unknown',
+        name: req.user?.name || userEmail?.split('@')[0] || 'Unknown User',
+        email: userEmail || 'unknown@dmhca.in',
+        role: req.user?.role || 'user',
+        department: 'DMHCA',
+        status: 'active',
+        permissions: ['read', 'write'],
+        created_at: new Date().toISOString(),
+        last_login: new Date().toISOString()
+      };
+      return res.json({ success: true, user: fallbackProfile });
+    }
+    
+    // Query database for user profile
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('*')
+      .or(`email.eq.${userEmail},id.eq.${userId}`)
+      .limit(1);
+    
+    if (error) {
+      console.error('Database error:', error);
+      throw error;
+    }
+    
+    if (users && users.length > 0) {
+      const dbUser = users[0];
+      console.log('✅ Found user profile in database:', dbUser.name);
+      
+      const userProfile = {
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        role: dbUser.role || 'user',
+        department: dbUser.department || 'DMHCA',
+        status: 'active',
+        permissions: JSON.parse(dbUser.permissions || '["read", "write"]'),
+        created_at: dbUser.created_at,
+        last_login: new Date().toISOString()
+      };
+      
+      return res.json({ success: true, user: userProfile });
+    }
+    
+    console.log('⚠️ User not found in database, creating fallback profile');
+    // User not found in database, create fallback based on JWT
+    const fallbackProfile = {
+      id: userId || 'unknown',
+      name: req.user?.name || userEmail?.split('@')[0] || 'Unknown User',
+      email: userEmail || 'unknown@dmhca.in',
+      role: req.user?.role || 'user',
+      department: 'DMHCA',
+      status: 'active',
+      permissions: ['read', 'write'],
+      created_at: new Date().toISOString(),
+      last_login: new Date().toISOString()
+    };
+    
+    res.json({ success: true, user: fallbackProfile });
+    
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch user profile' 
+    });
+  }
 });
 
 // INLINE ANALYTICS API - REAL DATA FROM DATABASE
