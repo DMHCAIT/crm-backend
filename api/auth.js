@@ -102,47 +102,15 @@ async function handleLogin(req, res) {
   }
 
   try {
-    // Simple credential check for immediate production use
-    const adminCredentials = [
-      { email: 'admin@crm.com', password: 'admin123', name: 'CRM Administrator', role: 'super_admin' },
-      { email: 'santhosh@dmhca.edu', password: 'admin123', name: 'Santhosh DMHCA', role: 'super_admin' },
-      { email: 'santhosh@dmhca.in', password: 'Santhu@123', name: 'Santhosh DMHCA', role: 'super_admin' },
-      { email: 'nikhil@crm.com', password: 'nikhil123', name: 'Nikhil Kumar', role: 'admin' },
-      { email: 'akshay@crm.com', password: 'akshay123', name: 'Akshay Sharma', role: 'admin' },
-      { email: 'demo@crm.com', password: 'demo123', name: 'Demo User', role: 'admin' },
-      { email: 'admin@dmhca.com', password: 'admin123', name: 'Navya DMHCA', role: 'manager' },
-      { email: 'adminn@dmhca.com', password: 'admin123', name: 'Nithya DMHCA', role: 'team_leader' }
-    ];
-
-    const validUser = adminCredentials.find(user => 
-      user.email.toLowerCase() === email.toLowerCase() && user.password === password
-    );
-
-    if (validUser) {
-      // Generate JWT token for valid user
-      const user = {
-        id: `admin-${Date.now()}`,
-        email: validUser.email,
-        name: validUser.name,
-        role: validUser.role,
-        permissions: ['read', 'write', 'admin'],
-        isActive: true,
-        createdAt: new Date().toISOString()
-      };
-
-      const token = jwt.sign(user, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-      console.log(`✅ Login successful: ${validUser.email} (${validUser.role})`);
-
-      return res.json({
-        success: true,
-        token,
-        user,
-        message: 'Login successful'
+    // Production authentication - only use database users
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available'
       });
     }
 
-    // Try database authentication as fallback
+    // Database authentication - primary method
     const { data: dbUser, error: dbError } = await supabase
       .from('users')
       .select('*')
@@ -154,31 +122,34 @@ async function handleLogin(req, res) {
       
       // Check if password is bcrypt hash or plaintext
       if (dbUser.password_hash.startsWith('$2')) {
-        // Check if it's the default placeholder hash
-        if (dbUser.password_hash === '$2b$10$default_password_hash') {
-          // For users with default hash, accept 'admin123' as password
-          isValidPassword = (password === 'admin123');
-        } else {
-          // It's a real bcrypt hash
-          isValidPassword = await bcrypt.compare(password, dbUser.password_hash);
-        }
+        // It's a bcrypt hash
+        isValidPassword = await bcrypt.compare(password, dbUser.password_hash);
       } else {
-        // It's plaintext (for your existing user: santhosh@dmhca.in / Santhu@123)
+        // Legacy plaintext - upgrade to hashed password
         isValidPassword = (password === dbUser.password_hash);
+        
+        if (isValidPassword) {
+          // Upgrade plaintext password to hashed version
+          const hashedPassword = await bcrypt.hash(password, 10);
+          await supabase
+            .from('users')
+            .update({ password_hash: hashedPassword })
+            .eq('id', dbUser.id);
+        }
       }
       
       if (isValidPassword) {
-        // Generate JWT token for database user with GUARANTEED super_admin role
+        // Generate JWT token for database user with their actual role
         const user = {
           id: dbUser.id,
           email: dbUser.email,
           name: dbUser.name || dbUser.username,
           username: dbUser.username,
-          role: 'super_admin', // FORCE super_admin for all database users
-          department: dbUser.department || 'IT Administration',
-          designation: dbUser.designation || 'System Administrator',
-          permissions: ['read', 'write', 'admin', 'super_admin'],
-          isActive: true, // Force active
+          role: dbUser.role || 'user', // Use actual role from database
+          department: dbUser.department || '',
+          designation: dbUser.designation || '',
+          permissions: JSON.parse(dbUser.permissions || '["read"]'),
+          isActive: dbUser.status === 'active',
           createdAt: dbUser.created_at
         };
 
@@ -195,40 +166,7 @@ async function handleLogin(req, res) {
       }
     }
 
-    // Also check with alternate email formats
-    if (email === 'santhosh@dmhca.in' || email === 'santhosh@dmhca.edu') {
-      const { data: altUser, error: altError } = await supabase
-        .from('users')
-        .select('*')
-        .ilike('email', '%santhosh%')
-        .single();
-
-      if (altUser && (password === 'Santhu@123' || password === altUser.password_hash)) {
-        const user = {
-          id: altUser.id,
-          email: altUser.email,
-          name: altUser.name || altUser.username || 'Santhosh DMHCA',
-          username: altUser.username,
-          role: 'super_admin', // FORCE super_admin
-          department: altUser.department || 'IT Administration',
-          designation: altUser.designation || 'Senior Developer', 
-          permissions: ['read', 'write', 'admin', 'super_admin'],
-          isActive: true,
-          createdAt: altUser.created_at
-        };
-
-        const token = jwt.sign(user, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-        console.log(`✅ Database login successful: ${altUser.email} (${altUser.role})`);
-
-        return res.json({
-          success: true,
-          token,
-          user,
-          message: 'Login successful'
-        });
-      }
-    }
+    // If no database user found, try Supabase Auth
 
     // If no direct database match, try Supabase auth
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({

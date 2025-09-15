@@ -125,18 +125,12 @@ function authenticateToken(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    console.log('⚠️ No token provided, using guest access mode');
-    
-    // For development/demo purposes, allow limited access without token
-    req.user = {
-      id: 'guest-user',
-      email: 'guest@crm.com',
-      name: 'Guest User',
-      role: 'admin',
-      permissions: ['read', 'write'],
-      isGuest: true
-    };
-    return next();
+    console.log('❌ No authorization token provided');
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Authorization token required',
+      code: 'NO_TOKEN' 
+    });
   }
 
   try {
@@ -145,19 +139,12 @@ function authenticateToken(req, res, next) {
     console.log(`✅ User authenticated: ${decoded.email} (${decoded.role})`);
     next();
   } catch (error) {
-    console.log('⚠️ Token verification failed, falling back to guest mode:', error.message);
-    
-    // Instead of rejecting, provide guest access for development
-    req.user = {
-      id: 'guest-user',
-      email: 'guest@crm.com', 
-      name: 'Guest User',
-      role: 'admin',
-      permissions: ['read'],
-      isGuest: true,
-      tokenError: error.message
-    };
-    next();
+    console.log('❌ Token verification failed:', error.message);
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Invalid or expired token',
+      code: 'INVALID_TOKEN' 
+    });
   }
 }
 
@@ -222,36 +209,20 @@ app.get('/api/dashboard', async (req, res) => {
       return res.json(dashboardData);
     }
   } catch (error) {
-    console.log('⚠️ Dashboard database query failed:', error.message);
+    console.log('❌ Dashboard database query failed:', error.message);
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection failed',
+      message: 'Unable to fetch dashboard data. Please check database connection.'
+    });
   }
   
-  // Return empty dashboard when database fails
-  const emptyDashboard = {
-    success: true,
-    totalLeads: 0,
-    activeLeads: 0,
-    totalStudents: 0,
-    activeStudents: 0,
-    conversionRate: '0.0',
-    totalCommunications: 0,
-    totalDocuments: 0,
-    recentLeads: 0,
-    revenue: {
-      thisMonth: 0,
-      lastMonth: 0,
-      growth: 0
-    },
-    stats: {
-      newLeadsToday: 0,
-      conversionsThisWeek: 0,
-      activeUsers: 0,
-      systemHealth: 'offline'
-    },
-    message: 'No data available - database connection failed'
-  };
-  
-  console.log('⚠️ Returning empty dashboard - database connection failed');
-  res.json(emptyDashboard);
+  // Database not configured
+  return res.status(503).json({
+    success: false,
+    error: 'Database not configured',
+    message: 'SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required'
+  });
 });
 
 // INLINE LEADS API - 100% RELIABLE
@@ -275,12 +246,20 @@ app.get('/api/leads', async (req, res) => {
       }
     }
   } catch (error) {
-    console.log('⚠️ Database query failed:', error.message);
+    console.log('❌ Database query failed:', error.message);
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection failed',
+      message: 'Unable to fetch leads data'
+    });
   }
   
-  // Return empty array when no data found or database fails
-  console.log('⚠️ No leads found or database connection failed');
-  res.json([]);
+  // Database not configured
+  return res.status(503).json({
+    success: false,
+    error: 'Database not configured',
+    message: 'SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required'
+  });
 });
 
 // INLINE USERS API - 100% RELIABLE
@@ -304,12 +283,20 @@ app.get('/api/users', async (req, res) => {
       }
     }
   } catch (error) {
-    console.log('⚠️ Database query failed:', error.message);
+    console.log('❌ Database query failed:', error.message);
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection failed',
+      message: 'Unable to fetch users data'
+    });
   }
   
-  // Return empty array when no data found or database fails
-  console.log('⚠️ No users found or database connection failed');
-  res.json({ success: true, users: [] });
+  // Database not configured
+  return res.status(503).json({
+    success: false,
+    error: 'Database not configured',
+    message: 'SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required'
+  });
 });
 
 // INLINE USER DELETE API - 100% RELIABLE
@@ -412,8 +399,14 @@ app.post('/api/users', async (req, res) => {
     // Generate username from email if not provided
     const username = userData.username || userData.email?.split('@')[0] || userData.name?.toLowerCase().replace(/\s+/g, '') || 'user';
     
-    // Hash password - use 'admin123' as default if no password provided
-    const plainPassword = userData.password || 'admin123';
+    // Hash password - require password to be provided
+    if (!userData.password) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password is required for user creation' 
+      });
+    }
+    const plainPassword = userData.password;
     const hashedPassword = await bcrypt.hash(plainPassword, 10);
     
     // Prepare user data with proper structure (matching actual database schema)
@@ -1139,32 +1132,14 @@ app.post('/api/auth/debug-login', async (req, res) => {
   try {
     console.log('🧪 Debug login requested');
     
-    // Create admin user for testing
-    const testUser = {
-      id: 'admin-dmhca-001',
-      email: 'santhosh@dmhca.edu',
-      name: 'Santhosh DMHCA',
-      role: 'super_admin',
-      permissions: ['read', 'write', 'admin', 'super_admin'],
-      department: 'IT Administration',
-      isActive: true,
-      createdAt: new Date().toISOString()
-    };
-
-    // Generate JWT token
-    const token = jwt.sign(testUser, JWT_SECRET, { 
-      expiresIn: JWT_EXPIRES_IN 
+    // Debug login disabled in production
+    return res.status(403).json({
+      success: false,
+      error: 'Debug authentication is disabled in production',
+      message: 'Please use proper login credentials'
     });
 
-    console.log('✅ Debug token generated successfully');
 
-    res.json({
-      success: true,
-      token: token,
-      user: testUser,
-      expiresIn: JWT_EXPIRES_IN,
-      message: 'Debug authentication successful'
-    });
 
   } catch (error) {
     console.error('❌ Debug login error:', error);
