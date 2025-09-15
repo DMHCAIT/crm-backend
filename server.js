@@ -378,11 +378,12 @@ app.post('/api/users', async (req, res) => {
       });
     }
     
-    // Prepare user data with proper structure (removing assigned_to field that doesn't exist in production)
+    // Prepare user data with proper structure (including assigned_to field)
     const userToInsert = {
       name: userData.name,
       email: userData.email,
       role: userData.role || 'user',
+      assigned_to: userData.assignedTo || null,
       permissions: userData.permissions || '{}',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
