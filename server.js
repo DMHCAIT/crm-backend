@@ -210,6 +210,7 @@ try {
   const notificationsHandler = require('./api/enhanced-notifications.js');
   const settingsHandler = require('./api/enhanced-system-settings.js');
   const notesHandler = require('./api/enhanced-notes.js');
+  const dashboardHandler = require('./api/dashboard.js');
 
   // Setup API routes
   app.all('/api/users/*', usersHandler);
@@ -244,6 +245,9 @@ try {
   
   app.all('/api/notes/*', notesHandler);
   app.all('/api/notes', notesHandler);
+
+  app.all('/api/dashboard/*', dashboardHandler);
+  app.all('/api/dashboard', dashboardHandler);
 
   console.log('✅ All API handlers loaded successfully');
 

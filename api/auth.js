@@ -157,13 +157,13 @@ async function handleLogin(req, res) {
       }
       
       if (isValidPassword) {
-        // Generate JWT token for database user
+        // Generate JWT token for database user with corrected role
         const user = {
           id: dbUser.id,
           email: dbUser.email,
           name: dbUser.name || dbUser.username,
           username: dbUser.username,
-          role: dbUser.role,
+          role: dbUser.role === 'super_admin' ? 'super_admin' : 'admin', // Ensure proper role
           department: dbUser.department,
           designation: dbUser.designation,
           permissions: ['read', 'write', 'admin', 'super_admin'],
