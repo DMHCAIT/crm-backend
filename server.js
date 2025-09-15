@@ -19,36 +19,20 @@ console.log('🚀 Starting DMHCA CRM Backend Server...');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
 
-// CORS Configuration - ENHANCED FOR PRODUCTION
+// CORS Configuration - SIMPLIFIED AND BULLETPROOF
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://crm-frontend-dmhca.vercel.app',
-      'https://dmhca-crm-frontend.vercel.app',
-      'https://www.crmdmhca.com',
-      'https://crmdmhca.com'
-    ];
-    
-    // Check exact match first
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    // Check vercel.app pattern
-    if (/^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) {
-      return callback(null, true);
-    }
-    
-    console.log(`❌ CORS blocked origin: ${origin}`);
-    callback(new Error('Not allowed by CORS policy'));
-  },
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://crm-frontend-dmhca.vercel.app',
+    'https://dmhca-crm-frontend.vercel.app',
+    'https://www.crmdmhca.com',
+    'https://crmdmhca.com',
+    // Vercel preview URLs
+    /^https:\/\/[\w-]+\.vercel\.app$/
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-requested-with'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-requested-with', 'Origin'],
   credentials: true,
   optionsSuccessStatus: 200,
   preflightContinue: false
@@ -59,23 +43,29 @@ app.use(cors(corsOptions));
 // Explicit preflight handler for all routes
 app.options('*', cors(corsOptions));
 
-// Additional CORS headers for extra compatibility
+// Bulletproof CORS headers for all requests
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && (
-    origin === 'https://www.crmdmhca.com' || 
-    origin === 'https://crmdmhca.com' ||
-    origin.includes('vercel.app') ||
-    origin.includes('localhost')
-  )) {
+  
+  // Always set CORS headers for allowed origins
+  const allowedOrigins = [
+    'https://www.crmdmhca.com',
+    'https://crmdmhca.com',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ];
+  
+  if (origin && (allowedOrigins.includes(origin) || origin.includes('vercel.app'))) {
     res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-api-key');
-    res.header('Access-Control-Allow-Credentials', 'true');
   }
   
-  // Handle preflight requests
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-api-key');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
+    console.log(`✅ CORS Preflight handled for origin: ${origin}`);
     res.status(200).end();
     return;
   }
