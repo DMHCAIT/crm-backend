@@ -1,27 +1,11 @@
 -- COMPREHENSIVE DATABASE SCHEMA FIX FOR CRM PRODUCTION
 -- This script fixes all database schema issues found in production
 
--- 1. CREATE MISSING NOTES TABLE (Critical for notes functionality)
-CREATE TABLE IF NOT EXISTS public.notes (
-    id uuid NOT NULL DEFAULT uuid_generate_v4(),
-    title character varying NOT NULL,
-    content text NOT NULL,
-    lead_id uuid,
-    student_id uuid,
-    user_id uuid,
-    category character varying DEFAULT 'general'::character varying,
-    priority character varying DEFAULT 'normal'::character varying,
-    is_private boolean DEFAULT false,
-    tags text[] DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT notes_pkey PRIMARY KEY (id)
-);
-
--- Add indexes for performance
+-- 1. NOTES TABLE ALREADY EXISTS - Just add indexes for performance (if missing)
 CREATE INDEX IF NOT EXISTS idx_notes_lead_id ON public.notes(lead_id);
 CREATE INDEX IF NOT EXISTS idx_notes_student_id ON public.notes(student_id);
 CREATE INDEX IF NOT EXISTS idx_notes_user_id ON public.notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_author_id ON public.notes(author_id);
 CREATE INDEX IF NOT EXISTS idx_notes_created_at ON public.notes(created_at);
 
 -- 2. ENSURE USERS TABLE HAS ALL REQUIRED COLUMNS

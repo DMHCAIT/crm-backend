@@ -799,25 +799,40 @@ app.post('/api/notes', async (req, res) => {
       });
     }
 
-    const { title, content, leadId, studentId, category = 'general' } = req.body;
+    // Extract fields matching your existing notes table schema
+    const { 
+      content, 
+      leadId, 
+      studentId, 
+      userId,
+      authorId,
+      noteType = 'general',
+      priority = 'normal',
+      isPrivate = false,
+      tags = []
+    } = req.body;
     
-    // Validate required fields
-    if (!title || !content) {
-      console.log('❌ Missing required fields:', { title: !!title, content: !!content });
+    // Validate required fields (only content is required in your schema)
+    if (!content) {
+      console.log('❌ Missing required field: content');
       return res.status(400).json({ 
         success: false, 
-        error: 'Title and content are required' 
+        error: 'Content is required' 
       });
     }
 
-    // Create note with timestamp
+    // Create note matching your existing database schema
     const noteData = {
       id: require('uuid').v4(),
-      title,
       content,
       lead_id: leadId || null,
-      student_id: studentId || null,
-      category,
+      student_id: studentId || null, 
+      user_id: userId || null,
+      author_id: authorId || userId || null,
+      note_type: noteType,
+      priority: priority,
+      is_private: isPrivate,
+      tags: tags,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
