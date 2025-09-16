@@ -30,9 +30,10 @@ try {
   console.log('❌ Supabase initialization failed:', error.message);
 }
 
-console.log('🚀 Starting DMHCA CRM Backend Server... [DEPLOYMENT FIX v2.1.1]');
+console.log('🚀 Starting DMHCA CRM Backend Server... [CRASH RECOVERY v2.1.2]');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
+console.log('🔄 Recovery attempt:', new Date().toISOString());
 
 // 🚨 NUCLEAR CORS FIX - MAXIMUM COMPATIBILITY
 // This will work with ANY browser, ANY origin, ANY request type
@@ -1271,9 +1272,32 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('');
 });
 
+// Enhanced error handling and crash prevention
+process.on('uncaughtException', (error) => {
+  console.error('🚨 Uncaught Exception:', error);
+  console.error('Stack:', error.stack);
+  // Don't exit on uncaught exceptions in production
+  if (process.env.NODE_ENV !== 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🚨 Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit on unhandled rejections in production
+});
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 Shutting down server gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 Received SIGINT, shutting down gracefully...');
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
