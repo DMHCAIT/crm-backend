@@ -1157,7 +1157,33 @@ app.get('/api/health', (req, res) => {
 });
 
 // ====================================
-// 🔑 AUTHENTICATION ENDPOINTS
+// � DIAGNOSTIC ENDPOINTS
+// ====================================
+
+// Environment Variables Debug Endpoint
+app.get('/api/debug/env', (req, res) => {
+  console.log('🔍 Environment variables check requested');
+  
+  const envCheck = {
+    SUPABASE_URL: process.env.SUPABASE_URL ? '✅ Set (' + process.env.SUPABASE_URL.substring(0, 30) + '...)' : '❌ Missing',
+    SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY ? '✅ Set (' + process.env.SUPABASE_SERVICE_KEY.substring(0, 30) + '...)' : '❌ Missing',
+    JWT_SECRET: process.env.JWT_SECRET ? '✅ Set' : '❌ Missing',
+    NODE_ENV: process.env.NODE_ENV || 'not set',
+    PORT: process.env.PORT || 'not set',
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('Environment check result:', envCheck);
+  
+  res.json({
+    success: true,
+    environment: envCheck,
+    message: 'Environment variables diagnostic'
+  });
+});
+
+// ====================================
+// �🔑 AUTHENTICATION ENDPOINTS
 // ====================================
 
 // Debug Login Endpoint (for immediate testing)
