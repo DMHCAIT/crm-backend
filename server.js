@@ -30,7 +30,7 @@ try {
   console.log('❌ Supabase initialization failed:', error.message);
 }
 
-console.log('🚀 Starting DMHCA CRM Backend Server...');
+console.log('🚀 Starting DMHCA CRM Backend Server... [DEPLOYMENT FIX v2.1.1]');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
 
