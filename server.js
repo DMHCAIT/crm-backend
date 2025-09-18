@@ -30,26 +30,41 @@ try {
   console.log('❌ Supabase initialization failed:', error.message);
 }
 
-console.log('🚀 Starting DMHCA CRM Backend Server... [CRASH RECOVERY v2.1.2]');
+console.log('🚀 Starting DMHCA CRM Backend Server... [CORS FIX v2.1.3]');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
-console.log('🔄 Recovery attempt:', new Date().toISOString());
+console.log('🌐 CORS configured for: https://www.crmdmhca.com');
+console.log('🔄 CORS Fix deployed:', new Date().toISOString());
 
-// 🚨 NUCLEAR CORS FIX - MAXIMUM COMPATIBILITY
-// This will work with ANY browser, ANY origin, ANY request type
+// 🚨 ENHANCED CORS FIX FOR RENDER.COM DEPLOYMENT
+// Explicitly allow frontend domain and handle all CORS scenarios
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
+  // Allowed origins - your frontend domain and localhost for development
+  const allowedOrigins = [
+    'https://www.crmdmhca.com',
+    'https://crmdmhca.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:4173'
+  ];
+  
   // Log all CORS requests for debugging
   console.log(`🌐 CORS Request: ${req.method} ${req.path} from origin: ${origin || 'no-origin'}`);
   
-  // Set CORS headers for EVERYONE (production requires this level of compatibility)
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  // Always set CORS headers - be explicit for production
+  if (allowedOrigins.includes(origin) || !origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Fallback for unknown origins
+  }
+  
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-api-key, Cache-Control, Pragma');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
   // Handle ALL preflight requests immediately
   if (req.method === 'OPTIONS') {
@@ -57,6 +72,7 @@ app.use((req, res, next) => {
     res.status(200).json({ 
       message: 'CORS preflight successful',
       origin: origin,
+      allowed: allowedOrigins.includes(origin) || !origin,
       timestamp: new Date().toISOString()
     });
     return;
