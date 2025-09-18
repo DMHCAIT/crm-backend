@@ -62,12 +62,10 @@ module.exports = async (req, res) => {
           count: leads?.length || 0
         });
       } catch (dbError) {
-        // Fallback to empty array if database error
-        return res.json({
-          success: true,
-          data: [],
-          count: 0,
-          message: 'Database tables are being initialized'
+        console.error('Database error:', dbError);
+        return res.status(500).json({
+          success: false,
+          message: 'Database query failed'
         });
       }
     }

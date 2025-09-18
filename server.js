@@ -10,11 +10,19 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Environment variables with fallbacks
-const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025';
+// Environment variables - required for production
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+// Validate required environment variables
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  throw new Error('SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required');
+}
 
 // Initialize Supabase client globally
 let supabase = null;
@@ -24,7 +32,7 @@ try {
     supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     console.log('🗄️ Supabase client initialized successfully');
   } else {
-    console.log('⚠️ Supabase credentials missing - running in fallback mode');
+    console.log('❌ Supabase credentials missing - application will not function properly');
   }
 } catch (error) {
   console.log('❌ Supabase initialization failed:', error.message);
@@ -54,11 +62,16 @@ app.use((req, res, next) => {
   // Log all CORS requests for debugging
   console.log(`🌐 CORS Request: ${req.method} ${req.path} from origin: ${origin || 'no-origin'}`);
   
-  // Always set CORS headers - be explicit for production
-  if (allowedOrigins.includes(origin) || !origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  // Only allow configured origins
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    // Allow same-origin requests (no Origin header)
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
   } else {
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Fallback for unknown origins
+    // Reject unknown origins
+    console.log(`❌ Rejected CORS request from unknown origin: ${origin}`);
+    return res.status(403).json({ error: 'Origin not allowed' });
   }
   
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
@@ -309,43 +322,11 @@ app.get('/api/users', async (req, res) => {
     console.log('❌ Database query failed:', error.message);
   }
   
-  // 🔄 FALLBACK: Return hardcoded user data when database is unavailable
-  console.log('⚠️ Database unavailable, using fallback user data');
-  
-  const fallbackUsers = [
-    {
-      id: 'hardcoded-super-admin-id',
-      name: 'Super Administrator',
-      username: 'superadmin',
-      email: 'superadmin@crm.dmhca',
-      role: 'super_admin',
-      department: 'Administration',
-      designation: 'System Administrator',
-      location: 'Head Office',
-      status: 'active',
-      created_at: new Date().toISOString(),
-      permissions: ['read', 'write', 'admin', 'delete']
-    },
-    {
-      id: 'fallback-admin-1',
-      name: 'Production Admin',
-      username: 'prodadmin',
-      email: 'admin@crm.production',
-      role: 'admin',
-      department: 'Administration',
-      designation: 'Admin',
-      location: 'Head Office',
-      status: 'active',
-      created_at: new Date().toISOString(),
-      permissions: ['read', 'write', 'admin']
-    }
-  ];
-  
-  return res.json({ 
-    success: true, 
-    users: fallbackUsers,
-    fallback: true,
-    message: 'Using fallback data - please configure database environment variables'
+  // No fallback - return error if database is unavailable
+  console.log('❌ Database connection failed');
+  return res.status(503).json({
+    success: false,
+    message: 'Database connection failed - please ensure Supabase is properly configured'
   });
 });
 
@@ -655,20 +636,11 @@ app.get('/api/users/me', async (req, res) => {
     });
     
     if (!supabase) {
-      console.log('⚠️ Database not available, using fallback profile');
-      // Fallback based on authenticated user info
-      const fallbackProfile = {
-        id: userId || 'unknown',
-        name: req.user?.name || userEmail?.split('@')[0] || 'Unknown User',
-        email: userEmail || 'unknown@dmhca.in',
-        role: req.user?.role || 'user',
-        department: 'DMHCA',
-        status: 'active',
-        permissions: ['read', 'write'],
-        created_at: new Date().toISOString(),
-        last_login: new Date().toISOString()
-      };
-      return res.json({ success: true, user: fallbackProfile });
+      console.log('❌ Database not available');
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available'
+      });
     }
     
     // Query database for user profile - using safer query method
@@ -718,21 +690,10 @@ app.get('/api/users/me', async (req, res) => {
     
     if (error) {
       console.error('❌ Database error in users/me:', error);
-      // Don't throw - return fallback instead
-      console.log('⚠️ Database failed, returning fallback profile');
-      const fallbackProfile = {
-        id: userId || `fallback-${Date.now()}`,
-        name: req.user?.name || userEmail?.split('@')[0] || 'Unknown User',
-        email: userEmail || 'unknown@dmhca.in',
-        role: req.user?.role || 'user',
-        department: 'DMHCA',
-        status: 'active',
-        permissions: ['read', 'write'],
-        created_at: new Date().toISOString(),
-        last_login: new Date().toISOString(),
-        isFallback: true
-      };
-      return res.json({ success: true, user: fallbackProfile });
+      return res.status(500).json({
+        success: false,
+        message: 'Database query failed'
+      });
     }
     
     if (users && users.length > 0) {
@@ -765,46 +726,17 @@ app.get('/api/users/me', async (req, res) => {
       return res.json({ success: true, user: userProfile });
     }
     
-    console.log('⚠️ User not found in database, creating fallback profile');
-    // User not found in database, create fallback based on JWT
-    const fallbackProfile = {
-      id: userId || 'unknown',
-      name: req.user?.name || userEmail?.split('@')[0] || 'Unknown User',
-      email: userEmail || 'unknown@dmhca.in',
-      role: req.user?.role || 'user',
-      department: 'DMHCA',
-      status: 'active',
-      permissions: ['read', 'write'],
-      created_at: new Date().toISOString(),
-      last_login: new Date().toISOString()
-    };
-    
-    res.json({ success: true, user: fallbackProfile });
+    console.log('❌ User not found in database');
+    return res.status(404).json({
+      success: false,
+      message: 'User profile not found in database'
+    });
     
   } catch (error) {
     console.error('❌ Critical error in user profile endpoint:', error);
-    console.log('🔄 Providing emergency fallback profile to prevent 500 error');
-    
-    // Emergency fallback - never return 500 for this endpoint
-    const emergencyProfile = {
-      id: req.user?.id || `emergency-${Date.now()}`,
-      name: req.user?.name || req.user?.email?.split('@')[0] || 'Emergency User',
-      email: req.user?.email || req.user?.username || 'emergency@dmhca.in',
-      role: req.user?.role || 'user',
-      department: 'DMHCA',
-      status: 'active',
-      permissions: ['read'],
-      created_at: new Date().toISOString(),
-      last_login: new Date().toISOString(),
-      isEmergencyFallback: true,
-      errorMessage: error.message
-    };
-    
-    // Return 200 with fallback data instead of 500 error
-    res.json({ 
-      success: true, 
-      user: emergencyProfile,
-      warning: 'Using fallback profile due to database error'
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve user profile'
     });
   }
 });

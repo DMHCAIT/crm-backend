@@ -47,20 +47,19 @@ module.exports = async (req, res) => {
     // Get dashboard statistics with fallback data
     let leadsResult, studentsResult, communicationsResult, documentsResult;
     
-    if (supabase) {
-      [leadsResult, studentsResult, communicationsResult, documentsResult] = await Promise.all([
-        supabase.from('leads').select('id, status', { count: 'exact' }).then(r => r).catch(() => ({ count: 0, data: [] })),
-        supabase.from('students').select('id, status', { count: 'exact' }).then(r => r).catch(() => ({ count: 0, data: [] })),
-        supabase.from('communications').select('id', { count: 'exact' }).then(r => r).catch(() => ({ count: 0, data: [] })),
-        supabase.from('documents').select('id', { count: 'exact' }).then(r => r).catch(() => ({ count: 0, data: [] }))
-      ]);
-    } else {
-      // Fallback demo data when database is not available
-      leadsResult = { count: 25, data: Array.from({length: 25}, (_, i) => ({ id: i, status: i < 15 ? 'new' : i < 20 ? 'contacted' : 'closed_won' })) };
-      studentsResult = { count: 18, data: Array.from({length: 18}, (_, i) => ({ id: i, status: 'active' })) };
-      communicationsResult = { count: 42, data: [] };
-      documentsResult = { count: 12, data: [] };
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available'
+      });
     }
+
+    [leadsResult, studentsResult, communicationsResult, documentsResult] = await Promise.all([
+      supabase.from('leads').select('id, status', { count: 'exact' }),
+      supabase.from('students').select('id, status', { count: 'exact' }),
+      supabase.from('communications').select('id', { count: 'exact' }),
+      supabase.from('documents').select('id', { count: 'exact' })
+    ]);
 
     // Calculate lead statistics
     const totalLeads = leadsResult.count || 0;

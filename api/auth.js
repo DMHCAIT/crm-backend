@@ -16,8 +16,12 @@ try {
   console.log('Auth module: Supabase initialization failed:', error.message);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required for production');
+}
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -104,42 +108,11 @@ async function handleLogin(req, res) {
   try {
     console.log('🔍 Login attempt:', { email, hasPassword: !!password });
     
-    // 🔑 HARDCODED SUPER ADMIN - ALWAYS WORKS
-    if (email === 'superadmin@crm.dmhca' && password === 'SuperAdmin@2025') {
-      console.log('✅ Hardcoded super admin login successful');
-      
-      const superAdminUser = {
-        id: 'hardcoded-super-admin-id',
-        email: 'superadmin@crm.dmhca',
-        name: 'Super Administrator',
-        username: 'superadmin',
-        role: 'super_admin',
-        department: 'Administration',
-        designation: 'System Administrator',
-        location: 'Head Office',
-        permissions: ['read', 'write', 'admin', 'delete']
-      };
-
-      console.log('🔑 Generating JWT for super admin with secret:', JWT_SECRET ? 'present' : 'missing');
-      
-      const token = jwt.sign(superAdminUser, JWT_SECRET, {
-        expiresIn: JWT_EXPIRES_IN
-      });
-      
-      console.log('✅ Super admin JWT generated, returning success');
-
-      return res.json({
-        success: true,
-        message: 'Super admin login successful',
-        token: token,
-        user: superAdminUser
-      });
-    }
     // Production authentication - only use database users
     if (!supabase) {
       return res.status(503).json({
         success: false,
-        message: 'Database connection not available'
+        message: 'Database connection not available - please configure SUPABASE_URL and SUPABASE_SERVICE_KEY'
       });
     }
 
