@@ -54,6 +54,7 @@ app.use((req, res, next) => {
   const allowedOrigins = [
     'https://www.crmdmhca.com',
     'https://crmdmhca.com',
+    'https://crm-frontend-final-git-master-dmhca.vercel.app',
     'http://localhost:3000',
     'http://localhost:5173',
     'http://localhost:4173'
@@ -66,7 +67,7 @@ app.use((req, res, next) => {
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     console.log(`✅ CORS allowed for known origin: ${origin}`);
-  } else if (origin && origin.match(/^https:\/\/[\w-]+\.vercel\.app$/)) {
+  } else if (origin && origin.match(/^https:\/\/[a-zA-Z0-9\-]+\.vercel\.app$/)) {
     // Allow Vercel preview deployments
     res.setHeader('Access-Control-Allow-Origin', origin);
     console.log(`✅ CORS allowed for Vercel preview: ${origin}`);

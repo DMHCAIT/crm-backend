@@ -28,6 +28,7 @@ module.exports = async (req, res) => {
   const allowedOrigins = [
     'https://www.crmdmhca.com', 
     'https://crmdmhca.com', 
+    'https://crm-frontend-final-git-master-dmhca.vercel.app',
     'https://crm-frontend-dmhca.vercel.app',
     'https://dmhca-crm-frontend.vercel.app',
     'http://localhost:5173'
@@ -35,7 +36,7 @@ module.exports = async (req, res) => {
   const origin = req.headers.origin;
   
   // Always set CORS headers for allowed origins
-  if (allowedOrigins.includes(origin) || (origin && origin.match(/^https:\/\/[\w-]+\.vercel\.app$/))) {
+  if (allowedOrigins.includes(origin) || (origin && origin.match(/^https:\/\/[a-zA-Z0-9\-]+\.vercel\.app$/))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else if (!origin) {
     // For requests without origin (same-origin), allow the main frontend domain
