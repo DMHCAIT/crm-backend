@@ -102,6 +102,8 @@ async function handleLogin(req, res) {
   }
 
   try {
+    console.log('🔍 Login attempt:', { email, hasPassword: !!password });
+    
     // 🔑 HARDCODED SUPER ADMIN - ALWAYS WORKS
     if (email === 'superadmin@crm.dmhca' && password === 'SuperAdmin@2025') {
       console.log('✅ Hardcoded super admin login successful');
