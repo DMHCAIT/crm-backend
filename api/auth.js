@@ -96,17 +96,18 @@ module.exports = async (req, res) => {
 };
 
 async function handleLogin(req, res) {
-  const { email, password } = req.body;
+  const { email, password, username } = req.body;
+  const loginIdentifier = email || username; // Support both email and username
 
-  if (!email || !password) {
+  if (!loginIdentifier || !password) {
     return res.status(400).json({
       success: false,
-      message: 'Email and password are required'
+      message: 'Username/email and password are required'
     });
   }
 
   try {
-    console.log('🔍 Login attempt:', { email, hasPassword: !!password });
+    console.log('🔍 Login attempt:', { identifier: loginIdentifier, hasPassword: !!password });
     
     // Production authentication - only use database users
     if (!supabase) {
@@ -116,12 +117,19 @@ async function handleLogin(req, res) {
       });
     }
 
-    // Database authentication - primary method
-    const { data: dbUser, error: dbError } = await supabase
+    // Database authentication - try both email and username
+    let dbQuery = supabase
       .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
+      .select('*');
+
+    // Check if identifier contains @ (likely email) or is a username
+    if (loginIdentifier.includes('@')) {
+      dbQuery = dbQuery.eq('email', loginIdentifier);
+    } else {
+      dbQuery = dbQuery.eq('username', loginIdentifier);
+    }
+
+    const { data: dbUser, error: dbError } = await dbQuery.single();
 
     if (dbUser && dbUser.password_hash) {
       let isValidPassword = false;
