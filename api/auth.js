@@ -33,15 +33,28 @@ module.exports = async (req, res) => {
     'http://localhost:5173'
   ];
   const origin = req.headers.origin;
+  
+  // Always set CORS headers for allowed origins
   if (allowedOrigins.includes(origin) || (origin && origin.match(/^https:\/\/[\w-]+\.vercel\.app$/))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    // For requests without origin (same-origin), allow the main frontend domain
+    res.setHeader('Access-Control-Allow-Origin', 'https://www.crmdmhca.com');
   }
+  
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
+  // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
+    console.log(`🔄 AUTH CORS Preflight from origin: ${origin}`);
+    res.status(200).json({ 
+      message: 'CORS preflight successful for auth endpoint',
+      origin: origin,
+      timestamp: new Date().toISOString()
+    });
     return;
   }
 

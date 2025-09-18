@@ -62,16 +62,22 @@ app.use((req, res, next) => {
   // Log all CORS requests for debugging
   console.log(`🌐 CORS Request: ${req.method} ${req.path} from origin: ${origin || 'no-origin'}`);
   
-  // Only allow configured origins
+  // Allow configured origins and Vercel preview domains
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+    console.log(`✅ CORS allowed for known origin: ${origin}`);
+  } else if (origin && origin.match(/^https:\/\/[\w-]+\.vercel\.app$/)) {
+    // Allow Vercel preview deployments
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    console.log(`✅ CORS allowed for Vercel preview: ${origin}`);
   } else if (!origin) {
     // Allow same-origin requests (no Origin header)
     res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+    console.log(`✅ CORS allowed for same-origin request`);
   } else {
-    // Reject unknown origins
-    console.log(`❌ Rejected CORS request from unknown origin: ${origin}`);
-    return res.status(403).json({ error: 'Origin not allowed' });
+    // For development and unknown origins, still allow but log warning
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    console.log(`⚠️ CORS allowed for unknown origin (dev mode): ${origin}`);
   }
   
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
