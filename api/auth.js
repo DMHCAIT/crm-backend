@@ -120,9 +120,13 @@ async function handleLogin(req, res) {
         permissions: ['read', 'write', 'admin', 'delete']
       };
 
+      console.log('🔑 Generating JWT for super admin with secret:', JWT_SECRET ? 'present' : 'missing');
+      
       const token = jwt.sign(superAdminUser, JWT_SECRET, {
         expiresIn: JWT_EXPIRES_IN
       });
+      
+      console.log('✅ Super admin JWT generated, returning success');
 
       return res.json({
         success: true,
