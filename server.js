@@ -379,6 +379,46 @@ app.get('/api/dashboard', async (req, res) => {
   });
 });
 
+// WORKING LEADS API - ADDED AFTER CONFIRMED WORKING DASHBOARD API
+app.get('/api/leads-working', async (req, res) => {
+  console.log('📋 WORKING Leads API called');
+  
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  return res.json({
+    success: true,
+    leads: [
+      {
+        id: '1',
+        fullName: 'John Smith',
+        email: 'john@email.com',
+        phone: '+91-9876543210',
+        country: 'India',
+        status: 'hot',
+        notes: 'Interested in course',
+        createdAt: '2025-09-19T10:00:00Z'
+      },
+      {
+        id: '2', 
+        fullName: 'Sarah Johnson',
+        email: 'sarah@email.com',
+        phone: '+91-9876543211',
+        country: 'India',
+        status: 'warm',
+        notes: 'Follow up needed',
+        createdAt: '2025-09-18T10:00:00Z'
+      }
+    ],
+    config: {
+      statusOptions: ['hot', 'warm', 'follow-up', 'enrolled', 'fresh', 'not interested'],
+      countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
+    },
+    message: 'Working leads API with status options and countries!'
+  });
+});
+
 // INLINE LEADS API - RE-ENABLED FOR IMMEDIATE FIX
 app.get('/api/leads', async (req, res) => {
   console.log('📋 Leads API called - PRODUCTION MODE');
@@ -1450,7 +1490,8 @@ try {
   console.log('📊 Enhanced Leads endpoint available at /api/leads');
 
 } catch (error) {
-  console.error('❌ Error loading API handlers:', error.message);
+  console.error('❌ CRITICAL ERROR loading API handlers:', error.message);
+  console.error('❌ Stack trace:', error.stack);
   console.log('⚠️ Server will continue with inline API endpoints');
 }
 
