@@ -233,6 +233,11 @@ app.options('/api/simple-auth/login', (req, res) => {
   res.status(200).end();
 });
 
+// Test endpoint to verify deployment
+app.get('/api/test-deployment', (req, res) => {
+  res.json({ message: 'Emergency deployment test - working at ' + new Date().toISOString() });
+});
+
 console.log('🚨 Emergency inline APIs loaded - Leads and Auth working!');
 
 // ====================================
