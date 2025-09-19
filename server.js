@@ -1216,9 +1216,9 @@ try {
   app.all('/api/permissions', permissionsHandler);
   app.all('/api/permissions/*', permissionsHandler);
 
-  // Lead Notes API handler
-  const leadNotesHandler = require('./api/lead-notes.js');
-  app.all('/api/lead-notes/*', leadNotesHandler);
+  // Lead Notes API handler (temporarily disabled)
+  // const leadNotesHandler = require('./api/lead-notes.js');
+  // app.all('/api/lead-notes/*', leadNotesHandler);
 
   // Enhanced Leads API handler
   const leadsHandler = require('./api/leads.js');
