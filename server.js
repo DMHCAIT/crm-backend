@@ -238,6 +238,57 @@ app.options('/api/simple-auth/login', (req, res) => {
   res.status(200).end();
 });
 
+// 🚨 IMMEDIATE FIX: Duplicate auth endpoint for frontend compatibility
+app.post('/api/auth/login', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  const { username, password } = req.body;
+  
+  if (username === 'admin' && password === 'admin123') {
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+    
+    const token = jwt.sign(
+      { 
+        userId: 'admin-1', 
+        username: 'admin',
+        role: 'super_admin',
+        roleLevel: 100 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: 'admin-1',
+        username: 'admin',
+        email: 'admin@dmhca.com',
+        name: 'Admin User',
+        role: 'super_admin',
+        roleLevel: 100
+      },
+      message: 'Login successful!'
+    });
+  }
+
+  res.status(401).json({
+    success: false,
+    error: 'Invalid credentials'
+  });
+});
+
+app.options('/api/auth/login', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
 // ====================================
 // 🔑 STANDARD AUTH ROUTES FOR FRONTEND
 // ====================================
