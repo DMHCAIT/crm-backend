@@ -4,25 +4,9 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "api-functions/auth-login.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api-functions/auth-verify.js", 
-      "use": "@vercel/node"
     }
   ],
   "routes": [
-    {
-      "src": "/api/auth/login",
-      "dest": "/api-functions/auth-login.js"
-    },
-    {
-      "src": "/api/auth/verify",
-      "dest": "/api-functions/auth-verify.js"
-    },
     {
       "src": "/(.*)",
       "dest": "/server.js"
