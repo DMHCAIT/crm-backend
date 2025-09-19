@@ -134,6 +134,11 @@ app.use((req, res, next) => {
 // � EMERGENCY INLINE LEADS API
 // ====================================
 
+// Emergency Leads API - Alternative route test
+app.get('/api/leads-emergency', (req, res) => {
+  res.json({ message: 'Emergency leads route working!', timestamp: new Date().toISOString() });
+});
+
 // Emergency Leads API - Direct implementation
 app.get('/api/leads', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
