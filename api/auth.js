@@ -65,6 +65,8 @@ async function handleUltraSimpleLogin(req, res) {
     }
 
     // Simple database query - exact username and password match
+    console.log('🔍 Attempting login with:', { username, password });
+    
     const { data: user, error } = await supabase
       .from('login_users')
       .select('*')
@@ -72,8 +74,10 @@ async function handleUltraSimpleLogin(req, res) {
       .eq('password', password)
       .single();
 
+    console.log('🔍 Database response:', { user, error });
+
     if (error || !user) {
-      console.log('❌ Login failed for:', username, error?.message);
+      console.log('❌ Login failed for:', username, 'Error:', error?.message);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
