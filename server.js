@@ -238,6 +238,114 @@ app.options('/api/simple-auth/login', (req, res) => {
   res.status(200).end();
 });
 
+// ====================================
+// 🔑 STANDARD AUTH ROUTES FOR FRONTEND
+// ====================================
+
+// Standard login endpoint - redirects to simple-auth
+app.post('/api/auth/login', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  const { username, password } = req.body;
+  
+  if (username === 'admin' && password === 'admin123') {
+    const token = jwt.sign({ 
+      userId: 'admin-1',
+      username: 'admin',
+      role: 'super_admin',
+      roleLevel: 100
+    }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: 'admin-1',
+        username: 'admin',
+        role: 'super_admin',
+        roleLevel: 100
+      },
+      message: 'Login successful!'
+    });
+  } else {
+    res.status(401).json({
+      success: false,
+      error: 'Invalid credentials'
+    });
+  }
+});
+
+// Token verification endpoint
+app.get('/api/auth/verify', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      success: false,
+      error: 'No token provided'
+    });
+  }
+
+  const token = authHeader.substring(7);
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({
+      success: true,
+      user: {
+        id: decoded.userId,
+        username: decoded.username,
+        role: decoded.role,
+        roleLevel: decoded.roleLevel
+      }
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      error: 'Invalid token'
+    });
+  }
+});
+
+// Logout endpoint (client-side mostly)
+app.post('/api/auth/logout', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  res.json({
+    success: true,
+    message: 'Logged out successfully'
+  });
+});
+
+// OPTIONS for all auth endpoints
+app.options('/api/auth/login', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+app.options('/api/auth/verify', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+app.options('/api/auth/logout', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
 // Test endpoint to verify deployment
 app.get('/api/test-deployment', (req, res) => {
   res.json({ message: 'Emergency deployment test - working at ' + new Date().toISOString() });
