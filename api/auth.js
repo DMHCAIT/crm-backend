@@ -1,7 +1,20 @@
-// 🚀 HARDCODED ADMIN AUTHENTICATION - NO DATABASE NEEDED
+// 🚀 DATABASE-CONNECTED AUTHENTICATION WITH FALLBACK
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'simple-secret-key';
+
+// Initialize Supabase client
+let supabase = null;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    const { createClient } = require('@supabase/supabase-js');
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+    console.log('✅ Auth: Supabase client initialized');
+  }
+} catch (error) {
+  console.error('❌ Auth: Supabase initialization failed:', error.message);
+}
 
 module.exports = async (req, res) => {
   // Simple CORS
@@ -29,11 +42,11 @@ module.exports = async (req, res) => {
   res.status(404).json({ error: 'Not found' });
 };
 
-// 🚀 HARDCODED ADMIN LOGIN - NO DATABASE DEPENDENCY
+// 🚀 DATABASE-CONNECTED LOGIN WITH HARDCODED FALLBACK
 async function handleUltraSimpleLogin(req, res) {
   const { username, password } = req.body;
 
-  console.log('🚀 Hardcoded Admin Login attempt:', username);
+  console.log('🚀 Login attempt:', username);
 
   // Simple validation
   if (!username || !password) {
@@ -44,37 +57,107 @@ async function handleUltraSimpleLogin(req, res) {
   }
 
   try {
-    // HARDCODED ADMIN CREDENTIALS - NO DATABASE NEEDED
-    const ADMIN_USERNAME = 'admin';
-    const ADMIN_PASSWORD = 'admin123';
+    // First try database authentication if available
+    if (supabase) {
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .eq('status', 'active')
+        .limit(1);
 
-    // Direct credential check
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-      // Create JWT for successful login
+      if (!error && users && users.length > 0) {
+        const user = users[0];
+        
+        // For admin/admin123, check if it's the admin user
+        if (username === 'admin' && password === 'admin123') {
+          console.log('✅ Database admin login successful for:', username);
+          
+          // Create JWT with database user info
+          const token = jwt.sign({
+            username: user.username,
+            userId: user.id,
+            role: user.role,
+            loginTime: Date.now()
+          }, JWT_SECRET, { expiresIn: '24h' });
+
+          return res.json({
+            success: true,
+            token: token,
+            user: {
+              id: user.id,
+              username: user.username,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              department: user.department,
+              permissions: user.permissions
+            },
+            message: 'Login successful'
+          });
+        }
+
+        // Try bcrypt password verification for other users
+        if (user.password_hash) {
+          const isValid = await bcrypt.compare(password, user.password_hash);
+          if (isValid) {
+            console.log('✅ Database login successful for:', username);
+            
+            const token = jwt.sign({
+              username: user.username,
+              userId: user.id,
+              role: user.role,
+              loginTime: Date.now()
+            }, JWT_SECRET, { expiresIn: '24h' });
+
+            return res.json({
+              success: true,
+              token: token,
+              user: {
+                id: user.id,
+                username: user.username,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                department: user.department,
+                permissions: user.permissions
+              },
+              message: 'Login successful'
+            });
+          }
+        }
+      }
+    }
+
+    // Fallback to hardcoded admin if database fails
+    if (username === 'admin' && password === 'admin123') {
+      console.log('✅ Fallback admin login successful for:', username);
+      
       const token = jwt.sign({
-        username: ADMIN_USERNAME,
-        role: 'admin',
+        username: 'admin',
+        role: 'super_admin',
         loginTime: Date.now()
       }, JWT_SECRET, { expiresIn: '24h' });
-
-      console.log('✅ Hardcoded admin login successful for:', username);
 
       return res.json({
         success: true,
         token: token,
         user: {
-          username: ADMIN_USERNAME,
-          role: 'admin'
+          username: 'admin',
+          name: 'System Administrator',
+          role: 'super_admin',
+          department: 'Administration',
+          permissions: '["read", "write", "admin", "delete", "super_admin"]'
         },
         message: 'Login successful'
       });
-    } else {
-      console.log('❌ Invalid credentials for:', username);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid username or password'
-      });
     }
+
+    console.log('❌ Invalid credentials for:', username);
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid username or password'
+    });
 
   } catch (error) {
     console.error('❌ Login error:', error);
@@ -105,11 +188,45 @@ async function handleTokenVerification(req, res) {
     
     console.log('✅ Token verified for user:', decoded.username);
 
+    // If we have userId, get fresh user data from database
+    if (decoded.userId && supabase) {
+      try {
+        const { data: user, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', decoded.userId)
+          .eq('status', 'active')
+          .single();
+
+        if (!error && user) {
+          return res.json({
+            success: true,
+            user: {
+              id: user.id,
+              username: user.username,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              department: user.department,
+              permissions: user.permissions
+            },
+            message: 'Token valid'
+          });
+        }
+      } catch (dbError) {
+        console.log('⚠️ Database lookup failed, using token data');
+      }
+    }
+
+    // Fallback to token data
     return res.json({
       success: true,
       user: {
         username: decoded.username,
-        role: decoded.role
+        role: decoded.role,
+        name: decoded.name || 'System Administrator',
+        department: decoded.department || 'Administration',
+        permissions: decoded.permissions || '["read", "write", "admin", "delete", "super_admin"]'
       },
       message: 'Token valid'
     });
