@@ -1,9 +1,8 @@
-// Authentication API Handler
+// 🚀 ULTRA-SIMPLE AUTHENTICATION - NO COMPLICATIONS
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
 
-// Initialize Supabase conditionally
+// Initialize Supabase
 let supabase;
 try {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
@@ -11,705 +10,101 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
+    console.log('✅ Ultra-Simple Auth: Database connected');
   }
 } catch (error) {
-  console.log('Auth module: Supabase initialization failed:', error.message);
+  console.log('❌ Ultra-Simple Auth: Database failed:', error.message);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
-
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required for production');
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'simple-secret-key';
 
 module.exports = async (req, res) => {
-  // Set CORS headers
-  const allowedOrigins = [
-    'https://www.crmdmhca.com', 
-    'https://crmdmhca.com', 
-    'https://crm-frontend-final-git-master-dmhca.vercel.app',
-    'https://crm-frontend-dmhca.vercel.app',
-    'https://dmhca-crm-frontend.vercel.app',
-    'http://localhost:5173'
-  ];
+  // Simple CORS
   const origin = req.headers.origin;
-  
-  // Always set CORS headers for allowed origins
-  if (allowedOrigins.includes(origin) || (origin && origin.match(/^https:\/\/[a-zA-Z0-9\-]+\.vercel\.app$/))) {
+  if (origin && (origin.includes('vercel.app') || origin.includes('crmdmhca.com') || origin.includes('localhost'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-  } else if (!origin) {
-    // For requests without origin (same-origin), allow the main frontend domain
-    res.setHeader('Access-Control-Allow-Origin', 'https://www.crmdmhca.com');
   }
-  
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight OPTIONS request
+  // Handle preflight
   if (req.method === 'OPTIONS') {
-    console.log(`🔄 AUTH CORS Preflight from origin: ${origin}`);
-    res.status(200).json({ 
-      message: 'CORS preflight successful for auth endpoint',
-      origin: origin,
-      timestamp: new Date().toISOString()
-    });
-    return;
+    return res.status(200).end();
   }
 
-  const urlParts = req.url.split('/');
-  const endpoint = urlParts[urlParts.length - 1];
-
-  try {
-    switch (req.method) {
-      case 'POST':
-        if (endpoint === 'login') {
-          await handleLogin(req, res);
-        } else if (endpoint === 'register') {
-          await handleRegister(req, res);
-        } else if (endpoint === 'logout') {
-          await handleLogout(req, res);
-        } else if (endpoint === 'refresh') {
-          await handleRefreshToken(req, res);
-        } else {
-          res.status(404).json({ error: 'Auth endpoint not found' });
-        }
-        break;
-
-      case 'GET':
-        if (endpoint === 'verify') {
-          await handleVerifyToken(req, res);
-        } else if (endpoint === 'sessions') {
-          await handleGetUserSessions(req, res);
-        } else {
-          res.status(404).json({ error: 'Auth endpoint not found' });
-        }
-        break;
-
-      case 'DELETE':
-        if (endpoint === 'revoke-session') {
-          await handleRevokeSession(req, res);
-        } else {
-          res.status(404).json({ error: 'Auth endpoint not found' });
-        }
-        break;
-
-      default:
-        res.status(405).json({ error: 'Method not allowed' });
-    }
-  } catch (error) {
-    console.error('Auth error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      details: error.message
-    });
+  // Only handle login
+  if (req.method === 'POST') {
+    return await handleUltraSimpleLogin(req, res);
   }
+
+  res.status(404).json({ error: 'Not found' });
 };
 
-async function handleLogin(req, res) {
-  const { email, password, username } = req.body;
-  const loginIdentifier = email || username; // Support both email and username
+// 🚀 ULTRA-SIMPLE LOGIN FUNCTION - NO COMPLICATIONS
+async function handleUltraSimpleLogin(req, res) {
+  const { username, password } = req.body;
 
-  if (!loginIdentifier || !password) {
+  console.log('🚀 Ultra-Simple Login attempt:', username);
+
+  // Simple validation
+  if (!username || !password) {
     return res.status(400).json({
       success: false,
-      message: 'Username/email and password are required'
+      message: 'Username and password required'
     });
   }
 
   try {
-    console.log('🔍 Login attempt:', { identifier: loginIdentifier, hasPassword: !!password });
-    
-    // Production authentication - only use database users
+    // Check database connection
     if (!supabase) {
-      return res.status(503).json({
+      console.log('❌ No database connection');
+      return res.status(500).json({
         success: false,
-        message: 'Database connection not available - please configure SUPABASE_URL and SUPABASE_SERVICE_KEY'
+        message: 'Database not available'
       });
     }
 
-    // Database authentication - try both email and username
-    let dbQuery = supabase
-      .from('users')
-      .select('*');
+    // Simple database query - exact username and password match
+    const { data: user, error } = await supabase
+      .from('login_users')
+      .select('*')
+      .eq('username', username)
+      .eq('password', password)
+      .single();
 
-    // Check if identifier contains @ (likely email) or is a username
-    if (loginIdentifier.includes('@')) {
-      dbQuery = dbQuery.eq('email', loginIdentifier);
-    } else {
-      dbQuery = dbQuery.eq('username', loginIdentifier);
-    }
-
-    const { data: dbUser, error: dbError } = await dbQuery.single();
-
-    if (dbUser && dbUser.password_hash) {
-      let isValidPassword = false;
-      
-      // Check if password is bcrypt hash or plaintext
-      if (dbUser.password_hash.startsWith('$2')) {
-        // It's a bcrypt hash
-        isValidPassword = await bcrypt.compare(password, dbUser.password_hash);
-      } else {
-        // Legacy plaintext - upgrade to hashed password
-        isValidPassword = (password === dbUser.password_hash);
-        
-        if (isValidPassword) {
-          // Upgrade plaintext password to hashed version
-          const hashedPassword = await bcrypt.hash(password, 10);
-          await supabase
-            .from('users')
-            .update({ password_hash: hashedPassword })
-            .eq('id', dbUser.id);
-        }
-      }
-      
-      if (isValidPassword) {
-        // Generate JWT token for database user with their actual role
-        const user = {
-          id: dbUser.id,
-          email: dbUser.email,
-          name: dbUser.name || dbUser.username,
-          username: dbUser.username,
-          role: dbUser.role || 'user', // Use actual role from database
-          department: dbUser.department || '',
-          designation: dbUser.designation || '',
-          permissions: JSON.parse(dbUser.permissions || '["read"]'),
-          isActive: dbUser.status === 'active',
-          createdAt: dbUser.created_at
-        };
-
-        const token = jwt.sign(user, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-        console.log(`✅ Database login successful: ${dbUser.email} (${dbUser.role})`);
-
-        return res.json({
-          success: true,
-          token,
-          user,
-          message: 'Login successful'
-        });
-      }
-    }
-
-    // If no database user found, try Supabase Auth
-
-    // If no direct database match, try Supabase auth
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (signInError) {
+    if (error || !user) {
+      console.log('❌ Login failed for:', username, error?.message);
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid username or password'
       });
     }
 
-    // Try to get user profile from users table, fallback to auth data
-    let userProfile = null;
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
+    // Create simple JWT
+    const token = jwt.sign({
+      username: user.username,
+      role: 'admin',
+      loginTime: Date.now()
+    }, JWT_SECRET, { expiresIn: '24h' });
 
-      if (!profileError && profileData) {
-        userProfile = profileData;
-      }
-    } catch (profileErr) {
-      console.warn('Could not fetch user profile:', profileErr.message);
-    }
-
-    // Use profile data if available, otherwise use auth data
-    const userData = userProfile || {
-      id: signInData.user.id,
-      email: signInData.user.email,
-      name: signInData.user.user_metadata?.name || email.split('@')[0],
-      role: 'user'
-    };
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        id: userData.id,
-        email: userData.email,
-        role: userData.role 
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-
-    // Log the login session
-    const sessionId = await createUserSession(userData.id, req);
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: userData.id,
-        email: userData.email,
-        name: userData.name,
-        role: userData.role
-      },
-      session_id: sessionId
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Login failed due to server error'
-    });
-  }
-}
-
-async function handleRegister(req, res) {
-  const { email, password, name } = req.body;
-
-  if (!email || !password || !name) {
-    return res.status(400).json({
-      success: false,
-      message: 'Email, password, and name are required'
-    });
-  }
-
-  try {
-    // Create user in Supabase auth
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name
-        }
-      }
-    });
-
-    if (signUpError) {
-      return res.status(400).json({
-        success: false,
-        message: signUpError.message
-      });
-    }
-
-    // Try to create user profile in users table, but don't fail if it doesn't work
-    let userProfile = null;
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('users')
-        .insert([
-          {
-            id: signUpData.user.id,
-            email,
-            name,
-            role: 'user',
-            status: 'active',
-            created_at: new Date().toISOString()
-          }
-        ])
-        .select()
-        .single();
-
-      if (!profileError) {
-        userProfile = profileData;
-      } else {
-        console.warn('Profile creation warning:', profileError.message);
-      }
-    } catch (profileErr) {
-      console.warn('Profile table might not exist:', profileErr.message);
-    }
-
-    // Generate JWT token with user data from Supabase Auth
-    const token = jwt.sign(
-      { 
-        id: signUpData.user.id,
-        email: signUpData.user.email,
-        name: name,
-        role: 'user'
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-
-    res.json({
-      success: true,
-      message: 'User registered successfully.',
-      token,
-      user: {
-        id: signUpData.user.id,
-        email: signUpData.user.email,
-        name: name,
-        role: userProfile ? userProfile.role : 'user'
-      }
-    });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Registration failed due to server error'
-    });
-  }
-}
-
-async function handleVerifyToken(req, res) {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      success: false,
-      message: 'No valid token provided'
-    });
-  }
-
-  const token = authHeader.substring(7);
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    console.log('✅ Token verification successful:', decoded.email);
-    
-    // Always return success for valid JWT tokens
-    const user = {
-      id: decoded.id,
-      email: decoded.email,
-      name: decoded.name || decoded.username || 'User',
-      role: decoded.role || 'admin',
-      permissions: decoded.permissions || ['read', 'write'],
-      isActive: decoded.isActive !== false,
-      department: decoded.department,
-      designation: decoded.designation
-    };
+    console.log('✅ Login successful for:', username);
 
     return res.json({
       success: true,
-      user: user,
-      valid: true,
-      message: 'Token is valid'
-    });
-
-  } catch (error) {
-    console.error('❌ Token verification error:', error.message);
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token',
-      valid: false
-    });
-  }
-}
-
-async function handleRefreshToken(req, res) {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      success: false,
-      message: 'No valid token provided'
-    });
-  }
-
-  const token = authHeader.substring(7);
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Generate new token
-    const newToken = jwt.sign(
-      { 
-        id: decoded.id,
-        email: decoded.email,
-        role: decoded.role 
+      token: token,
+      user: {
+        username: user.username,
+        role: 'admin'
       },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-
-    res.json({
-      success: true,
-      token: newToken
+      message: 'Login successful'
     });
+
   } catch (error) {
-    console.error('Token refresh error:', error);
-    res.status(401).json({
+    console.error('❌ Login error:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Invalid or expired token'
+      message: 'Login failed',
+      error: error.message
     });
   }
-}
-
-async function handleLogout(req, res) {
-  try {
-    // For JWT-based auth, logout is handled client-side by removing the token
-    // We can optionally log the logout event or invalidate tokens server-side
-    
-    const authHeader = req.headers.authorization;
-    let userId = null;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.substring(7);
-        const decoded = jwt.verify(token, JWT_SECRET);
-        userId = decoded.id;
-      } catch (error) {
-        // Token might be expired, that's OK for logout
-      }
-    }
-
-    // Optionally log the logout event
-    if (userId && supabase) {
-      try {
-        await supabase
-          .from('user_sessions')
-          .update({ 
-            status: 'logged_out',
-            logged_out_at: new Date().toISOString()
-          })
-          .eq('user_id', userId)
-          .eq('status', 'active');
-      } catch (error) {
-        // Ignore session logging errors
-        console.log('Session logging error:', error.message);
-      }
-    }
-
-    res.json({
-      success: true,
-      message: 'Logged out successfully'
-    });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error during logout'
-    });
-  }
-}
-
-// Enhanced User Session Management Functions
-
-async function createUserSession(userId, req) {
-  try {
-    if (!supabase) return null;
-
-    const sessionData = {
-      user_id: userId,
-      ip_address: getClientIP(req),
-      user_agent: req.headers['user-agent'] || 'Unknown',
-      status: 'active',
-      created_at: new Date().toISOString(),
-      last_activity: new Date().toISOString()
-    };
-
-    const { data: session, error } = await supabase
-      .from('user_sessions')
-      .insert([sessionData])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Failed to create user session:', error);
-      return null;
-    }
-
-    return session.id;
-  } catch (error) {
-    console.error('Session creation error:', error);
-    return null;
-  }
-}
-
-async function handleGetUserSessions(req, res) {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        error: 'No valid token provided'
-      });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const userId = decoded.id;
-
-    const { limit = 10, offset = 0, status } = req.query;
-
-    let query = supabase
-      .from('user_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
-
-    if (status) {
-      query = query.eq('status', status);
-    }
-
-    const { data: sessions, error } = await query;
-
-    if (error) throw error;
-
-    // Add session metadata
-    const sessionsWithMetadata = sessions?.map(session => ({
-      ...session,
-      is_current_session: isCurrentSession(session, req),
-      device_info: parseUserAgent(session.user_agent),
-      location_info: getLocationFromIP(session.ip_address)
-    })) || [];
-
-    res.json({
-      success: true,
-      sessions: sessionsWithMetadata,
-      total_count: sessionsWithMetadata.length
-    });
-  } catch (error) {
-    console.error('Get user sessions error:', error);
-    
-    if (error.name === 'JsonWebTokenError') {
-      res.status(401).json({
-        success: false,
-        error: 'Invalid token'
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch user sessions',
-        details: error.message
-      });
-    }
-  }
-}
-
-async function handleRevokeSession(req, res) {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        error: 'No valid token provided'
-      });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const userId = decoded.id;
-
-    const { sessionId } = req.query;
-
-    if (!sessionId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Session ID is required'
-      });
-    }
-
-    // Verify the session belongs to the user
-    const { data: session, error: fetchError } = await supabase
-      .from('user_sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .eq('user_id', userId)
-      .single();
-
-    if (fetchError || !session) {
-      return res.status(404).json({
-        success: false,
-        error: 'Session not found'
-      });
-    }
-
-    // Revoke the session
-    const { error: revokeError } = await supabase
-      .from('user_sessions')
-      .update({
-        status: 'revoked',
-        revoked_at: new Date().toISOString(),
-        revoked_by: userId
-      })
-      .eq('id', sessionId);
-
-    if (revokeError) throw revokeError;
-
-    res.json({
-      success: true,
-      message: 'Session revoked successfully',
-      session_id: sessionId
-    });
-  } catch (error) {
-    console.error('Revoke session error:', error);
-    
-    if (error.name === 'JsonWebTokenError') {
-      res.status(401).json({
-        success: false,
-        error: 'Invalid token'
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to revoke session',
-        details: error.message
-      });
-    }
-  }
-}
-
-// Helper functions for session management
-function getClientIP(req) {
-  return req.headers['x-forwarded-for'] ||
-         req.headers['x-real-ip'] ||
-         req.connection?.remoteAddress ||
-         req.socket?.remoteAddress ||
-         (req.connection?.socket ? req.connection.socket.remoteAddress : null) ||
-         'Unknown';
-}
-
-function isCurrentSession(session, req) {
-  const currentIP = getClientIP(req);
-  const currentUserAgent = req.headers['user-agent'] || 'Unknown';
-  
-  return session.ip_address === currentIP && 
-         session.user_agent === currentUserAgent &&
-         session.status === 'active';
-}
-
-function parseUserAgent(userAgent) {
-  if (!userAgent || userAgent === 'Unknown') {
-    return { browser: 'Unknown', os: 'Unknown', device: 'Unknown' };
-  }
-
-  // Simple user agent parsing (can be enhanced with a proper library)
-  let browser = 'Unknown';
-  let os = 'Unknown';
-  let device = 'Desktop';
-
-  // Browser detection
-  if (userAgent.includes('Chrome')) browser = 'Chrome';
-  else if (userAgent.includes('Firefox')) browser = 'Firefox';
-  else if (userAgent.includes('Safari')) browser = 'Safari';
-  else if (userAgent.includes('Edge')) browser = 'Edge';
-
-  // OS detection
-  if (userAgent.includes('Windows')) os = 'Windows';
-  else if (userAgent.includes('Mac')) os = 'macOS';
-  else if (userAgent.includes('Linux')) os = 'Linux';
-  else if (userAgent.includes('Android')) os = 'Android';
-  else if (userAgent.includes('iOS')) os = 'iOS';
-
-  // Device detection
-  if (userAgent.includes('Mobile') || userAgent.includes('Android')) device = 'Mobile';
-  else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) device = 'Tablet';
-
-  return { browser, os, device };
-}
-
-function getLocationFromIP(ipAddress) {
-  // Mock implementation - integrate with IP geolocation service
-  return {
-    country: 'Unknown',
-    city: 'Unknown',
-    region: 'Unknown'
-  };
 }

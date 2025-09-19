@@ -140,8 +140,10 @@ function authenticateToken(req, res, next) {
     '/',
     '/health',
     '/api/auth/login',
+    '/api/auth/simple-login',
     '/api/auth/register',
     '/api/auth/debug-login',
+    '/api/simple-auth/login',
     '/webhooks'
   ];
 
@@ -1197,7 +1199,13 @@ try {
   app.all('/api/auth/*', authHandler);
   app.all('/api/auth', authHandler);
 
+  // NEW: Simple Auth handler (fresh login system)
+  const simpleAuthHandler = require('./api/simple-auth.js');
+  app.post('/api/simple-auth/login', simpleAuthHandler);
+  app.options('/api/simple-auth/login', simpleAuthHandler);
+
   console.log('✅ Essential API handlers loaded successfully');
+  console.log('🚀 Simple Auth endpoint available at /api/simple-auth/login');
 
 } catch (error) {
   console.error('❌ Error loading API handlers:', error.message);
