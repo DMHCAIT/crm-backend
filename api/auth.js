@@ -1,6 +1,7 @@
 // 🚀 DATABASE-CONNECTED AUTHENTICATION WITH FALLBACK
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const { generateUserPermissions } = require('../config/permissions');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'simple-secret-key';
 
@@ -81,6 +82,9 @@ async function handleUltraSimpleLogin(req, res) {
             loginTime: Date.now()
           }, JWT_SECRET, { expiresIn: '24h' });
 
+          // Generate role-based permissions
+          const rolePermissions = generateUserPermissions(user.role);
+          
           return res.json({
             success: true,
             token: token,
@@ -93,6 +97,7 @@ async function handleUltraSimpleLogin(req, res) {
               department: user.department,
               permissions: user.permissions
             },
+            rolePermissions: rolePermissions,
             message: 'Login successful'
           });
         }
@@ -110,6 +115,9 @@ async function handleUltraSimpleLogin(req, res) {
               loginTime: Date.now()
             }, JWT_SECRET, { expiresIn: '24h' });
 
+            // Generate role-based permissions
+            const rolePermissions = generateUserPermissions(user.role);
+            
             return res.json({
               success: true,
               token: token,
@@ -122,6 +130,7 @@ async function handleUltraSimpleLogin(req, res) {
                 department: user.department,
                 permissions: user.permissions
               },
+              rolePermissions: rolePermissions,
               message: 'Login successful'
             });
           }
@@ -139,6 +148,9 @@ async function handleUltraSimpleLogin(req, res) {
         loginTime: Date.now()
       }, JWT_SECRET, { expiresIn: '24h' });
 
+      // Generate role-based permissions for super admin
+      const rolePermissions = generateUserPermissions('super_admin');
+      
       return res.json({
         success: true,
         token: token,
@@ -149,6 +161,7 @@ async function handleUltraSimpleLogin(req, res) {
           department: 'Administration',
           permissions: '["read", "write", "admin", "delete", "super_admin"]'
         },
+        rolePermissions: rolePermissions,
         message: 'Login successful'
       });
     }

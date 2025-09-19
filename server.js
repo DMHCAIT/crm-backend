@@ -1209,9 +1209,26 @@ try {
   app.all('/api/super-admin', superAdminHandler);
   app.all('/api/super-admin/*', superAdminHandler);
 
+  // Permissions handler for role-based access control
+  const permissionsHandler = require('./api/permissions.js');
+  app.all('/api/permissions', permissionsHandler);
+  app.all('/api/permissions/*', permissionsHandler);
+
+  // Lead Notes API handler
+  const leadNotesHandler = require('./api/lead-notes.js');
+  app.all('/api/lead-notes/*', leadNotesHandler);
+
+  // Enhanced Leads API handler
+  const leadsHandler = require('./api/leads.js');
+  app.all('/api/leads', leadsHandler);
+  app.all('/api/leads/*', leadsHandler);
+
   console.log('✅ Essential API handlers loaded successfully');
   console.log('🚀 Simple Auth endpoint available at /api/simple-auth/login');
   console.log('🔐 Super Admin endpoint available at /api/super-admin');
+  console.log('�️ Permissions API available at /api/permissions');
+  console.log('�📝 Lead Notes endpoint available at /api/lead-notes/{leadId}');
+  console.log('📊 Enhanced Leads endpoint available at /api/leads');
 
 } catch (error) {
   console.error('❌ Error loading API handlers:', error.message);
