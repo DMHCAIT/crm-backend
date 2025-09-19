@@ -1440,10 +1440,7 @@ try {
   // const leadNotesHandler = require('./api/lead-notes.js');
   // app.all('/api/lead-notes/*', leadNotesHandler);
 
-  // Enhanced Leads API handler
-  const leadsHandler = require('./api/leads.js');
-  app.all('/api/leads', leadsHandler);
-  app.all('/api/leads/*', leadsHandler);
+  // Enhanced Leads API handler - REMOVED DUPLICATE (already loaded above)
 
   console.log('✅ Essential API handlers loaded successfully');
   console.log('🚀 Simple Auth endpoint available at /api/simple-auth/login');
