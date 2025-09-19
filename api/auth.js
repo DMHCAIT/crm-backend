@@ -1,20 +1,5 @@
-// 🚀 ULTRA-SIMPLE AUTHENTICATION - NO COMPLICATIONS
-const { createClient } = require('@supabase/supabase-js');
+// 🚀 HARDCODED ADMIN AUTHENTICATION - NO DATABASE NEEDED
 const jwt = require('jsonwebtoken');
-
-// Initialize Supabase
-let supabase;
-try {
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
-    supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
-    console.log('✅ Ultra-Simple Auth: Database connected');
-  }
-} catch (error) {
-  console.log('❌ Ultra-Simple Auth: Database failed:', error.message);
-}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'simple-secret-key';
 
@@ -40,11 +25,11 @@ module.exports = async (req, res) => {
   res.status(404).json({ error: 'Not found' });
 };
 
-// 🚀 ULTRA-SIMPLE LOGIN FUNCTION - NO COMPLICATIONS
+// 🚀 HARDCODED ADMIN LOGIN - NO DATABASE DEPENDENCY
 async function handleUltraSimpleLogin(req, res) {
   const { username, password } = req.body;
 
-  console.log('🚀 Ultra-Simple Login attempt:', username);
+  console.log('🚀 Hardcoded Admin Login attempt:', username);
 
   // Simple validation
   if (!username || !password) {
@@ -55,53 +40,37 @@ async function handleUltraSimpleLogin(req, res) {
   }
 
   try {
-    // Check database connection
-    if (!supabase) {
-      console.log('❌ No database connection');
-      return res.status(500).json({
-        success: false,
-        message: 'Database not available'
+    // HARDCODED ADMIN CREDENTIALS - NO DATABASE NEEDED
+    const ADMIN_USERNAME = 'admin';
+    const ADMIN_PASSWORD = 'admin123';
+
+    // Direct credential check
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      // Create JWT for successful login
+      const token = jwt.sign({
+        username: ADMIN_USERNAME,
+        role: 'admin',
+        loginTime: Date.now()
+      }, JWT_SECRET, { expiresIn: '24h' });
+
+      console.log('✅ Hardcoded admin login successful for:', username);
+
+      return res.json({
+        success: true,
+        token: token,
+        user: {
+          username: ADMIN_USERNAME,
+          role: 'admin'
+        },
+        message: 'Login successful'
       });
-    }
-
-    // Simple database query - exact username and password match
-    console.log('🔍 Attempting login with:', { username, password });
-    
-    const { data: user, error } = await supabase
-      .from('login_users')
-      .select('*')
-      .eq('username', username)
-      .eq('password', password)
-      .single();
-
-    console.log('🔍 Database response:', { user, error });
-
-    if (error || !user) {
-      console.log('❌ Login failed for:', username, 'Error:', error?.message);
+    } else {
+      console.log('❌ Invalid credentials for:', username);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
       });
     }
-
-    // Create simple JWT
-    const token = jwt.sign({
-      username: user.username,
-      role: 'admin',
-      loginTime: Date.now()
-    }, JWT_SECRET, { expiresIn: '24h' });
-
-    console.log('✅ Login successful for:', username);
-
-    return res.json({
-      success: true,
-      token: token,
-      user: {
-        username: user.username,
-        role: 'admin'
-      },
-      message: 'Login successful'
-    });
 
   } catch (error) {
     console.error('❌ Login error:', error);
