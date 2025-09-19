@@ -1204,8 +1204,14 @@ try {
   app.post('/api/simple-auth/login', simpleAuthHandler);
   app.options('/api/simple-auth/login', simpleAuthHandler);
 
+  // Super Admin handler for user management
+  const superAdminHandler = require('./api/super-admin.js');
+  app.all('/api/super-admin', superAdminHandler);
+  app.all('/api/super-admin/*', superAdminHandler);
+
   console.log('✅ Essential API handlers loaded successfully');
   console.log('🚀 Simple Auth endpoint available at /api/simple-auth/login');
+  console.log('🔐 Super Admin endpoint available at /api/super-admin');
 
 } catch (error) {
   console.error('❌ Error loading API handlers:', error.message);
@@ -1213,7 +1219,28 @@ try {
 }
 
 // ====================================
-// 🚫 ERROR HANDLING
+// � STATIC FILE SERVING
+// ====================================
+
+// Serve super admin HTML interface
+app.get('/super-admin', (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  
+  try {
+    const htmlPath = path.join(__dirname, 'super-admin.html');
+    if (fs.existsSync(htmlPath)) {
+      res.sendFile(htmlPath);
+    } else {
+      res.status(404).json({ error: 'Super admin interface not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load super admin interface' });
+  }
+});
+
+// ====================================
+// �🚫 ERROR HANDLING
 // ====================================
 
 // 404 Handler
