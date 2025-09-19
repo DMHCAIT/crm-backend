@@ -15,6 +15,33 @@ try {
   console.error('❌ Leads API: Supabase initialization failed:', error.message);
 }
 
+// Lead status options
+const LEAD_STATUS_OPTIONS = [
+  'hot',
+  'warm', 
+  'follow-up',
+  'enrolled',
+  'fresh',
+  'not interested'
+];
+
+// Country list for dropdown
+const COUNTRIES = [
+  'Afghanistan', 'Albania', 'Algeria', 'Argentina', 'Armenia', 'Australia', 
+  'Austria', 'Azerbaijan', 'Bahrain', 'Bangladesh', 'Belarus', 'Belgium',
+  'Bolivia', 'Brazil', 'Bulgaria', 'Cambodia', 'Canada', 'Chile', 'China',
+  'Colombia', 'Croatia', 'Czech Republic', 'Denmark', 'Ecuador', 'Egypt',
+  'Estonia', 'Ethiopia', 'Finland', 'France', 'Georgia', 'Germany', 'Ghana',
+  'Greece', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq',
+  'Ireland', 'Israel', 'Italy', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya',
+  'Kuwait', 'Latvia', 'Lebanon', 'Lithuania', 'Malaysia', 'Mexico', 'Morocco',
+  'Nepal', 'Netherlands', 'New Zealand', 'Nigeria', 'Norway', 'Pakistan',
+  'Philippines', 'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia',
+  'Saudi Arabia', 'Singapore', 'South Africa', 'South Korea', 'Spain',
+  'Sri Lanka', 'Sweden', 'Switzerland', 'Thailand', 'Turkey', 'Ukraine',
+  'United Arab Emirates', 'United Kingdom', 'United States', 'Vietnam'
+];
+
 // Demo leads data with enhanced notes structure
 const DEMO_LEADS = [
   {
@@ -27,7 +54,7 @@ const DEMO_LEADS = [
     qualification: 'Bachelor of Engineering',
     source: 'Website',
     course: 'Web Development',
-    status: 'new',
+    status: 'hot',
     assignedTo: 'admin',
     followUp: '2025-09-20',
     priority: 'high',
@@ -61,7 +88,7 @@ const DEMO_LEADS = [
     qualification: 'Masters in Computer Science',
     source: 'Referral',
     course: 'Data Science',
-    status: 'contacted',
+    status: 'warm',
     assignedTo: 'admin',
     followUp: '2025-09-21',
     priority: 'medium',
@@ -95,7 +122,7 @@ const DEMO_LEADS = [
     qualification: 'BCA',
     source: 'Social Media',
     course: 'Mobile App Development',
-    status: 'qualified',
+    status: 'enrolled',
     assignedTo: 'admin',
     followUp: '2025-09-22',
     priority: 'high',
@@ -161,6 +188,20 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       const url = req.url || '';
       
+      // Check if this is a configuration request
+      if (url.includes('/config')) {
+        return res.json({
+          success: true,
+          config: {
+            statusOptions: LEAD_STATUS_OPTIONS,
+            countries: COUNTRIES,
+            priorities: ['low', 'medium', 'high'],
+            sources: ['Website', 'Social Media', 'Referral', 'Cold Call', 'Email Campaign', 'Walk-in']
+          },
+          message: 'Lead configuration retrieved successfully'
+        });
+      }
+      
       // Check if this is a notes request
       if (url.includes('/notes')) {
         return await handleGetNotes(req, res);
@@ -184,11 +225,17 @@ module.exports = async (req, res) => {
         }
       }
       
-      // Get all leads
+      // Get all leads with configuration data
       return res.json({
         success: true,
         leads: DEMO_LEADS,
         total: DEMO_LEADS.length,
+        config: {
+          statusOptions: LEAD_STATUS_OPTIONS,
+          countries: COUNTRIES,
+          priorities: ['low', 'medium', 'high'],
+          sources: ['Website', 'Social Media', 'Referral', 'Cold Call', 'Email Campaign', 'Walk-in']
+        },
         message: 'Leads retrieved successfully (demo data)'
       });
     }
@@ -313,13 +360,41 @@ async function handleGetNotes(req, res) {
       });
     }
 
-    // Return notes history with proper formatting
-    const notes = existingLead.notesHistory || [];
+    let allNotes = [...(existingLead.notesHistory || [])];
+
+    // Also fetch from database if available
+    if (supabase) {
+      try {
+        const { data: dbNotes, error } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('lead_id', leadId)
+          .order('created_at', { ascending: false });
+
+        if (!error && dbNotes) {
+          // Convert database notes to our format and merge
+          const formattedDbNotes = dbNotes.map(note => ({
+            id: note.id,
+            content: note.content,
+            timestamp: note.created_at,
+            author: note.author_id || 'system',
+            type: note.note_type || 'note'
+          }));
+
+          // Merge and deduplicate notes (avoid duplicates by id)
+          const existingIds = allNotes.map(n => n.id);
+          const newDbNotes = formattedDbNotes.filter(n => !existingIds.includes(n.id));
+          allNotes = [...allNotes, ...newDbNotes];
+        }
+      } catch (dbError) {
+        console.log('⚠️ Database notes fetch failed:', dbError.message);
+      }
+    }
     
     return res.json({
       success: true,
-      notes: notes.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)), // Latest first
-      total: notes.length,
+      notes: allNotes.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)), // Latest first
+      total: allNotes.length,
       leadId: leadId,
       message: 'Notes retrieved successfully'
     });
