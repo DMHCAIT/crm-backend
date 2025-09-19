@@ -1194,17 +1194,21 @@ app.post('/api/auth/debug-login', async (req, res) => {
   }
 });
 
-// Import and setup API handlers
+// Import and setup API handlers - EMERGENCY LEADS API FIX
 try {
-  // Auth handlers
-  const authHandler = require('./api/auth.js');
-  app.all('/api/auth/*', authHandler);
-  app.all('/api/auth', authHandler);
+  console.log('🔧 Loading essential API handlers...');
+  
+  // Enhanced Leads API handler - CRITICAL
+  const leadsHandler = require('./api/leads.js');
+  app.all('/api/leads', leadsHandler);
+  app.all('/api/leads/*', leadsHandler);
+  console.log('✅ Leads API loaded successfully');
 
-  // NEW: Simple Auth handler (fresh login system)
+  // NEW: Simple Auth handler (fresh login system) - CRITICAL
   const simpleAuthHandler = require('./api/simple-auth.js');
   app.post('/api/simple-auth/login', simpleAuthHandler);
   app.options('/api/simple-auth/login', simpleAuthHandler);
+  console.log('✅ Simple Auth API loaded successfully');
 
   // Super Admin handler for user management
   const superAdminHandler = require('./api/super-admin.js');
