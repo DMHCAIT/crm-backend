@@ -264,7 +264,8 @@ app.get('/api/dashboard', async (req, res) => {
   });
 });
 
-// INLINE LEADS API - 100% RELIABLE
+// INLINE LEADS API - DISABLED (Using modular API instead)
+/*
 app.get('/api/leads', async (req, res) => {
   console.log('📋 Leads API called - PRODUCTION MODE');
   
@@ -300,6 +301,7 @@ app.get('/api/leads', async (req, res) => {
     message: 'SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required'
   });
 });
+*/
 
 // INLINE USERS API - 100% RELIABLE
 app.get('/api/users', async (req, res) => {
