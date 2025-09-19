@@ -17,9 +17,13 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Only handle login
+  // Handle different auth endpoints
   if (req.method === 'POST') {
     return await handleUltraSimpleLogin(req, res);
+  }
+
+  if (req.method === 'GET') {
+    return await handleTokenVerification(req, res);
   }
 
   res.status(404).json({ error: 'Not found' });
@@ -78,6 +82,43 @@ async function handleUltraSimpleLogin(req, res) {
       success: false,
       message: 'Login failed',
       error: error.message
+    });
+  }
+}
+
+// 🔐 TOKEN VERIFICATION FUNCTION
+async function handleTokenVerification(req, res) {
+  console.log('🔍 Token verification requested');
+  
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+
+    // Verify the JWT token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    console.log('✅ Token verified for user:', decoded.username);
+
+    return res.json({
+      success: true,
+      user: {
+        username: decoded.username,
+        role: decoded.role
+      },
+      message: 'Token valid'
+    });
+
+  } catch (error) {
+    console.log('❌ Token verification failed:', error.message);
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token'
     });
   }
 }
