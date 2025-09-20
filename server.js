@@ -2142,6 +2142,28 @@ try {
   app.all('/api/permissions', permissionsHandler);
   app.all('/api/permissions/*', permissionsHandler);
 
+  // Enhanced Analytics API handler - ADDED FOR ANALYTICS COMPONENT
+  try {
+    const enhancedAnalyticsHandler = require('./api/enhanced-analytics.js');
+    app.all('/api/analytics', enhancedAnalyticsHandler);
+    app.all('/api/analytics/*', enhancedAnalyticsHandler);
+    app.all('/api/enhanced-analytics', enhancedAnalyticsHandler);
+    app.all('/api/enhanced-analytics/*', enhancedAnalyticsHandler);
+    console.log('✅ Enhanced Analytics API loaded successfully');
+  } catch (error) {
+    console.log('⚠️ Enhanced Analytics API not available:', error.message);
+  }
+
+  // Students API handler - ADDED FOR DASHBOARD INTEGRATION  
+  try {
+    const studentsHandler = require('./api/students.js');
+    app.all('/api/students', studentsHandler);
+    app.all('/api/students/*', studentsHandler);
+    console.log('✅ Students API loaded successfully');
+  } catch (error) {
+    console.log('⚠️ Students API not available:', error.message);
+  }
+
   // Lead Notes API handler (temporarily disabled)
   // const leadNotesHandler = require('./api/lead-notes.js');
   // app.all('/api/lead-notes/*', leadNotesHandler);
