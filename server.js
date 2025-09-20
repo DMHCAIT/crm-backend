@@ -306,7 +306,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Fallback to hardcoded admin if database fails
     if (username === 'admin' && password === 'admin123') {
-      console.log('✅ Fallback admin login successful for:', username);
+      console.log('✅ NEW AUTH - Fallback admin login successful for:', username);
       
       const token = jwt.sign({
         username: 'admin',
@@ -326,7 +326,7 @@ app.post('/api/auth/login', async (req, res) => {
           department: 'Administration',
           permissions: '["read", "write", "admin", "delete", "super_admin"]'
         },
-        message: 'Login successful'
+        message: 'NEW AUTH - Login successful'
       });
     }
 
