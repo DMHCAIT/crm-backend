@@ -1738,6 +1738,12 @@ try {
   app.all('/api/leads/*', leadsHandler);
   console.log('✅ Leads API loaded successfully');
 
+  // Facebook Lead Ads Integration - NEW
+  const facebookLeadsHandler = require('./api/facebook-leads.js');
+  app.all('/api/facebook-leads', facebookLeadsHandler);
+  app.all('/api/facebook-leads/*', facebookLeadsHandler);
+  console.log('✅ Facebook Leads API loaded successfully');
+
   // NEW: Simple Auth handler (fresh login system) - CRITICAL
   const simpleAuthHandler = require('./api/simple-auth.js');
   app.post('/api/simple-auth/login', simpleAuthHandler);
@@ -1763,7 +1769,8 @@ try {
   console.log('✅ Essential API handlers loaded successfully');
   console.log('🚀 Simple Auth endpoint available at /api/simple-auth/login');
   console.log('🔐 Super Admin endpoint available at /api/super-admin');
-  console.log('�️ Permissions API available at /api/permissions');
+  console.log('🔗 Facebook Leads API available at /api/facebook-leads');
+  console.log('️ Permissions API available at /api/permissions');
   console.log('�📝 Lead Notes endpoint available at /api/lead-notes/{leadId}');
   console.log('📊 Enhanced Leads endpoint available at /api/leads');
 
