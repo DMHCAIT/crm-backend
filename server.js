@@ -240,6 +240,9 @@ app.options('/api/simple-auth/login', (req, res) => {
 
 // 🚨 ENHANCED AUTH: Database authentication with bcrypt support
 app.post('/api/auth/login', async (req, res) => {
+  // IMMEDIATE TEST RESPONSE TO CONFIRM THIS ROUTE IS HIT
+  return res.json({ test: true, message: 'NEW AUTH ROUTE HIT!', timestamp: Date.now() });
+  
   console.log('🚀 Enhanced login attempt');
   
   // CORS headers
