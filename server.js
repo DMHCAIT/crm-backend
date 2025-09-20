@@ -1854,8 +1854,53 @@ app.options('/api/notes', (req, res) => {
   res.sendStatus(200);
 });
 
-// Apply authentication to all /api routes (except auth routes and dashboard)
-app.use('/api', authenticateToken);
+// Test endpoint for notes debugging
+app.post('/api/notes-test', async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  try {
+    console.log('🧪 Notes test endpoint called');
+    console.log('🧪 Request body:', req.body);
+    console.log('🧪 Supabase available:', !!supabase);
+    
+    // Simple response without database interaction
+    res.json({
+      success: true,
+      message: 'Notes test endpoint working',
+      receivedData: req.body,
+      supabaseAvailable: !!supabase,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('🧪 Notes test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Apply authentication to all /api routes (except auth routes, dashboard, and notes)
+app.use('/api', (req, res, next) => {
+  // Skip authentication for specific endpoints
+  const skipAuth = [
+    '/api/auth/login',
+    '/api/auth/register', 
+    '/api/simple-auth/login',
+    '/api/dashboard',
+    '/api/notes',
+    '/api/notes-test'
+  ];
+  
+  if (skipAuth.includes(req.path)) {
+    return next();
+  }
+  
+  return authenticateToken(req, res, next);
+});
 
 // ====================================
 // 🏥 HEALTH CHECK
