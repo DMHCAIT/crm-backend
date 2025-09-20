@@ -191,8 +191,8 @@ app.get('/api/leads-emergency', (req, res) => {
   res.json({ message: 'Emergency leads route working!', timestamp: new Date().toISOString() });
 });
 
-// Real Database-Connected Leads API
-app.get('/api/leads', async (req, res) => {
+// Real Database-Connected Leads API - DISABLED: Conflicts with api/leads.js handler
+/* app.get('/api/leads', async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -511,14 +511,15 @@ app.get('/api/leads', async (req, res) => {
       message: 'Failed to retrieve leads'
     });
   }
-});
+}); */
 
-app.options('/api/leads', (req, res) => {
+// Commented out - conflicts with api/leads.js handler
+/* app.options('/api/leads', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.status(200).end();
-});
+}); */
 
 // Enhanced Simple Auth API with Database Support
 app.post('/api/simple-auth/login', async (req, res) => {
@@ -1004,8 +1005,8 @@ app.get('/api/leads-working', async (req, res) => {
   });
 });
 
-// INLINE LEADS API - SIMPLIFIED WORKING VERSION
-app.get('/api/leads', (req, res) => {
+// INLINE LEADS API - SIMPLIFIED WORKING VERSION - DISABLED: Conflicts with api/leads.js handler
+/* app.get('/api/leads', (req, res) => {
   console.log('📋 SIMPLIFIED Leads API called - GUARANTEED TO WORK');
   
   // CORS headers
@@ -1047,14 +1048,14 @@ app.get('/api/leads', (req, res) => {
   
   console.log('✅ Returning leads data successfully');
   return res.json(response);
-});
+}); */
 
-app.options('/api/leads', (req, res) => {
+/* app.options('/api/leads', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.status(200).end();
-});
+}); */
 
 // INLINE SIMPLE AUTH API - RE-ENABLED FOR IMMEDIATE FIX
 app.post('/api/simple-auth/login', async (req, res) => {
