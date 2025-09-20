@@ -1955,7 +1955,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: '2.3.0',
     database: {
       supabase_connected: !!supabase,
       supabase_url_set: !!SUPABASE_URL,
