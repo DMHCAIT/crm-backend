@@ -149,22 +149,77 @@ app.get('/api/leads', (req, res) => {
     {
       id: '1',
       fullName: 'John Smith',
+      name: 'John Smith', // For compatibility
       email: 'john@email.com',
       phone: '+91-9876543210',
       country: 'India',
+      course: 'MBBS',
+      source: 'Website',
       status: 'hot',
-      notes: 'Interested in course',
-      createdAt: '2025-09-19T10:00:00Z'
+      priority: 'high',
+      experience: '2 years',
+      location: 'Mumbai, India',
+      notes: 'Interested in course, ready for enrollment',
+      createdAt: '2025-09-19T10:00:00Z',
+      assignedCounselor: 'Dr. Priya Sharma',
+      assigned_to: 'Dr. Priya Sharma', // For compatibility
+      createdBy: 'System',
+      score: 85,
+      lastContact: '2025-09-19T15:30:00Z',
+      last_contact: '2025-09-19T15:30:00Z', // For compatibility
+      nextFollowUp: '2025-09-21T10:00:00Z',
+      next_follow_up: '2025-09-21T10:00:00Z', // For compatibility
+      communicationsCount: 3
     },
     {
       id: '2', 
       fullName: 'Sarah Johnson',
+      name: 'Sarah Johnson', // For compatibility
       email: 'sarah@email.com',
       phone: '+91-9876543211',
       country: 'India',
+      course: 'BDS',
+      source: 'Facebook Ads',
       status: 'warm',
-      notes: 'Follow up needed',
-      createdAt: '2025-09-18T10:00:00Z'
+      priority: 'medium',
+      experience: '1 year',
+      location: 'Delhi, India',
+      notes: 'Follow up needed, interested but needs more information',
+      createdAt: '2025-09-18T10:00:00Z',
+      assignedCounselor: 'Dr. Raj Patel',
+      assigned_to: 'Dr. Raj Patel', // For compatibility
+      createdBy: 'Admin',
+      score: 65,
+      lastContact: '2025-09-18T14:20:00Z',
+      last_contact: '2025-09-18T14:20:00Z', // For compatibility
+      nextFollowUp: '2025-09-20T16:00:00Z',
+      next_follow_up: '2025-09-20T16:00:00Z', // For compatibility
+      communicationsCount: 1
+    },
+    {
+      id: '3',
+      fullName: 'Rahul Kumar',
+      name: 'Rahul Kumar', // For compatibility
+      email: 'rahul@email.com',
+      phone: '+91-9876543212',
+      country: 'India',
+      course: 'MBBS',
+      source: 'Referral',
+      status: 'qualified',
+      priority: 'high',
+      experience: '3 years',
+      location: 'Bangalore, India',
+      notes: 'Highly qualified candidate, ready for admission',
+      createdAt: '2025-09-20T08:00:00Z',
+      assignedCounselor: 'Dr. Anil Singh',
+      assigned_to: 'Dr. Anil Singh', // For compatibility
+      createdBy: 'Counselor',
+      score: 92,
+      lastContact: '2025-09-20T09:15:00Z',
+      last_contact: '2025-09-20T09:15:00Z', // For compatibility
+      nextFollowUp: '2025-09-22T11:00:00Z',
+      next_follow_up: '2025-09-22T11:00:00Z', // For compatibility
+      communicationsCount: 5
     }
   ];
 
