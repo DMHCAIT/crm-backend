@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
 const app = express();
@@ -1708,6 +1709,11 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
 // INLINE NOTES API - REAL DATA FROM DATABASE
 app.post('/api/notes', async (req, res) => {
+  // Set CORS headers for notes endpoint
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   console.log('📝 Notes API called - creating note');
   console.log('📝 Request body:', req.body);
   
@@ -1748,9 +1754,8 @@ app.post('/api/notes', async (req, res) => {
       });
     }
 
-    // Create note matching your existing database schema
+    // Create note with minimal required fields for compatibility
     const noteData = {
-      id: require('uuid').v4(),
       content,
       lead_id: leadId || null,
       student_id: studentId || null, 
@@ -1759,10 +1764,16 @@ app.post('/api/notes', async (req, res) => {
       note_type: noteType,
       priority: priority,
       is_private: isPrivate,
-      tags: tags,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+
+    // Handle tags as JSON if provided
+    if (tags && Array.isArray(tags)) {
+      noteData.tags = JSON.stringify(tags);
+    }
+
+    console.log('📝 Creating note with data:', noteData);
 
     const { data, error } = await supabase
       .from('notes')
@@ -1791,6 +1802,11 @@ app.post('/api/notes', async (req, res) => {
 });
 
 app.get('/api/notes', async (req, res) => {
+  // Set CORS headers for notes endpoint
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   console.log('📝 Notes API called - fetching notes');
   
   try {
@@ -1828,6 +1844,14 @@ app.get('/api/notes', async (req, res) => {
     console.error('Notes API error:', error);
     res.json({ success: true, data: [] }); // Return empty array on error
   }
+});
+
+// OPTIONS handler for notes endpoint
+app.options('/api/notes', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.sendStatus(200);
 });
 
 // Apply authentication to all /api routes (except auth routes and dashboard)
