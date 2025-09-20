@@ -7,36 +7,83 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-
 const DEMO_USERS = [
   {
     id: '1',
-    name: 'Admin User',
+    name: 'Santhosh Kumar',
     username: 'admin',
     email: 'admin@dmhca.com',
-    role: 'admin',
+    role: 'super_admin',
     status: 'active',
     created_at: '2025-09-19T00:00:00.000Z',
+    updated_at: '2025-09-19T00:00:00.000Z',
     department: 'Management',
-    designation: 'System Administrator'
+    designation: 'System Administrator',
+    phone: '+91-9876543210',
+    location: 'Delhi',
+    join_date: '2024-01-01',
+    reports_to: null // Super admin reports to no one
   },
   {
     id: '2',
-    name: 'John Doe',
-    username: 'john.doe',
-    email: 'john@dmhca.com',
-    role: 'counselor',
+    name: 'Dr. Priya Sharma',
+    username: 'priya.sharma',
+    email: 'priya@dmhca.com',
+    role: 'senior_manager',
     status: 'active',
     created_at: '2025-09-19T00:00:00.000Z',
+    updated_at: '2025-09-19T00:00:00.000Z',
     department: 'Admissions',
-    designation: 'Senior Counselor'
+    designation: 'Senior Admissions Manager',
+    phone: '+91-9876543211',
+    location: 'Delhi',
+    join_date: '2024-02-01',
+    reports_to: '1' // Reports to admin
   },
   {
     id: '3',
-    name: 'Jane Smith',
-    username: 'jane.smith',
-    email: 'jane@dmhca.com',
+    name: 'Rahul Kumar',
+    username: 'rahul.kumar',
+    email: 'rahul@dmhca.com',
     role: 'manager',
     status: 'active',
     created_at: '2025-09-19T00:00:00.000Z',
+    updated_at: '2025-09-19T00:00:00.000Z',
     department: 'Operations',
-    designation: 'Operations Manager'
+    designation: 'Operations Manager',
+    phone: '+91-9876543212',
+    location: 'Hyderabad',
+    join_date: '2024-03-01',
+    reports_to: '2' // Reports to Priya
+  },
+  {
+    id: '4',
+    name: 'Anjali Patel',
+    username: 'anjali.patel',
+    email: 'anjali@dmhca.com',
+    role: 'team_leader',
+    status: 'active',
+    created_at: '2025-09-19T00:00:00.000Z',
+    updated_at: '2025-09-19T00:00:00.000Z',
+    department: 'Counseling',
+    designation: 'Team Lead - Counseling',
+    phone: '+91-9876543213',
+    location: 'Kashmir',
+    join_date: '2024-04-01',
+    reports_to: '3' // Reports to Rahul
+  },
+  {
+    id: '5',
+    name: 'Suresh Reddy',
+    username: 'suresh.reddy',
+    email: 'suresh@dmhca.com',
+    role: 'counselor',
+    status: 'active',
+    created_at: '2025-09-19T00:00:00.000Z',
+    updated_at: '2025-09-19T00:00:00.000Z',
+    department: 'Counseling',
+    designation: 'Senior Counselor',
+    phone: '+91-9876543214',
+    location: 'Remote',
+    join_date: '2024-05-01',
+    reports_to: '4' // Reports to Anjali
   }
 ];
 
@@ -105,50 +152,144 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { name, email, role, department } = req.body;
+      const { 
+        name, 
+        username, 
+        email, 
+        phone, 
+        role, 
+        department, 
+        designation, 
+        location, 
+        reports_to, 
+        status 
+      } = req.body;
       
-      // Simulate creating a new user
+      // Validate required fields
+      if (!name || !username || !email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Name, username, and email are required'
+        });
+      }
+      
+      // Check if username or email already exists
+      const existingUser = DEMO_USERS.find(u => 
+        u.username === username || u.email === email
+      );
+      
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'User with this username or email already exists'
+        });
+      }
+      
+      // Validate reports_to if provided
+      if (reports_to && !DEMO_USERS.find(u => u.id === reports_to)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Supervisor user not found'
+        });
+      }
+      
+      // Create new user with all fields
       const newUser = {
-        id: String(DEMO_USERS.length + 1),
-        name: name || 'New User',
-        username: email?.split('@')[0] || 'newuser',
-        email: email || 'newuser@dmhca.com',
+        id: String(Date.now()), // Use timestamp for unique ID
+        name,
+        username,
+        email,
+        phone: phone || null,
         role: role || 'counselor',
-        status: 'active',
+        department: department || null,
+        designation: designation || null,
+        location: location || null,
+        status: status || 'active',
+        reports_to: reports_to || null,
+        join_date: new Date().toISOString().split('T')[0],
         created_at: new Date().toISOString(),
-        department: department || 'General',
-        designation: 'Staff Member'
+        updated_at: new Date().toISOString()
       };
+      
+      // Add to demo users array (simulate database insert)
+      DEMO_USERS.push(newUser);
 
       return res.json({
         success: true,
         user: newUser,
-        message: 'User created successfully (demo mode)'
+        message: 'User created successfully with supervisor assignment'
       });
     }
 
     if (req.method === 'PUT') {
       // Simulate updating a user
-      const userId = req.url.split('/').pop();
-      const existingUser = DEMO_USERS.find(u => u.id === userId);
+      const userId = req.query.id || req.url.split('?id=')[1]?.split('&')[0];
+      const userIndex = DEMO_USERS.findIndex(u => u.id === userId);
       
-      if (!existingUser) {
+      if (userIndex === -1) {
         return res.status(404).json({
           success: false,
           message: 'User not found'
         });
       }
+      
+      const { reports_to, username, email, ...otherUpdates } = req.body;
+      
+      // Validate reports_to if provided
+      if (reports_to && reports_to !== DEMO_USERS[userIndex].reports_to) {
+        if (!DEMO_USERS.find(u => u.id === reports_to)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Supervisor user not found'
+          });
+        }
+        
+        // Prevent circular reporting (user cannot report to themselves or their subordinates)
+        if (reports_to === userId) {
+          return res.status(400).json({
+            success: false,
+            message: 'User cannot report to themselves'
+          });
+        }
+      }
+      
+      // Check for duplicate username/email if they're being updated
+      if (username && username !== DEMO_USERS[userIndex].username) {
+        const duplicateUser = DEMO_USERS.find(u => u.username === username && u.id !== userId);
+        if (duplicateUser) {
+          return res.status(400).json({
+            success: false,
+            message: 'Username already exists'
+          });
+        }
+      }
+      
+      if (email && email !== DEMO_USERS[userIndex].email) {
+        const duplicateUser = DEMO_USERS.find(u => u.email === email && u.id !== userId);
+        if (duplicateUser) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email already exists'
+          });
+        }
+      }
 
       const updatedUser = {
-        ...existingUser,
-        ...req.body,
+        ...DEMO_USERS[userIndex],
+        ...otherUpdates,
+        username: username || DEMO_USERS[userIndex].username,
+        email: email || DEMO_USERS[userIndex].email,
+        reports_to: reports_to !== undefined ? reports_to : DEMO_USERS[userIndex].reports_to,
         updated_at: new Date().toISOString()
       };
+      
+      // Update in the array (simulate database update)
+      DEMO_USERS[userIndex] = updatedUser;
 
       return res.json({
         success: true,
         user: updatedUser,
-        message: 'User updated successfully (demo mode)'
+        message: 'User updated successfully with supervisor assignment'
       });
     }
 
