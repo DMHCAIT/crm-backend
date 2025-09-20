@@ -182,7 +182,7 @@ module.exports = async (req, res) => {
           priority: priority || 'medium',
           assigned_to: assignedTo || user.username || 'Unassigned',
           assignedCounselor: assignedTo || user.username || 'Unassigned',
-          notes: notes || 'New lead created via API',
+          notes: notes || '', // Preserve original notes, use empty string as fallback
           experience: experience || 'Not specified',
           location: location || 'Not specified',
           score: 0,
