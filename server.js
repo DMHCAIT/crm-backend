@@ -131,6 +131,57 @@ app.use((req, res, next) => {
 });
 
 // ====================================
+// USER HIERARCHY HELPER FUNCTIONS
+// ====================================
+
+// Define role hierarchy - higher numbers mean higher authority
+const ROLE_HIERARCHY = {
+  'super-admin': 100,
+  'admin': 90,
+  'manager': 80,
+  'senior-counselor': 70,
+  'counselor': 60,
+  'junior-counselor': 50,
+  'trainee': 40,
+  'user': 30
+};
+
+// Get users below current user's level in hierarchy
+async function getUsersBelowLevel(currentUserRole) {
+  try {
+    const currentLevel = ROLE_HIERARCHY[currentUserRole] || 0;
+    
+    // Get all users from database
+    const { data: allUsers, error } = await supabase
+      .from('users')
+      .select('id, name, email, role')
+      .neq('role', null);
+
+    if (error) {
+      console.error('Error fetching users:', error);
+      return [];
+    }
+
+    // Filter users below current user's level
+    const subordinateUsers = allUsers.filter(user => {
+      const userLevel = ROLE_HIERARCHY[user.role] || 0;
+      return userLevel < currentLevel;
+    });
+
+    return subordinateUsers.map(user => ({
+      id: user.id,
+      name: user.name || user.email,
+      email: user.email,
+      role: user.role
+    }));
+
+  } catch (error) {
+    console.error('Error in getUsersBelowLevel:', error);
+    return [];
+  }
+}
+
+// ====================================
 // � EMERGENCY INLINE LEADS API
 // ====================================
 
@@ -146,6 +197,23 @@ app.get('/api/leads', async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   try {
+    // Extract current user's role from JWT token for hierarchy filtering
+    let currentUserRole = 'user'; // Default role
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = jwt.verify(token, JWT_SECRET);
+        currentUserRole = decoded.role || 'user';
+        console.log('🔍 Current user role for assignee filtering:', currentUserRole);
+      } catch (tokenError) {
+        console.log('⚠️ Token verification failed, using default role');
+      }
+    }
+
+    // Get assignable users based on hierarchy
+    const assignableUsers = await getUsersBelowLevel(currentUserRole);
     // Get real leads from Supabase database
     const { data: leads, error } = await supabase
       .from('leads')
@@ -189,7 +257,7 @@ app.get('/api/leads', async (req, res) => {
       communicationsCount: lead.communications_count || 0
     }));
 
-    const STATUS_OPTIONS = ['hot', 'warm', 'follow-up', 'enrolled', 'fresh', 'not interested', 'new', 'qualified', 'closed_won', 'closed_lost'];
+    const STATUS_OPTIONS = ['Hot', 'Warm', 'Follow Up', 'Not Interested', 'Enrolled', 'Fresh'];
     const QUALIFICATION_OPTIONS = ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH', 'Others'];
     const COUNTRIES = [
       { code: 'IN', name: 'India' },
@@ -309,9 +377,14 @@ app.get('/api/leads', async (req, res) => {
       config: {
         statusOptions: STATUS_OPTIONS,
         qualificationOptions: QUALIFICATION_OPTIONS,
-        countries: COUNTRIES
+        countries: COUNTRIES,
+        assignableUsers: assignableUsers
       },
-      message: `Real Database: Found ${formattedLeads.length} leads`
+      message: `Real Database: Found ${formattedLeads.length} leads`,
+      hierarchyInfo: {
+        currentRole: currentUserRole,
+        availableAssignees: assignableUsers.length
+      }
     });
 
   } catch (error) {
