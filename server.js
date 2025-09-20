@@ -38,7 +38,7 @@ try {
   console.log('❌ Supabase initialization failed:', error.message);
 }
 
-console.log('🚀 Starting DMHCA CRM Backend Server... [CORS FIX v2.1.3]');
+console.log('🚀 Starting DMHCA CRM Backend Server... [STATUS & HIERARCHY UPDATE v2.2.0]');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
 console.log('🌐 CORS configured for: https://www.crmdmhca.com');
@@ -259,6 +259,119 @@ app.get('/api/leads', async (req, res) => {
 
     const STATUS_OPTIONS = ['Hot', 'Warm', 'Follow Up', 'Not Interested', 'Enrolled', 'Fresh'];
     const QUALIFICATION_OPTIONS = ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH', 'Others'];
+    
+    const FELLOWSHIP_COURSES = [
+      'Emergency Medicine',
+      'Diabetology',
+      'Family Medicine',
+      'Anesthesiology',
+      'Critical Care',
+      'Internal Medicine',
+      'Endocrinology',
+      'HIV Medicine',
+      'Intensive Care',
+      'Geriatric Medicine',
+      'Pulmonary Medicine',
+      'Pain Management',
+      'Psychological Medicine',
+      'Obstetrics & Gynecology',
+      'Reproductive Medicine',
+      'Fetal Medicine',
+      'Cosmetic Gynecology',
+      'Endogynecology',
+      'Gynae Oncology',
+      'Gynae Laparoscopy',
+      'Laparoscopy & Hysteroscopy',
+      'Neonatology',
+      'Pediatric Endocrinology',
+      'GI Endoscopy',
+      'Pediatric Critical Care',
+      'Pediatrics',
+      'Embryology',
+      'Dermatology',
+      'Cosmetology & Aesthetic Medicine',
+      'Trichology',
+      'Echocardiography',
+      'Clinical Cardiology',
+      'Preventive Cardiology',
+      'Interventional Cardiology',
+      'Pediatric Cardiology',
+      'Pediatric Echocardiography',
+      'Fetal Echocardiography',
+      'Interventional Radiology',
+      'Musculoskeletal Ultrasound',
+      'Peripheral Ultrasound',
+      'Vascular Ultrasound',
+      'Sleep Medicine',
+      'Pediatric Neurology',
+      'Clinical Neurology',
+      'Clinical Oncology',
+      'Medical Oncology',
+      'Clinical Hematology',
+      'Head & Neck Oncology',
+      'Arthroscopy & Joint Replacement',
+      'Spinal Cord Surgery',
+      'Rheumatology',
+      'Spinal Cord Medicine',
+      'Arthroscopy & Arthroplasty',
+      'Arthroscopy Sports Medicine',
+      'Minimal Access Surgery',
+      'Robotic Surgery',
+      'Gastroenterology / Endoscopy',
+      'General Surgery',
+      'General Laparoscopy Surgery',
+      'Neuro Surgery',
+      'Pediatric Surgery',
+      'Maxillofacial Surgery',
+      'Oral Implantology & Laser Dentistry',
+      'Facial Aesthetics & Cosmetology',
+      'Epidemiology & Biostatistics',
+      'Digital Health',
+      'Emergency Ultrasound',
+      'Ophthalmology',
+      'Dialysis',
+      'Interventional Nephrology',
+      'Nephrology'
+    ];
+
+    const PG_DIPLOMA_COURSES = [
+      'Emergency Medicine',
+      'Diabetology',
+      'Family Medicine',
+      'Critical Care Medicine',
+      'Internal Medicine',
+      'Endocrinology',
+      'Intensive Care',
+      'Geriatric Medicine',
+      'Psychological Medicine',
+      'Obstetrics & Gynaecology',
+      'Reproductive Medicine',
+      'Infertility Management',
+      'Maternal & Child Health',
+      'Reproductive & Child Medicine',
+      'Pediatrics',
+      'Embryology',
+      'Dermatology',
+      'Cosmetology & Aesthetic Medicine',
+      'Echocardiography',
+      'Clinical Cardiology',
+      'Ultrasonography',
+      'Vascular Ultrasound',
+      'Clinical Neurology',
+      'Urology',
+      'Orthopedics',
+      'Rheumatology',
+      'Cosmetology',
+      'Hospital Management',
+      'Hospital Administration'
+    ];
+
+    const COURSE_OPTIONS = {
+      fellowship: FELLOWSHIP_COURSES,
+      pgDiploma: PG_DIPLOMA_COURSES,
+      all: [...new Set([...FELLOWSHIP_COURSES, ...PG_DIPLOMA_COURSES])] // Combined unique list
+    };
+
     const COUNTRIES = [
       { code: 'IN', name: 'India' },
       { code: 'US', name: 'United States' },
@@ -378,7 +491,8 @@ app.get('/api/leads', async (req, res) => {
         statusOptions: STATUS_OPTIONS,
         qualificationOptions: QUALIFICATION_OPTIONS,
         countries: COUNTRIES,
-        assignableUsers: assignableUsers
+        assignableUsers: assignableUsers,
+        courseOptions: COURSE_OPTIONS
       },
       message: `Real Database: Found ${formattedLeads.length} leads`,
       hierarchyInfo: {
