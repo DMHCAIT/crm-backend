@@ -189,46 +189,113 @@ app.options('/api/leads', (req, res) => {
   res.status(200).end();
 });
 
-// Emergency Simple Auth API
-app.post('/api/simple-auth/login', (req, res) => {
+// Enhanced Simple Auth API with Database Support
+app.post('/api/simple-auth/login', async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   const { username, password } = req.body;
   
-  if (username === 'admin' && password === 'admin123') {
-    const jwt = require('jsonwebtoken');
-    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
-    
-    const token = jwt.sign(
-      { 
-        userId: 'admin-1', 
-        username: 'admin',
-        role: 'super_admin',
-        roleLevel: 100 
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+  console.log('🚀 Enhanced simple-auth login attempt:', username);
 
-    return res.json({
-      success: true,
-      token,
-      user: {
-        id: 'admin-1',
-        username: 'admin',
-        role: 'super_admin',
-        roleLevel: 100
-      },
-      message: 'Emergency Auth - Login successful!'
+  // Validate input
+  if (!username || !password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Username and password required'
     });
   }
 
-  res.status(401).json({
-    success: false,
-    message: 'Invalid credentials'
-  });
+  try {
+    // First try database authentication if available
+    if (supabase) {
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .eq('status', 'active')
+        .limit(1);
+
+      if (!error && users && users.length > 0) {
+        const user = users[0];
+        
+        // Try bcrypt password verification for database users
+        if (user.password_hash) {
+          const isValid = await bcrypt.compare(password, user.password_hash);
+          if (isValid) {
+            console.log('✅ Database user login successful:', username);
+            
+            const token = jwt.sign({
+              userId: user.id,
+              username: user.username,
+              role: user.role,
+              loginTime: Date.now()
+            }, JWT_SECRET, { expiresIn: '24h' });
+
+            return res.json({
+              success: true,
+              token,
+              user: {
+                id: user.id,
+                username: user.username,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                department: user.department,
+                permissions: user.permissions
+              },
+              message: 'Login successful!'
+            });
+          }
+        }
+      }
+    }
+
+    // Fallback to hardcoded admin
+    if (username === 'admin' && password === 'admin123') {
+      console.log('✅ Fallback admin login successful');
+      
+      const token = jwt.sign(
+        { 
+          userId: 'admin-1', 
+          username: 'admin',
+          role: 'super_admin',
+          roleLevel: 100 
+        },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      return res.json({
+        success: true,
+        token,
+        user: {
+          id: 'admin-1',
+          username: 'admin',
+          email: 'admin@dmhca.com',
+          name: 'Admin User',
+          role: 'super_admin',
+          roleLevel: 100
+        },
+        message: 'Login successful!'
+      });
+    }
+
+    console.log('❌ Invalid credentials for:', username);
+    res.status(401).json({
+      success: false,
+      error: 'Invalid credentials'
+    });
+
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Login failed',
+      details: error.message
+    });
+  }
 });
 
 app.options('/api/simple-auth/login', (req, res) => {
@@ -240,9 +307,6 @@ app.options('/api/simple-auth/login', (req, res) => {
 
 // 🚨 ENHANCED AUTH: Database authentication with bcrypt support
 app.post('/api/auth/login', async (req, res) => {
-  // IMMEDIATE TEST RESPONSE TO CONFIRM THIS ROUTE IS HIT
-  return res.json({ test: true, message: 'NEW AUTH ROUTE HIT!', timestamp: Date.now() });
-  
   console.log('🚀 Enhanced login attempt');
   
   // CORS headers
