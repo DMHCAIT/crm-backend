@@ -139,102 +139,78 @@ app.get('/api/leads-emergency', (req, res) => {
   res.json({ message: 'Emergency leads route working!', timestamp: new Date().toISOString() });
 });
 
-// Emergency Leads API - Direct implementation
-app.get('/api/leads', (req, res) => {
+// Real Database-Connected Leads API
+app.get('/api/leads', async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  const LEADS_DATA = [
-    {
-      id: '1',
-      fullName: 'John Smith',
-      name: 'John Smith', // For compatibility
-      email: 'john@email.com',
-      phone: '+91-9876543210',
-      country: 'India',
-      course: 'MBBS',
-      source: 'Website',
-      status: 'hot',
-      priority: 'high',
-      experience: '2 years',
-      location: 'Mumbai, India',
-      notes: 'Interested in course, ready for enrollment',
-      createdAt: '2025-09-19T10:00:00Z',
-      assignedCounselor: 'Dr. Priya Sharma',
-      assigned_to: 'Dr. Priya Sharma', // For compatibility
-      createdBy: 'System',
-      score: 85,
-      lastContact: '2025-09-19T15:30:00Z',
-      last_contact: '2025-09-19T15:30:00Z', // For compatibility
-      nextFollowUp: '2025-09-21T10:00:00Z',
-      next_follow_up: '2025-09-21T10:00:00Z', // For compatibility
-      communicationsCount: 3
-    },
-    {
-      id: '2', 
-      fullName: 'Sarah Johnson',
-      name: 'Sarah Johnson', // For compatibility
-      email: 'sarah@email.com',
-      phone: '+91-9876543211',
-      country: 'India',
-      course: 'BDS',
-      source: 'Facebook Ads',
-      status: 'warm',
-      priority: 'medium',
-      experience: '1 year',
-      location: 'Delhi, India',
-      notes: 'Follow up needed, interested but needs more information',
-      createdAt: '2025-09-18T10:00:00Z',
-      assignedCounselor: 'Dr. Raj Patel',
-      assigned_to: 'Dr. Raj Patel', // For compatibility
-      createdBy: 'Admin',
-      score: 65,
-      lastContact: '2025-09-18T14:20:00Z',
-      last_contact: '2025-09-18T14:20:00Z', // For compatibility
-      nextFollowUp: '2025-09-20T16:00:00Z',
-      next_follow_up: '2025-09-20T16:00:00Z', // For compatibility
-      communicationsCount: 1
-    },
-    {
-      id: '3',
-      fullName: 'Rahul Kumar',
-      name: 'Rahul Kumar', // For compatibility
-      email: 'rahul@email.com',
-      phone: '+91-9876543212',
-      country: 'India',
-      course: 'MBBS',
-      source: 'Referral',
-      status: 'qualified',
-      priority: 'high',
-      experience: '3 years',
-      location: 'Bangalore, India',
-      notes: 'Highly qualified candidate, ready for admission',
-      createdAt: '2025-09-20T08:00:00Z',
-      assignedCounselor: 'Dr. Anil Singh',
-      assigned_to: 'Dr. Anil Singh', // For compatibility
-      createdBy: 'Counselor',
-      score: 92,
-      lastContact: '2025-09-20T09:15:00Z',
-      last_contact: '2025-09-20T09:15:00Z', // For compatibility
-      nextFollowUp: '2025-09-22T11:00:00Z',
-      next_follow_up: '2025-09-22T11:00:00Z', // For compatibility
-      communicationsCount: 5
+  try {
+    // Get real leads from Supabase database
+    const { data: leads, error } = await supabase
+      .from('leads')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection failed',
+        leads: [],
+        message: 'Unable to fetch leads from database'
+      });
     }
-  ];
 
-  const STATUS_OPTIONS = ['hot', 'warm', 'follow-up', 'enrolled', 'fresh', 'not interested'];
-  const COUNTRIES = ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE'];
+    // Format leads data for frontend compatibility
+    const formattedLeads = (leads || []).map(lead => ({
+      id: lead.id,
+      fullName: lead.full_name || lead.fullName || 'Unknown',
+      name: lead.full_name || lead.fullName || 'Unknown', // For compatibility
+      email: lead.email || '',
+      phone: lead.phone || '',
+      country: lead.country || 'India',
+      course: lead.course || 'Not specified',
+      source: lead.source || 'Unknown',
+      status: lead.status || 'new',
+      priority: lead.priority || 'medium',
+      experience: lead.experience || 'Not specified',
+      location: lead.location || 'Not specified',
+      notes: lead.notes || '',
+      createdAt: lead.created_at || lead.createdAt || new Date().toISOString(),
+      assignedCounselor: lead.assigned_to || lead.assignedCounselor || 'Unassigned',
+      assigned_to: lead.assigned_to || lead.assignedCounselor || 'Unassigned', // For compatibility
+      createdBy: lead.created_by || lead.createdBy || 'System',
+      score: lead.score || 0,
+      lastContact: lead.last_contact || lead.updated_at || lead.createdAt || new Date().toISOString(),
+      last_contact: lead.last_contact || lead.updated_at || lead.createdAt || new Date().toISOString(), // For compatibility
+      nextFollowUp: lead.next_follow_up || lead.nextFollowUp || '',
+      next_follow_up: lead.next_follow_up || lead.nextFollowUp || '', // For compatibility
+      communicationsCount: lead.communications_count || 0
+    }));
 
-  res.json({
-    success: true,
-    leads: LEADS_DATA,
-    config: {
-      statusOptions: STATUS_OPTIONS,
-      countries: COUNTRIES
-    },
-    message: 'Emergency Leads API - Working!'
-  });
+    const STATUS_OPTIONS = ['hot', 'warm', 'follow-up', 'enrolled', 'fresh', 'not interested', 'new', 'qualified', 'closed_won', 'closed_lost'];
+    const COUNTRIES = ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE'];
+
+    res.json({
+      success: true,
+      leads: formattedLeads,
+      config: {
+        statusOptions: STATUS_OPTIONS,
+        countries: COUNTRIES
+      },
+      message: `Real Database: Found ${formattedLeads.length} leads`
+    });
+
+  } catch (error) {
+    console.error('Leads API error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      leads: [],
+      message: 'Failed to retrieve leads'
+    });
+  }
 });
 
 app.options('/api/leads', (req, res) => {
@@ -307,35 +283,7 @@ app.post('/api/simple-auth/login', async (req, res) => {
       }
     }
 
-    // Fallback to hardcoded admin
-    if (username === 'admin' && password === 'admin123') {
-      console.log('✅ Fallback admin login successful');
-      
-      const token = jwt.sign(
-        { 
-          userId: 'admin-1', 
-          username: 'admin',
-          role: 'super_admin',
-          roleLevel: 100 
-        },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-
-      return res.json({
-        success: true,
-        token,
-        user: {
-          id: 'admin-1',
-          username: 'admin',
-          email: 'admin@dmhca.com',
-          name: 'Admin User',
-          role: 'super_admin',
-          roleLevel: 100
-        },
-        message: 'Login successful!'
-      });
-    }
+    // No hardcoded fallbacks - database authentication only
 
     console.log('❌ Invalid credentials for:', username);
     res.status(401).json({
@@ -426,31 +374,7 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
 
-    // Fallback to hardcoded admin if database fails
-    if (username === 'admin' && password === 'admin123') {
-      console.log('✅ NEW AUTH - Fallback admin login successful for:', username);
-      
-      const token = jwt.sign({
-        username: 'admin',
-        userId: 'admin-1',
-        role: 'super_admin',
-        loginTime: Date.now()
-      }, JWT_SECRET, { expiresIn: '24h' });
-
-      return res.json({
-        success: true,
-        token: token,
-        user: {
-          id: 'admin-1',
-          username: 'admin',
-          name: 'System Administrator',
-          role: 'super_admin',
-          department: 'Administration',
-          permissions: '["read", "write", "admin", "delete", "super_admin"]'
-        },
-        message: 'NEW AUTH - Login successful'
-      });
-    }
+    // No fallback - authentication must be from database only
 
     console.log('❌ Invalid credentials for:', username);
     return res.status(401).json({
