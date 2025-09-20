@@ -150,7 +150,10 @@ async function handleUltraSimpleLogin(req, res) {
   }
 }
 
-// 🔐 TOKEN VERIFICATION FUNCTION
+// 🔐 Production Authentication API - Comprehensive User Management  
+// This API handles all authentication with both hardcoded and database users
+// Supports: Login, Role-based permissions, JWT tokens, Password verification
+// ✅ FIXED: Database users now use bcrypt verification (v2.0)
 async function handleTokenVerification(req, res) {
   console.log('🔍 Token verification requested');
   
