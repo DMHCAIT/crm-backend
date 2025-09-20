@@ -782,8 +782,13 @@ app.get('/api/users', async (req, res) => {
         .order('created_at', { ascending: false });
         
       if (!error && users) {
-        console.log(`✅ Found ${users.length} users from database`);
-        return res.json({ success: true, users });
+        // Remove password_hash from response for security
+        const safeUsers = users.map(user => {
+          const { password_hash, ...safeUser } = user;
+          return safeUser;
+        });
+        console.log(`✅ Found ${safeUsers.length} users from database`);
+        return res.json({ success: true, users: safeUsers });
       } else {
         console.log('❌ Supabase query error:', error);
       }

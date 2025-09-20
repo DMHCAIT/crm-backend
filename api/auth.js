@@ -70,39 +70,7 @@ async function handleUltraSimpleLogin(req, res) {
       if (!error && users && users.length > 0) {
         const user = users[0];
         
-        // For admin/admin123, check if it's the admin user
-        if (username === 'admin' && password === 'admin123') {
-          console.log('✅ Database admin login successful for:', username);
-          
-          // Create JWT with database user info
-          const token = jwt.sign({
-            username: user.username,
-            userId: user.id,
-            role: user.role,
-            loginTime: Date.now()
-          }, JWT_SECRET, { expiresIn: '24h' });
-
-          // Generate role-based permissions
-          const rolePermissions = generateUserPermissions(user.role);
-          
-          return res.json({
-            success: true,
-            token: token,
-            user: {
-              id: user.id,
-              username: user.username,
-              name: user.name,
-              email: user.email,
-              role: user.role,
-              department: user.department,
-              permissions: user.permissions
-            },
-            rolePermissions: rolePermissions,
-            message: 'Login successful'
-          });
-        }
-
-        // Try bcrypt password verification for other users
+        // Always try bcrypt password verification for database users (including admin)
         if (user.password_hash) {
           const isValid = await bcrypt.compare(password, user.password_hash);
           if (isValid) {
