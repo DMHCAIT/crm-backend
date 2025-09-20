@@ -238,48 +238,11 @@ app.options('/api/simple-auth/login', (req, res) => {
   res.status(200).end();
 });
 
-// 🚨 IMMEDIATE FIX: Duplicate auth endpoint for frontend compatibility
-app.post('/api/auth/login', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  const { username, password } = req.body;
-  
-  if (username === 'admin' && password === 'admin123') {
-    const jwt = require('jsonwebtoken');
-    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
-    
-    const token = jwt.sign(
-      { 
-        userId: 'admin-1', 
-        username: 'admin',
-        role: 'super_admin',
-        roleLevel: 100 
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    return res.json({
-      success: true,
-      token,
-      user: {
-        id: 'admin-1',
-        username: 'admin',
-        email: 'admin@dmhca.com',
-        name: 'Admin User',
-        role: 'super_admin',
-        roleLevel: 100
-      },
-      message: 'Login successful!'
-    });
-  }
-
-  res.status(401).json({
-    success: false,
-    error: 'Invalid credentials'
-  });
+// 🚨 ENHANCED AUTH: Use proper database authentication with bcrypt
+app.post('/api/auth/login', async (req, res) => {
+  // Route to our enhanced auth.js handler
+  const authHandler = require('./api/auth.js');
+  return await authHandler(req, res);
 });
 
 app.options('/api/auth/login', (req, res) => {
@@ -293,74 +256,13 @@ app.options('/api/auth/login', (req, res) => {
 // 🔑 STANDARD AUTH ROUTES FOR FRONTEND
 // ====================================
 
-// Standard login endpoint - redirects to simple-auth
-app.post('/api/auth/login', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+// Standard login endpoint - uses enhanced auth with database support
+// This route is now handled by the first /api/auth/login route above
 
-  const { username, password } = req.body;
-  
-  if (username === 'admin' && password === 'admin123') {
-    const token = jwt.sign({ 
-      userId: 'admin-1',
-      username: 'admin',
-      role: 'super_admin',
-      roleLevel: 100
-    }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: 'admin-1',
-        username: 'admin',
-        role: 'super_admin',
-        roleLevel: 100
-      },
-      message: 'Login successful!'
-    });
-  } else {
-    res.status(401).json({
-      success: false,
-      error: 'Invalid credentials'
-    });
-  }
-});
-
-// Token verification endpoint
-app.get('/api/auth/verify', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      success: false,
-      error: 'No token provided'
-    });
-  }
-
-  const token = authHeader.substring(7);
-  
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    res.json({
-      success: true,
-      user: {
-        id: decoded.userId,
-        username: decoded.username,
-        role: decoded.role,
-        roleLevel: decoded.roleLevel
-      }
-    });
-  } catch (error) {
-    res.status(401).json({
-      success: false,
-      error: 'Invalid token'
-    });
-  }
+// Token verification endpoint - uses enhanced auth.js handler
+app.get('/api/auth/verify', async (req, res) => {
+  const authHandler = require('./api/auth.js');
+  return await authHandler(req, res);
 });
 
 // Logout endpoint (client-side mostly)
