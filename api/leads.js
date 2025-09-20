@@ -66,6 +66,57 @@ module.exports = async (req, res) => {
       });
     }
 
+    if (req.method === 'POST') {
+      // Create new lead
+      const { 
+        fullName, 
+        email, 
+        phone, 
+        country, 
+        qualification, 
+        source, 
+        course, 
+        status,
+        assignedTo 
+      } = req.body;
+
+      // Validate required fields
+      if (!fullName || !email) {
+        return res.status(400).json({
+          success: false,
+          error: 'Full name and email are required'
+        });
+      }
+
+      // Generate new lead
+      const newLead = {
+        id: String(Date.now()),
+        fullName: fullName,
+        email: email,
+        phone: phone || '',
+        country: country || 'India',
+        qualification: qualification || 'MBBS',
+        source: source || 'Manual Entry',
+        course: course || 'Emergency Medicine',
+        status: status || 'hot',
+        assignedTo: assignedTo || user.username,
+        notes: 'New lead created',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // Add to demo data (in real app, this would save to database)
+      LEADS_DATA.unshift(newLead);
+
+      console.log(`✅ Created new lead: ${fullName} (${email})`);
+
+      return res.json({
+        success: true,
+        data: newLead,
+        message: 'Lead created successfully'
+      });
+    }
+
     return res.status(405).json({ error: 'Method not allowed' });
     
   } catch (error) {
