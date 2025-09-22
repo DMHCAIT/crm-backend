@@ -247,15 +247,15 @@ app.get('/api/leads-emergency', (req, res) => {
       location: lead.location || 'Not specified',
       notes: lead.notes || '',
       createdAt: lead.created_at || lead.createdAt || new Date().toISOString(),
-      assignedCounselor: lead.assigned_to || lead.assignedCounselor || 'Unassigned',
-      assigned_to: lead.assigned_to || lead.assignedCounselor || 'Unassigned', // For compatibility
-      createdBy: lead.created_by || lead.createdBy || 'System',
+      assignedCounselor: lead.assignedTo || lead.assignedcounselor || 'Unassigned', // Use actual DB columns
+      assignedTo: lead.assignedTo || 'Unassigned', // Match actual DB column name
+      createdBy: 'System', // DB doesn't have created_by field
       score: lead.score || 0,
       lastContact: lead.last_contact || lead.updated_at || lead.createdAt || new Date().toISOString(),
       last_contact: lead.last_contact || lead.updated_at || lead.createdAt || new Date().toISOString(), // For compatibility
       nextFollowUp: lead.next_follow_up || lead.nextFollowUp || '',
       next_follow_up: lead.next_follow_up || lead.nextFollowUp || '', // For compatibility
-      communicationsCount: lead.communications_count || 0
+      communicationsCount: lead.communicationscount || 0  // Match actual DB column name (lowercase)
     }));
 
     const STATUS_OPTIONS = ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'];

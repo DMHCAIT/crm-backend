@@ -284,13 +284,14 @@ module.exports = async (req, res) => {
           course: course || 'Emergency Medicine',
           status: status || 'fresh',
           priority: priority || 'medium', // New field
-          assigned_to: assignedTo || user.username || 'Unassigned',
+          assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
+          assignedcounselor: assignedTo || user.username || 'Unassigned', // Match actual DB column name (lowercase)
           notes: notes || '', // Will migrate to structured notes
           experience: experience || 'Not specified', // New field
           location: location || 'Not specified', // New field
           score: score || 0, // New field
           // communications_count will be updated by trigger, don't insert it directly
-          createdBy: user.username || 'System',
+          // createdBy column doesn't exist in database schema, using created_at instead
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -397,6 +398,11 @@ module.exports = async (req, res) => {
             cleanUpdateData[key] = updateData[key];
           }
         });
+
+        // Sync assignment fields to match actual database schema
+        if (cleanUpdateData.assignedTo) {
+          cleanUpdateData.assignedcounselor = cleanUpdateData.assignedTo; // Match actual DB column (lowercase)
+        }
 
         // Add updated timestamp
         cleanUpdateData.updated_at = new Date().toISOString();

@@ -288,7 +288,7 @@ async function handleCreateNote(req, res) {
       }
     }
 
-    // Create note
+    // Create note in notes table with correct schema
     const { data: note, error } = await supabase
       .from('notes')
       .insert([{
@@ -296,13 +296,12 @@ async function handleCreateNote(req, res) {
         lead_id: lead_id || null,
         student_id: student_id || null,
         user_id: user_id || null,
-        author_id: user.id,
+        author_id: user.id,  // Use author_id field from actual schema
         note_type,
         priority,
         is_private: is_private === true || is_private === 'true',
         reminder_at: reminder_at || null,
         tags: Array.isArray(tags) ? tags : [],
-        metadata,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }])

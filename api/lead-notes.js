@@ -117,7 +117,7 @@ async function handleGetLeadNotes(req, res, leadId) {
     if (supabase) {
       // Try to get from database first
       const { data: notes, error } = await supabase
-        .from('notes')
+        .from('lead_notes')
         .select('*')
         .eq('lead_id', leadId)
         .order('created_at', { ascending: false });
@@ -194,8 +194,17 @@ async function handleAddLeadNote(req, res, leadId, user) {
     if (supabase) {
       try {
         const { data, error } = await supabase
-          .from('notes')
-          .insert([newNote])
+          .from('lead_notes')
+          .insert([{
+            lead_id: leadId,
+            content: content,
+            author: user.username || 'System',  // Use 'author' field as per lead_notes schema
+            note_type: note_type || 'general',
+            is_private: is_private || false,
+            timestamp: timestamp,
+            created_at: timestamp,
+            updated_at: timestamp
+          }])
           .select()
           .single();
 
@@ -262,7 +271,7 @@ async function handleUpdateLeadNote(req, res, leadId, user) {
 
     if (supabase) {
       const { data, error } = await supabase
-        .from('notes')
+        .from('lead_notes')
         .update({
           content: content.trim(),
           updated_at: new Date().toISOString()
@@ -315,7 +324,7 @@ async function handleDeleteLeadNote(req, res, leadId, user) {
 
     if (supabase) {
       const { error } = await supabase
-        .from('notes')
+        .from('lead_notes')
         .delete()
         .eq('id', noteId)
         .eq('lead_id', leadId);
