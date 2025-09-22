@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS system_config (
 
 -- Insert default configuration options
 INSERT INTO system_config (config_key, config_value, description, updated_by) VALUES
-('status_options', '["new", "contacted", "qualified", "proposal", "negotiation", "closed-won", "closed-lost", "hot", "warm", "follow_up", "not_interested", "enrolled", "fresh"]', 'Available lead status options', 'system')
+('status_options', '["hot", "followup", "warm", "not interested", "enrolled", "fresh", "junk"]', 'Available lead status options', 'system')
 ON CONFLICT (config_key) DO UPDATE SET 
     config_value = EXCLUDED.config_value,
     updated_at = CURRENT_TIMESTAMP;

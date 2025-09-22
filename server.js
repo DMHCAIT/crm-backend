@@ -258,7 +258,7 @@ app.get('/api/leads-emergency', (req, res) => {
       communicationsCount: lead.communications_count || 0
     }));
 
-    const STATUS_OPTIONS = ['Hot', 'Warm', 'Follow Up', 'Not Interested', 'Enrolled', 'Fresh'];
+    const STATUS_OPTIONS = ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'];
     const QUALIFICATION_OPTIONS = ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH', 'Others'];
     
     const FELLOWSHIP_COURSES = [
@@ -914,7 +914,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
           success: true,
           leads: leads,
           config: {
-            statusOptions: ['hot', 'warm', 'follow-up', 'enrolled', 'fresh', 'not interested'],
+            statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
             countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
           },
           message: `Emergency leads API: Found ${leads.length} leads with status options and countries`
@@ -951,7 +951,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
       }
     ],
     config: {
-      statusOptions: ['hot', 'warm', 'follow-up', 'enrolled', 'fresh', 'not interested'],
+      statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
       countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
     },
     message: 'Emergency leads API with demo data - status options and countries included!'
@@ -998,7 +998,7 @@ app.get('/api/leads-working', async (req, res) => {
       }
     ],
     config: {
-      statusOptions: ['hot', 'warm', 'follow-up', 'enrolled', 'fresh', 'not interested'],
+      statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
       countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
     },
     message: 'Working leads API with status options and countries!'
@@ -1040,7 +1040,7 @@ app.get('/api/leads-working', async (req, res) => {
       }
     ],
     config: {
-      statusOptions: ['hot', 'warm', 'follow-up', 'enrolled', 'fresh', 'not interested'],
+      statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
       countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
     },
     message: 'SIMPLIFIED Leads API - Your status options and countries are here!'

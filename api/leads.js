@@ -285,7 +285,6 @@ module.exports = async (req, res) => {
           status: status || 'fresh',
           priority: priority || 'medium', // New field
           assigned_to: assignedTo || user.username || 'Unassigned',
-          assignedCounselor: assignedTo || user.username || 'Unassigned',
           notes: notes || '', // Will migrate to structured notes
           experience: experience || 'Not specified', // New field
           location: location || 'Not specified', // New field
