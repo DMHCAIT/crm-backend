@@ -1,65 +1,24 @@
-// 🚀 SIMPLIFIED LEADS API - NO DATABASE DEPENDENCY
+// 🚀 LEADS API WITH DATABASE INTEGRATION
 const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
 
-// Demo leads data
-const DEMO_LEADS = [
-  {
-    id: '1',
-    fullName: 'John Smith',
-    email: 'john.smith@email.com',
-    phone: '+91-9876543210',
-    country: 'India',
-    branch: 'Mumbai',
-    qualification: 'Bachelor of Engineering',
-    source: 'Website',
-    course: 'Web Development',
-    status: 'fresh',
-    assignedTo: 'admin',
-    followUp: '2025-09-20',
-    priority: 'high',
-    notes: 'Interested in full-stack development course',
-    createdAt: '2025-09-19T00:00:00.000Z',
-    updatedAt: '2025-09-19T00:00:00.000Z'
-  },
-  {
-    id: '2',
-    fullName: 'Sarah Johnson',
-    email: 'sarah.j@email.com',
-    phone: '+91-9876543211',
-    country: 'India',
-    branch: 'Delhi',
-    qualification: 'Masters in Computer Science',
-    source: 'Referral',
-    course: 'Data Science',
-    status: 'followup',
-    assignedTo: 'admin',
-    followUp: '2025-09-21',
-    priority: 'medium',
-    notes: 'Looking for data analytics career transition',
-    createdAt: '2025-09-18T00:00:00.000Z',
-    updatedAt: '2025-09-19T00:00:00.000Z'
-  },
-  {
-    id: '3',
-    fullName: 'Mike Davis',
-    email: 'mike.davis@email.com',
-    phone: '+91-9876543212',
-    country: 'India',
-    branch: 'Bangalore',
-    qualification: 'BCA',
-    source: 'Social Media',
-    course: 'Mobile App Development',
-    status: 'hot',
-    assignedTo: 'admin',
-    followUp: '2025-09-22',
-    priority: 'high',
-    notes: 'Ready to start next batch',
-    createdAt: '2025-09-17T00:00:00.000Z',
-    updatedAt: '2025-09-19T00:00:00.000Z'
+// Initialize Supabase
+let supabase;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+    console.log('✅ Leads Simple API: Supabase initialized');
+  } else {
+    console.log('❌ Leads Simple API: Supabase credentials missing');
   }
-];
+} catch (error) {
+  console.log('❌ Leads Simple API: Supabase initialization failed:', error.message);
+}
 
 // Verify JWT token
 function verifyToken(req) {
@@ -99,68 +58,189 @@ module.exports = async (req, res) => {
 
     // Handle different HTTP methods
     if (req.method === 'GET') {
-      // Get all leads
-      return res.json({
-        success: true,
-        leads: DEMO_LEADS,
-        total: DEMO_LEADS.length,
-        message: 'Leads retrieved successfully (demo data)'
-      });
-    }
-
-    if (req.method === 'POST') {
-      const { fullName, email, phone, course, source } = req.body;
-      
-      // Simulate creating a new lead
-      const newLead = {
-        id: String(DEMO_LEADS.length + 1),
-        fullName: fullName || 'New Lead',
-        email: email || 'newlead@email.com',
-        phone: phone || '+91-0000000000',
-        country: 'India',
-        branch: 'Mumbai',
-        qualification: 'Not specified',
-        source: source || 'Manual',
-        course: course || 'General Inquiry',
-        status: 'fresh',
-        assignedTo: user.username,
-        followUp: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        priority: 'medium',
-        notes: 'New lead created',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      return res.json({
-        success: true,
-        lead: newLead,
-        message: 'Lead created successfully (demo mode)'
-      });
-    }
-
-    if (req.method === 'PUT') {
-      // Simulate updating a lead
-      const leadId = req.url.split('/').pop();
-      const existingLead = DEMO_LEADS.find(l => l.id === leadId);
-      
-      if (!existingLead) {
-        return res.status(404).json({
+      if (!supabase) {
+        return res.status(500).json({
           success: false,
-          message: 'Lead not found'
+          error: 'Database connection not available',
+          message: 'Supabase not initialized'
         });
       }
 
-      const updatedLead = {
-        ...existingLead,
-        ...req.body,
-        updatedAt: new Date().toISOString()
-      };
+      try {
+        // Get all leads from database
+        const { data: leads, error } = await supabase
+          .from('leads')
+          .select('*')
+          .order('createdAt', { ascending: false });
 
-      return res.json({
-        success: true,
-        lead: updatedLead,
-        message: 'Lead updated successfully (demo mode)'
-      });
+        if (error) {
+          console.log('❌ Get leads error:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch leads',
+            details: error.message
+          });
+        }
+
+        return res.json({
+          success: true,
+          leads: leads || [],
+          total: (leads || []).length,
+          message: 'Leads retrieved successfully from database'
+        });
+
+      } catch (error) {
+        console.log('❌ Get leads error:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to fetch leads',
+          details: error.message
+        });
+      }
+    }
+
+    if (req.method === 'POST') {
+      if (!supabase) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database connection not available'
+        });
+      }
+
+      try {
+        const { fullName, email, phone, course, source, country, branch, qualification, priority, notes } = req.body;
+        
+        // Validate required fields
+        if (!fullName || !email) {
+          return res.status(400).json({
+            success: false,
+            error: 'Full name and email are required'
+          });
+        }
+
+        // Create new lead in database
+        const newLeadData = {
+          fullName: fullName,
+          email: email,
+          phone: phone || '',
+          country: country || 'India',
+          branch: branch || 'Mumbai', 
+          qualification: qualification || 'Not specified',
+          source: source || 'Manual',
+          course: course || 'General Inquiry',
+          status: 'fresh',
+          assignedTo: user.username,
+          followUp: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          priority: priority || 'medium',
+          notes: notes || 'New lead created',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        const { data: newLead, error } = await supabase
+          .from('leads')
+          .insert([newLeadData])
+          .select()
+          .single();
+
+        if (error) {
+          console.log('❌ Create lead error:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to create lead',
+            details: error.message
+          });
+        }
+
+        console.log(`✅ Lead created: ${newLead.fullName} (${newLead.email}) by ${user.username}`);
+
+        return res.json({
+          success: true,
+          lead: newLead,
+          message: 'Lead created successfully in database'
+        });
+
+      } catch (error) {
+        console.log('❌ Create lead error:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create lead',
+          details: error.message
+        });
+      }
+    }
+
+    if (req.method === 'PUT') {
+      if (!supabase) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database connection not available'
+        });
+      }
+
+      try {
+        const leadId = req.url.split('/').pop();
+        
+        if (!leadId || leadId === 'api' || leadId === 'leads-simple') {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid lead ID'
+          });
+        }
+
+        // Check if lead exists
+        const { data: existingLead, error: fetchError } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('id', leadId)
+          .single();
+
+        if (fetchError || !existingLead) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found'
+          });
+        }
+
+        // Update lead in database
+        const updateData = {
+          ...req.body,
+          updatedAt: new Date().toISOString(),
+          updated_by: user.username
+        };
+
+        const { data: updatedLead, error: updateError } = await supabase
+          .from('leads')
+          .update(updateData)
+          .eq('id', leadId)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.log('❌ Update lead error:', updateError);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to update lead',
+            details: updateError.message
+          });
+        }
+
+        console.log(`✅ Lead updated: ${updatedLead.fullName} (${updatedLead.email}) by ${user.username}`);
+
+        return res.json({
+          success: true,
+          lead: updatedLead,
+          message: 'Lead updated successfully in database'
+        });
+
+      } catch (error) {
+        console.log('❌ Update lead error:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to update lead',
+          details: error.message
+        });
+      }
     }
 
     if (req.method === 'DELETE') {
