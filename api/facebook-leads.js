@@ -229,7 +229,7 @@ function transformFacebookLead(fbLead, form) {
     qualification: fieldData.qualification || fieldData.education || 'Not specified',
     source: 'Facebook Ads',
     course: fieldData.course || fieldData.course_interest || fieldData.program || 'MBBS',
-    status: 'new',
+    status: 'fresh',
     assignedTo: 'Facebook Leads Team',
     followUp: '',
     priority: 'high',

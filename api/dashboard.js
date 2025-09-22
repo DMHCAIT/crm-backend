@@ -64,7 +64,7 @@ module.exports = async (req, res) => {
     // Calculate lead statistics
     const totalLeads = leadsResult.count || 0;
     const activeLeads = leadsResult.data?.filter(lead => 
-      ['new', 'contacted', 'qualified', 'proposal'].includes(lead.status)
+      ['hot', 'followup', 'warm', 'fresh'].includes(lead.status)
     ).length || 0;
 
     // Calculate student statistics
