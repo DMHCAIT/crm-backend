@@ -376,6 +376,81 @@ module.exports = async (req, res) => {
       }
     }
 
+    if (req.method === 'PUT') {
+      const leadId = req.query.id;
+      
+      if (!leadId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Lead ID is required for update'
+        });
+      }
+
+      try {
+        const updateData = req.body;
+        console.log(`🔄 Updating lead ${leadId} with data:`, updateData);
+
+        // Remove undefined values and prepare update object
+        const cleanUpdateData = {};
+        Object.keys(updateData).forEach(key => {
+          if (updateData[key] !== undefined && key !== 'id') {
+            cleanUpdateData[key] = updateData[key];
+          }
+        });
+
+        // Add updated timestamp
+        cleanUpdateData.updated_at = new Date().toISOString();
+
+        // Update lead in database
+        const { data: updatedLead, error } = await supabase
+          .from('leads')
+          .update(cleanUpdateData)
+          .eq('id', leadId)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('❌ Database error updating lead:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to update lead',
+            details: error.message
+          });
+        }
+
+        if (!updatedLead) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found'
+          });
+        }
+
+        console.log('✅ Lead updated successfully:', updatedLead.id);
+
+        // Log the update activity
+        await logLeadActivity(
+          leadId,
+          'update',
+          `Lead updated`,
+          user.username || 'System'
+        );
+
+        return res.status(200).json({
+          success: true,
+          data: updatedLead,
+          message: 'Lead updated successfully'
+        });
+
+      } catch (error) {
+        console.error('❌ Error updating lead:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to update lead',
+          details: error.message
+        });
+      }
+    }
+
     return res.status(405).json({ error: 'Method not allowed' });
     
   } catch (error) {
