@@ -164,13 +164,111 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'DELETE') {
-      // Simulate deleting a lead
-      const leadId = req.url.split('/').pop();
-      
-      return res.json({
-        success: true,
-        message: `Lead ${leadId} deleted successfully (demo mode)`
-      });
+      if (!supabase) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database connection not available'
+        });
+      }
+
+      try {
+        let leadIds = [];
+        
+        // Check if this is a bulk delete (request body contains leadIds array)
+        if (req.body && req.body.leadIds && Array.isArray(req.body.leadIds)) {
+          leadIds = req.body.leadIds;
+        } else {
+          // Single delete from URL parameter
+          const leadId = req.url.split('/').pop();
+          if (!leadId || leadId === 'api' || leadId === 'leads-simple') {
+            return res.status(400).json({
+              success: false,
+              error: 'Invalid lead ID'
+            });
+          }
+          leadIds = [leadId];
+        }
+
+        if (leadIds.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'No lead IDs provided'
+          });
+        }
+
+        // Get leads to be deleted for logging
+        const { data: leadsToDelete, error: fetchError } = await supabase
+          .from('leads')
+          .select('id, fullName, email')
+          .in('id', leadIds);
+
+        if (fetchError) {
+          console.log('❌ Fetch error:', fetchError);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch leads for deletion'
+          });
+        }
+
+        if (!leadsToDelete || leadsToDelete.length === 0) {
+          return res.status(404).json({
+            success: false,
+            error: 'No leads found with provided IDs'
+          });
+        }
+
+        const foundLeadIds = leadsToDelete.map(lead => lead.id);
+        
+        // Delete related records first (cascade delete)
+        // Delete lead notes
+        await supabase
+          .from('lead_notes')
+          .delete()
+          .in('lead_id', foundLeadIds);
+
+        // Delete lead activities
+        await supabase
+          .from('lead_activities')
+          .delete()
+          .in('lead_id', foundLeadIds);
+
+        // Delete the leads
+        const { error: deleteError } = await supabase
+          .from('leads')
+          .delete()
+          .in('id', foundLeadIds);
+
+        if (deleteError) {
+          console.log('❌ Delete error:', deleteError);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to delete leads',
+            details: deleteError.message
+          });
+        }
+
+        // Log the deletion activity
+        const deletedNames = leadsToDelete.map(lead => `${lead.fullName} (${lead.email})`).join(', ');
+        console.log(`✅ ${leadsToDelete.length} lead(s) deleted: ${deletedNames} by ${user.username}`);
+
+        return res.json({
+          success: true,
+          message: `${leadsToDelete.length} lead(s) deleted successfully`,
+          deletedCount: leadsToDelete.length,
+          deletedLeads: leadsToDelete.map(lead => ({
+            id: lead.id,
+            name: lead.fullName
+          }))
+        });
+
+      } catch (error) {
+        console.log('❌ Delete lead error:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to delete leads',
+          details: error.message
+        });
+      }
     }
 
   } catch (error) {
