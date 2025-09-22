@@ -245,7 +245,8 @@ module.exports = async (req, res) => {
 
       // Extract lead data with all new fields
       const { 
-        fullName, 
+        fullName,
+        name, // Also accept 'name' field for compatibility
         email, 
         phone, 
         country, 
@@ -263,19 +264,22 @@ module.exports = async (req, res) => {
         followUp
       } = req.body;
 
+      // Use fullName or fallback to name field for compatibility
+      const leadName = fullName || name;
+
       // Validate required fields
-      if (!fullName || !email) {
+      if (!leadName || !email) {
         return res.status(400).json({
           success: false,
-          error: 'Full name and email are required'
+          error: 'Name and email are required'
         });
       }
 
       try {
         // Prepare lead data for database with all new fields
         const leadData = {
-          fullName: fullName,
-          name: fullName, // Backup field
+          fullName: leadName, // Use resolved name (fullName or name)
+          name: leadName, // Backup field for compatibility
           email: email,
           phone: phone || '',
           country: country || 'India',
