@@ -20,49 +20,65 @@ try {
   console.log('❌ Leads API: Supabase initialization failed:', error.message);
 }
 
-// Configuration options
-const STATUS_OPTIONS = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'closed-won', 'closed-lost'];
-const PRIORITY_OPTIONS = ['low', 'medium', 'high', 'urgent'];
-const SOURCE_OPTIONS = ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner'];
+// Get dynamic configuration from database
+async function getSystemConfig() {
+  if (!supabase) {
+    // Fallback static configuration
+    return {
+      statusOptions: ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'closed-won', 'closed-lost', 'hot', 'warm', 'follow_up'],
+      priorityOptions: ['low', 'medium', 'high', 'urgent'],
+      sourceOptions: ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner', 'Facebook', 'WhatsApp'],
+      branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
+      experienceOptions: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'],
+      countries: ['India', 'United States', 'Canada', 'United Kingdom', 'Australia'],
+      qualificationOptions: ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH', 'Others'],
+      courseOptions: {
+        fellowship: ['Emergency Medicine', 'Cardiology', 'Dermatology'],
+        pgDiploma: ['Clinical Research', 'Hospital Administration']
+      }
+    };
+  }
 
-// Countries (comprehensive list)
-const COUNTRIES = [
-  'Afghanistan', 'Albania', 'Algeria', 'Argentina', 'Armenia', 'Australia', 
-  'Austria', 'Azerbaijan', 'Bahrain', 'Bangladesh', 'Belarus', 'Belgium',
-  'Bolivia', 'Bosnia and Herzegovina', 'Brazil', 'Bulgaria', 'Cambodia', 'Canada',
-  'Chile', 'China', 'Colombia', 'Costa Rica', 'Croatia', 'Cyprus', 'Czech Republic',
-  'Denmark', 'Ecuador', 'Egypt', 'Estonia', 'Ethiopia', 'Finland', 'France',
-  'Georgia', 'Germany', 'Ghana', 'Greece', 'Guatemala', 'Hungary', 'Iceland',
-  'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Japan',
-  'Jordan', 'Kazakhstan', 'Kenya', 'Kuwait', 'Latvia', 'Lebanon', 'Lithuania',
-  'Luxembourg', 'Malaysia', 'Mexico', 'Morocco', 'Netherlands', 'New Zealand',
-  'Nigeria', 'Norway', 'Pakistan', 'Peru', 'Philippines', 'Poland', 'Portugal',
-  'Qatar', 'Romania', 'Russia', 'Saudi Arabia', 'Singapore', 'Slovakia', 'Slovenia',
-  'South Africa', 'South Korea', 'Spain', 'Sri Lanka', 'Sweden', 'Switzerland',
-  'Thailand', 'Turkey', 'UAE', 'Ukraine', 'United Kingdom', 'United States',
-  'Uruguay', 'Venezuela', 'Vietnam'
-];
+  try {
+    const { data: configs, error } = await supabase
+      .from('system_config')
+      .select('config_key, config_value');
 
-// Qualification options
-const QUALIFICATION_OPTIONS = [
-  'High School', 'Associate Degree', 'Bachelor\'s Degree', 'Master\'s Degree',
-  'PhD', 'Professional Certification', 'Other'
-];
+    if (error) throw error;
 
-// Course options (Fellowship and PG Diploma)
-const COURSE_OPTIONS = [
-  // Fellowship Programs
-  'Aesthetic Medicine', 'Anesthesia', 'Cardiology', 'Critical Care Medicine',
-  'Dermatology', 'Emergency Medicine', 'Endocrinology', 'Family Medicine',
-  'Gastroenterology', 'General Surgery', 'Geriatrics', 'Hematology',
-  'Infectious Diseases', 'Internal Medicine', 'Nephrology', 'Neurology',
-  'Obstetrics and Gynecology', 'Oncology', 'Ophthalmology', 'Orthopedics',
-  'Otolaryngology', 'Pathology', 'Pediatrics', 'Plastic Surgery',
-  'Psychiatry', 'Pulmonology', 'Radiology', 'Rheumatology', 'Urology',
-  // PG Diploma Programs  
-  'Clinical Research', 'Hospital Administration', 'Medical Education',
-  'Public Health', 'Epidemiology'
-];
+    const configMap = {};
+    configs.forEach(config => {
+      configMap[config.config_key] = config.config_value;
+    });
+
+    return {
+      statusOptions: configMap.status_options || ['new', 'contacted', 'qualified'],
+      priorityOptions: configMap.priority_options || ['low', 'medium', 'high'],
+      sourceOptions: configMap.source_options || ['Website', 'Social Media'],
+      branchOptions: configMap.branch_options || ['Main Branch'],
+      experienceOptions: configMap.experience_options || ['Not Specified'],
+      countries: configMap.countries || ['India'],
+      qualificationOptions: configMap.qualification_options || ['MBBS'],
+      courseOptions: configMap.course_options || { fellowship: [], pgDiploma: [] }
+    };
+  } catch (error) {
+    console.error('Error loading system config:', error);
+    // Return fallback configuration
+    return {
+      statusOptions: ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'closed-won', 'closed-lost'],
+      priorityOptions: ['low', 'medium', 'high', 'urgent'],
+      sourceOptions: ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner'],
+      branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
+      experienceOptions: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'],
+      countries: ['India', 'United States', 'Canada', 'United Kingdom'],
+      qualificationOptions: ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH'],
+      courseOptions: {
+        fellowship: ['Emergency Medicine', 'Cardiology', 'Dermatology'],
+        pgDiploma: ['Clinical Research', 'Hospital Administration']
+      }
+    };
+  }
+}
 
 function verifyToken(req) {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -70,6 +86,86 @@ function verifyToken(req) {
   
   const decoded = jwt.verify(token, JWT_SECRET);
   return decoded;
+}
+
+// Calculate pipeline statistics
+function calculatePipelineStats(leads) {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const totalLeads = leads.length;
+  const newLeads = leads.filter(lead => {
+    const createdAt = new Date(lead.created_at || lead.createdAt);
+    return createdAt >= sevenDaysAgo;
+  }).length;
+
+  const hotLeads = leads.filter(lead => 
+    lead.status === 'qualified' || lead.status === 'hot' || lead.priority === 'high' || lead.priority === 'urgent'
+  ).length;
+
+  const qualifiedLeads = leads.filter(lead => lead.status === 'qualified').length;
+  const convertedLeads = leads.filter(lead => lead.status === 'closed-won' || lead.status === 'enrolled').length;
+  
+  const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
+
+  // Calculate monthly growth
+  const thisMonthLeads = leads.filter(lead => {
+    const createdAt = new Date(lead.created_at || lead.createdAt);
+    return createdAt >= thirtyDaysAgo;
+  }).length;
+
+  const lastMonthStart = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const lastMonthLeads = leads.filter(lead => {
+    const createdAt = new Date(lead.created_at || lead.createdAt);
+    return createdAt >= lastMonthStart && createdAt < thirtyDaysAgo;
+  }).length;
+
+  const monthlyGrowth = lastMonthLeads > 0 ? ((thisMonthLeads - lastMonthLeads) / lastMonthLeads) * 100 : 0;
+
+  // Calculate average response time (placeholder - would need communications data)
+  const avgResponseTime = 2.4; // Hours
+
+  // Calculate revenue (estimated based on conversions)
+  const avgDealSize = 250000; // ₹2.5L average
+  const revenue = convertedLeads * avgDealSize;
+
+  return {
+    totalLeads,
+    newLeads,
+    hotLeads,
+    qualifiedLeads,
+    convertedLeads,
+    conversionRate: Math.round(conversionRate * 10) / 10,
+    avgResponseTime,
+    revenue,
+    avgDealSize,
+    monthlyGrowth: Math.round(monthlyGrowth * 10) / 10
+  };
+}
+
+// Log lead activity
+async function logLeadActivity(leadId, activityType, description, performedBy, oldValue = null, newValue = null) {
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase
+      .from('lead_activities')
+      .insert({
+        lead_id: leadId,
+        activity_type: activityType,
+        description: description,
+        old_value: oldValue,
+        new_value: newValue,
+        performed_by: performedBy
+      });
+
+    if (error) {
+      console.error('Error logging activity:', error);
+    }
+  } catch (error) {
+    console.error('Error logging activity:', error);
+  }
 }
 
 module.exports = async (req, res) => {
@@ -95,10 +191,14 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // Get all leads from database
+        // Get all leads from database with enhanced data
         const { data: leads, error } = await supabase
           .from('leads')
-          .select('*')
+          .select(`
+            *,
+            lead_notes:lead_notes(id, content, author, timestamp, note_type),
+            recent_activities:lead_activities(id, activity_type, description, performed_by, timestamp)
+          `)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -110,18 +210,18 @@ module.exports = async (req, res) => {
           });
         }
 
+        // Get dynamic configuration
+        const config = await getSystemConfig();
+
+        // Calculate pipeline statistics
+        const stats = calculatePipelineStats(leads || []);
+
         return res.json({
           success: true,
           leads: leads || [],
           totalCount: leads?.length || 0,
-          config: {
-            statusOptions: STATUS_OPTIONS,
-            priorityOptions: PRIORITY_OPTIONS,
-            sourceOptions: SOURCE_OPTIONS,
-            countries: COUNTRIES,
-            qualificationOptions: QUALIFICATION_OPTIONS,
-            courseOptions: COURSE_OPTIONS
-          },
+          config: config,
+          stats: stats,
           message: `Found ${leads?.length || 0} leads`
         });
       } catch (error) {
@@ -143,12 +243,13 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Extract lead data
+      // Extract lead data with all new fields
       const { 
         fullName, 
         email, 
         phone, 
         country, 
+        branch,
         qualification, 
         source, 
         course, 
@@ -157,7 +258,9 @@ module.exports = async (req, res) => {
         assignedTo,
         notes,
         experience,
-        location
+        location,
+        score,
+        followUp
       } = req.body;
 
       // Validate required fields
@@ -169,30 +272,35 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // Prepare lead data for database (matching exact schema)
+        // Prepare lead data for database with all new fields
         const leadData = {
           fullName: fullName,
           name: fullName, // Backup field
           email: email,
           phone: phone || '',
           country: country || 'India',
+          branch: branch || 'Main Branch', // New field
           source: source || 'Manual Entry',
           course: course || 'Emergency Medicine',
           status: status || 'new',
-          priority: priority || 'medium',
+          priority: priority || 'medium', // New field
           assigned_to: assignedTo || user.username || 'Unassigned',
           assignedCounselor: assignedTo || user.username || 'Unassigned',
-          notes: notes || '', // Preserve original notes, use empty string as fallback
-          experience: experience || 'Not specified',
-          location: location || 'Not specified',
-          score: 0,
-          communicationsCount: 0,
+          notes: notes || '', // Will migrate to structured notes
+          experience: experience || 'Not specified', // New field
+          location: location || 'Not specified', // New field
+          score: score || 0, // New field
+          communicationsCount: 0, // New field
           createdBy: user.username || 'System',
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           lastContact: new Date().toISOString(),
           last_contact: new Date().toISOString(),
-          nextFollowUp: null,
-          next_follow_up: null
+          followUp: followUp || null,
+          nextFollowUp: followUp || null,
+          next_follow_up: followUp || null,
+          updated_by: user.username || 'System'
         };
 
         // Insert into database
@@ -213,6 +321,30 @@ module.exports = async (req, res) => {
 
         console.log(`✅ Created new lead in database: ${fullName} (${email}) - ID: ${insertedLead.id}`);
 
+        // Log lead creation activity
+        await logLeadActivity(
+          insertedLead.id,
+          'lead_created',
+          `Lead created: ${fullName} (${email})`,
+          user.username || 'System'
+        );
+
+        // Create initial note if provided
+        if (notes && notes.trim()) {
+          try {
+            await supabase
+              .from('lead_notes')
+              .insert({
+                lead_id: insertedLead.id,
+                content: notes,
+                author: user.username || 'System',
+                note_type: 'general'
+              });
+          } catch (noteError) {
+            console.error('Error creating initial note:', noteError);
+          }
+        }
+
         return res.json({
           success: true,
           data: {
@@ -221,15 +353,19 @@ module.exports = async (req, res) => {
             email: insertedLead.email,
             phone: insertedLead.phone,
             country: insertedLead.country,
+            branch: insertedLead.branch,
             source: insertedLead.source,
             course: insertedLead.course,
             status: insertedLead.status,
             priority: insertedLead.priority,
             assignedTo: insertedLead.assigned_to,
+            experience: insertedLead.experience,
+            location: insertedLead.location,
+            score: insertedLead.score,
             notes: insertedLead.notes,
             createdAt: insertedLead.createdAt
           },
-          message: 'Lead created successfully in database'
+          message: 'Lead created successfully with all new fields'
         });
       } catch (error) {
         console.error('❌ Database error creating lead:', error.message);

@@ -1,19 +1,41 @@
-// 🚀 LEAD NOTES API - Enhanced notes system with timestamps
+// 🚀 ENHANCED LEAD NOTES API - STRUCTURED NOTES MANAGEMENT
 const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
 
-// Initialize Supabase client
-let supabase = null;
+// Initialize Supabase
+let supabase;
 try {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
-    const { createClient } = require('@supabase/supabase-js');
-    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-    console.log('✅ Lead Notes API: Supabase client initialized');
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+    console.log('✅ Lead Notes API: Supabase initialized');
+  } else {
+    console.log('❌ Lead Notes API: Supabase credentials missing');
   }
 } catch (error) {
-  console.error('❌ Lead Notes API: Supabase initialization failed:', error.message);
+  console.log('❌ Lead Notes API: Supabase initialization failed:', error.message);
 }
+
+// Note types
+const NOTE_TYPES = [
+  'general',
+  'follow_up',
+  'meeting',
+  'call',
+  'email',
+  'whatsapp',
+  'status_update',
+  'qualification',
+  'objection',
+  'payment',
+  'enrollment',
+  'complaint',
+  'feedback'
+];
 
 // Verify JWT token
 function verifyToken(req) {
