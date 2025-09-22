@@ -79,7 +79,7 @@ module.exports = async (req, res) => {
 
     // Calculate conversion rate
     const convertedLeads = leadsResult.data?.filter(lead => 
-      lead.status === 'closed_won'
+      lead.status === 'enrolled'
     ).length || 0;
     const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0.0';
 

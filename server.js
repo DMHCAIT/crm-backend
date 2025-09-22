@@ -241,7 +241,7 @@ app.get('/api/leads-emergency', (req, res) => {
       country: lead.country || 'India',
       course: lead.course || 'Not specified',
       source: lead.source || 'Unknown',
-      status: lead.status || 'new',
+      status: lead.status || 'fresh',
       priority: lead.priority || 'medium',
       experience: lead.experience || 'Not specified',
       location: lead.location || 'Not specified',
@@ -834,10 +834,10 @@ app.get('/api/dashboard', async (req, res) => {
       
       // Calculate real statistics
       const totalLeads = leads.length;
-      const activeLeads = leads.filter(l => ['new', 'contacted', 'qualified'].includes(l.status)).length;
+      const activeLeads = leads.filter(l => ['hot', 'followup', 'warm', 'fresh'].includes(l.status)).length;
       const totalStudents = students.length;
       const activeStudents = students.filter(s => s.status === 'active').length;
-      const convertedLeads = leads.filter(l => l.status === 'converted').length;
+      const convertedLeads = leads.filter(l => l.status === 'enrolled').length;
       const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0.0';
       
       // Calculate today's leads
@@ -1654,7 +1654,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
       
       // Calculate real statistics
       const totalLeads = leads.length;
-      const activeLeads = leads.filter(l => ['new', 'contacted', 'qualified'].includes(l.status)).length;
+      const activeLeads = leads.filter(l => ['hot', 'followup', 'warm', 'fresh'].includes(l.status)).length;
       const totalStudents = students.length;
       const activeStudents = students.filter(s => s.status === 'active').length;
       
