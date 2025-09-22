@@ -13,7 +13,7 @@ ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium',
 ADD COLUMN IF NOT EXISTS experience VARCHAR(255),
 ADD COLUMN IF NOT EXISTS location VARCHAR(255),
 ADD COLUMN IF NOT EXISTS score INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS communicationsCount INTEGER DEFAULT 0;
+ADD COLUMN IF NOT EXISTS communications_count INTEGER DEFAULT 0;
 
 -- Add indexes for performance on new columns
 CREATE INDEX IF NOT EXISTS idx_leads_branch ON leads(branch);
@@ -284,7 +284,7 @@ BEGIN
     
     -- Update communications count for the lead
     UPDATE leads 
-    SET communicationsCount = (
+    SET communications_count = (
         SELECT COUNT(*) 
         FROM lead_communications 
         WHERE lead_id = lead_uuid
@@ -384,12 +384,12 @@ WHERE NOT EXISTS (
 
 -- Update communications count for existing leads (set to 0 if no communications exist)
 UPDATE leads 
-SET communicationsCount = (
+SET communications_count = (
     SELECT COUNT(*) 
     FROM lead_communications 
     WHERE lead_id = leads.id
 )
-WHERE communicationsCount IS NULL;
+WHERE communications_count IS NULL;
 
 -- ================================================================
 -- VERIFICATION QUERIES
@@ -429,7 +429,7 @@ SELECT
     column_default
 FROM information_schema.columns 
 WHERE table_name = 'leads' 
-  AND column_name IN ('branch', 'priority', 'experience', 'location', 'score', 'communicationsCount')
+  AND column_name IN ('branch', 'priority', 'experience', 'location', 'score', 'communications_count')
 ORDER BY column_name;
 
 -- ================================================================
