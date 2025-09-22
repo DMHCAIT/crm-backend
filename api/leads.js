@@ -279,7 +279,7 @@ module.exports = async (req, res) => {
         // Prepare lead data for database with all new fields
         const leadData = {
           fullName: leadName, // Use resolved name (fullName or name)
-          name: leadName, // Backup field for compatibility
+          // 'name' column doesn't exist in database - only 'fullName' exists
           email: email,
           phone: phone || '',
           country: country || 'India',
