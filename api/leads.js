@@ -299,11 +299,10 @@ module.exports = async (req, res) => {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          lastContact: new Date().toISOString(),
-          last_contact: new Date().toISOString(),
-          followUp: followUp || null,
-          nextFollowUp: followUp || null,
-          next_follow_up: followUp || null,
+          // lastContact and last_contact columns don't exist in database schema
+          followUp: followUp || null,  // This column exists in DB as camelCase
+          nextfollowup: followUp || null,  // Match actual DB column (lowercase, no underscore) 
+          next_follow_up: followUp || null,  // Match actual DB column (snake_case)
           updated_by: user.username || 'System'
         };
 
