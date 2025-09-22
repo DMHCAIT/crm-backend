@@ -289,7 +289,7 @@ module.exports = async (req, res) => {
           experience: experience || 'Not specified', // New field
           location: location || 'Not specified', // New field
           score: score || 0, // New field
-          communications_count: 0, // Use snake_case for database consistency
+          // communications_count will be updated by trigger, don't insert it directly
           createdBy: user.username || 'System',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
