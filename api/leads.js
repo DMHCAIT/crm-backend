@@ -88,6 +88,29 @@ function verifyToken(req) {
   return decoded;
 }
 
+// Get real user name from database instead of relying on JWT token
+async function getUserRealName(username) {
+  if (!supabase || !username) {
+    return username || 'User';
+  }
+  
+  try {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('name, fullName, email')
+      .eq('username', username)
+      .single();
+    
+    if (userData) {
+      return userData.fullName || userData.name || userData.email || username;
+    }
+  } catch (error) {
+    console.log('⚠️ Could not fetch user data for name, using username:', username);
+  }
+  
+  return username || 'User';
+}
+
 // Get all subordinate users (users who report to the current user, directly or indirectly)
 async function getSubordinateUsers(userId) {
   if (!supabase) return [];
@@ -449,11 +472,11 @@ module.exports = async (req, res) => {
           }
         }
 
-        // Add new note
+        // Add new note with real user name from database
         const newNote = {
           id: Date.now().toString(),
           content: content.trim(),
-          author: user.username || 'User',
+          author: await getUserRealName(user.username),
           timestamp: new Date().toISOString(),
           note_type: noteType
         };
@@ -652,7 +675,7 @@ module.exports = async (req, res) => {
           notes: JSON.stringify(notes && notes.trim() ? [{
             id: Date.now().toString(),
             content: notes,
-            author: user.username || 'User',
+            author: await getUserRealName(user.username),
             timestamp: new Date().toISOString(),
             note_type: 'general'
           }] : []), // Store notes as JSON array
