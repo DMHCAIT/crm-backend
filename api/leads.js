@@ -228,38 +228,45 @@ module.exports = async (req, res) => {
                 notesArray = lead.notes;
                 if (index < 3) console.log(`  ✅ Notes already array: ${notesArray.length} items`);
               } 
-              // If notes is a JSON string, parse it
-              else if (typeof lead.notes === 'string' && lead.notes.trim().startsWith('[')) {
-                notesArray = JSON.parse(lead.notes);
-                if (index < 3) console.log(`  ✅ Parsed JSON array: ${notesArray.length} items`);
-              }
-              // If notes is a simple string, convert to array format
-              else if (typeof lead.notes === 'string' && lead.notes.trim()) {
-                notesArray = [{
-                  id: Date.now().toString(),
-                  content: lead.notes,
-                  author: 'System',
-                  timestamp: lead.created_at || new Date().toISOString(),
-                  note_type: 'general'
-                }];
-                if (index < 3) console.log(`  🔄 Converted string to array: 1 item`);
+              // If notes is a JSON string, try to parse it
+              else if (typeof lead.notes === 'string') {
+                const trimmedNotes = lead.notes.trim();
+                
+                // Check if it's a JSON array string
+                if (trimmedNotes.startsWith('[') && trimmedNotes.endsWith(']')) {
+                  notesArray = JSON.parse(lead.notes);
+                  if (index < 3) console.log(`  ✅ Parsed JSON array: ${notesArray.length} items`);
+                }
+                // If it's a plain text note, convert to array format
+                else if (trimmedNotes.length > 0) {
+                  notesArray = [{
+                    id: `legacy_${Date.now()}`,
+                    content: lead.notes,
+                    author: 'System Migration',
+                    timestamp: lead.created_at || new Date().toISOString(),
+                    note_type: 'legacy'
+                  }];
+                  if (index < 3) console.log(`  🔄 Converted plain text to array: "${lead.notes.substring(0, 30)}..."`);
+                }
               }
             } catch (error) {
               console.log(`⚠️ Error parsing notes for lead ${lead.id}:`, error.message);
+              console.log(`⚠️ Original notes value:`, lead.notes);
+              
               // Fallback: treat as simple string
               if (typeof lead.notes === 'string' && lead.notes.trim()) {
                 notesArray = [{
-                  id: Date.now().toString(),
+                  id: `fallback_${Date.now()}`,
                   content: lead.notes,
-                  author: 'System',
+                  author: 'System Fallback',
                   timestamp: lead.created_at || new Date().toISOString(),
-                  note_type: 'general'
+                  note_type: 'fallback'
                 }];
                 if (index < 3) console.log(`  🔄 Fallback conversion: 1 item`);
               }
             }
           } else {
-            if (index < 3) console.log(`  ℹ️ No notes found`);
+            if (index < 3) console.log(`  ℹ️ No notes found (null/empty)`);
           }
           
           return {
