@@ -271,7 +271,11 @@ module.exports = async (req, res) => {
           
           return {
             ...lead,
-            notes: notesArray
+            notes: notesArray,
+            // Normalize assignment fields for frontend consistency
+            assignedTo: lead.assignedTo || lead.assignedcounselor || lead.assigned_to || 'Unassigned',
+            assignedCounselor: lead.assignedTo || lead.assignedcounselor || lead.assigned_to || 'Unassigned',
+            assigned_to: lead.assignedTo || lead.assignedcounselor || lead.assigned_to || 'Unassigned'
           };
         });
         
