@@ -123,6 +123,17 @@ app.options('*', (req, res) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// 🚨 EMERGENCY TEST ENDPOINT - DEFINED BEFORE ALL MIDDLEWARE
+app.get('/emergency-test', (req, res) => {
+  console.log('🚨 EMERGENCY endpoint hit - absolutely no middleware should affect this');
+  res.json({
+    success: true,
+    message: 'EMERGENCY TEST - No middleware should block this',
+    timestamp: new Date().toISOString(),
+    note: 'If you see this, the server is working but middleware is the issue'
+  });
+});
+
 // Enhanced Request Logging Middleware with Debug Info
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
