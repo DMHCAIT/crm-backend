@@ -204,6 +204,116 @@ app.get('/api/leads-emergency', (req, res) => {
   res.json({ message: 'Emergency leads route working!', timestamp: new Date().toISOString() });
 });
 
+// EMERGENCY: Direct addNote endpoint to bypass routing issues
+app.post('/api/leads-add-note', async (req, res) => {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  try {
+    console.log('🔍 Emergency addNote endpoint hit');
+    console.log('🔍 Request body:', req.body);
+    
+    const { leadId, content, noteType = 'general' } = req.body;
+    
+    if (!leadId || !content || !content.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead ID and note content are required'
+      });
+    }
+
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection not available'
+      });
+    }
+
+    console.log(`🔍 Adding note to lead ${leadId}: "${content}"`);
+
+    // Get current lead
+    const { data: lead, error: fetchError } = await supabase
+      .from('leads')
+      .select('notes')
+      .eq('id', leadId)
+      .single();
+
+    if (fetchError || !lead) {
+      console.error('❌ Lead not found:', fetchError);
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found'
+      });
+    }
+
+    console.log('🔍 Current lead notes:', lead.notes);
+
+    // Parse existing notes
+    let currentNotes = [];
+    if (lead.notes) {
+      try {
+        currentNotes = Array.isArray(lead.notes) ? lead.notes : JSON.parse(lead.notes);
+      } catch (parseError) {
+        console.log('⚠️ Error parsing existing notes, creating new array');
+        currentNotes = [];
+      }
+    }
+
+    // Add new note
+    const newNote = {
+      id: Date.now().toString(),
+      content: content.trim(),
+      author: 'Emergency User',
+      timestamp: new Date().toISOString(),
+      note_type: noteType
+    };
+
+    currentNotes.push(newNote);
+    console.log(`🔍 Updated notes array: ${currentNotes.length} items`);
+
+    // Update lead with new notes
+    const { error: updateError } = await supabase
+      .from('leads')
+      .update({ 
+        notes: JSON.stringify(currentNotes),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', leadId);
+
+    if (updateError) {
+      console.error('❌ Database update error:', updateError);
+      throw updateError;
+    }
+
+    console.log('✅ Successfully added note to database');
+
+    return res.json({
+      success: true,
+      data: currentNotes,
+      notes: currentNotes,
+      message: 'Note added successfully via emergency endpoint'
+    });
+
+  } catch (error) {
+    console.error('❌ Emergency addNote error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to add note',
+      details: error.message
+    });
+  }
+});
+
+// OPTIONS handler for the emergency endpoint
+app.options('/api/leads-add-note', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
 // Real Database-Connected Leads API - DISABLED: Conflicts with api/leads.js handler
 /* app.get('/api/leads', async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
