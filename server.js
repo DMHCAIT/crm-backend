@@ -1768,14 +1768,14 @@ app.post('/api/notes', async (req, res) => {
       });
     }
 
-    // First check if notes table exists and get its structure
+    // First check if lead_notes table exists and get its structure
     const { data: tableInfo, error: tableError } = await supabase
-      .from('notes')
+      .from('lead_notes')  // Fixed: use 'lead_notes' table
       .select('*')
       .limit(1);
 
     if (tableError) {
-      console.error('❌ Notes table error:', tableError);
+      console.error('❌ Lead Notes table error:', tableError);
       // If table doesn't exist, create a simple in-memory note
       const simpleNote = {
         id: uuidv4(),
@@ -1788,22 +1788,24 @@ app.post('/api/notes', async (req, res) => {
       return res.json({ success: true, data: simpleNote });
     }
 
-    // Create note with only essential fields
+    // Create note with required fields for lead_notes table
     const noteData = {
       content: content.trim(),
-      created_at: new Date().toISOString()
+      author: authorId || userId || 'System',  // Required field
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
 
-    // Add optional fields only if they exist
+    // Add optional fields
     if (leadId) noteData.lead_id = leadId;
-    if (studentId) noteData.student_id = studentId;
-    if (userId) noteData.user_id = userId;
-    if (authorId || userId) noteData.author_id = authorId || userId;
+    if (noteType) noteData.note_type = noteType;
+    if (typeof isPrivate !== 'undefined') noteData.is_private = isPrivate;
 
-    console.log('📝 Creating note with minimal data:', noteData);
+    console.log('📝 Creating note with correct schema:', noteData);
 
     const { data, error } = await supabase
-      .from('notes')
+      .from('lead_notes')  // Fixed: use 'lead_notes' table
       .insert([noteData])
       .select()
       .single();
@@ -1851,14 +1853,18 @@ app.get('/api/notes', async (req, res) => {
       throw new Error('Database not available');
     }
 
-    const { leadId, studentId, limit = 50 } = req.query;
+    const { leadId, studentId, entityId, entityType, limit = 50 } = req.query;
     
-    let query = supabase.from('notes').select('*');
+    // Use leadId or entityId for backward compatibility
+    const actualLeadId = leadId || (entityType === 'lead' ? entityId : null);
     
-    if (leadId) {
-      query = query.eq('lead_id', leadId);
+    let query = supabase.from('lead_notes').select('*');  // Fixed: use 'lead_notes' table
+    
+    if (actualLeadId) {
+      query = query.eq('lead_id', actualLeadId);
     }
     if (studentId) {
+      // For now, lead_notes table doesn't have student_id, but this keeps compatibility
       query = query.eq('student_id', studentId);
     }
     
@@ -2195,9 +2201,9 @@ try {
     console.log('⚠️ Students API not available:', error.message);
   }
 
-  // Lead Notes API handler (temporarily disabled)
-  // const leadNotesHandler = require('./api/lead-notes.js');
-  // app.all('/api/lead-notes/*', leadNotesHandler);
+  // Lead Notes API handler
+  const leadNotesHandler = require('./api/lead-notes.js');
+  app.all('/api/lead-notes/*', leadNotesHandler);
 
   // Enhanced Leads API handler - REMOVED DUPLICATE (already loaded above)
 

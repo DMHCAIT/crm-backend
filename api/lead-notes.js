@@ -127,8 +127,8 @@ async function handleGetLeadNotes(req, res, leadId) {
           id: note.id,
           content: note.content,
           timestamp: note.created_at,
-          author: note.author_id || 'system',
-          type: note.note_type || 'note',
+          author: note.author || 'system',  // Fixed: use 'author' not 'author_id'
+          type: note.note_type || 'general',
           isPrivate: note.is_private || false
         }));
 
@@ -197,10 +197,10 @@ async function handleAddLeadNote(req, res, leadId, user) {
           .from('lead_notes')
           .insert([{
             lead_id: leadId,
-            content: content,
-            author: user.username || 'System',  // Use 'author' field as per lead_notes schema
-            note_type: note_type || 'general',
-            is_private: is_private || false,
+            content: content.trim(),
+            author: user.username || 'System',
+            note_type: type || 'general',  // Fixed: use 'type' not 'note_type' 
+            is_private: isPrivate || false,  // Fixed: use 'isPrivate' not 'is_private'
             timestamp: timestamp,
             created_at: timestamp,
             updated_at: timestamp
@@ -217,7 +217,7 @@ async function handleAddLeadNote(req, res, leadId, user) {
               id: data.id,
               content: data.content,
               timestamp: data.created_at,
-              author: data.author_id,
+              author: data.author,  // Fixed: use 'author' not 'author_id'
               type: data.note_type,
               isPrivate: data.is_private
             },
@@ -288,8 +288,9 @@ async function handleUpdateLeadNote(req, res, leadId, user) {
             id: data.id,
             content: data.content,
             timestamp: data.updated_at,
-            author: data.author_id,
-            type: data.note_type
+            author: data.author,  // Fixed: use 'author' not 'author_id'
+            type: data.note_type,
+            isPrivate: data.is_private
           },
           message: 'Note updated successfully'
         });
