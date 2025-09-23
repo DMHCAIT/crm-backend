@@ -88,6 +88,68 @@ function verifyToken(req) {
   return decoded;
 }
 
+// Get all subordinate users (users who report to the current user, directly or indirectly)
+async function getSubordinateUsers(userId) {
+  if (!supabase) return [];
+  
+  try {
+    // Get all users to build the hierarchy
+    const { data: allUsers, error } = await supabase
+      .from('users')
+      .select('id, email, name, reports_to, role');
+    
+    if (error) {
+      console.error('Error fetching users for hierarchy:', error);
+      return [];
+    }
+    
+    // Build a map of user ID to user data
+    const userMap = {};
+    allUsers.forEach(user => {
+      userMap[user.id] = user;
+    });
+    
+    // Find all subordinates recursively
+    const subordinates = [];
+    const visited = new Set();
+    
+    function findSubordinates(supervisorId) {
+      if (visited.has(supervisorId)) return; // Prevent infinite loops
+      visited.add(supervisorId);
+      
+      allUsers.forEach(user => {
+        if (user.reports_to === supervisorId && !subordinates.includes(user.id)) {
+          subordinates.push(user.id);
+          findSubordinates(user.id); // Recursively find their subordinates
+        }
+      });
+    }
+    
+    findSubordinates(userId);
+    
+    console.log(`🏢 User ${userId} has ${subordinates.length} subordinates:`, subordinates);
+    return subordinates;
+    
+  } catch (error) {
+    console.error('Error getting subordinate users:', error);
+    return [];
+  }
+}
+
+// Check if user can access a lead based on hierarchy
+async function canAccessLead(lead, currentUserId) {
+  // User can access their own leads
+  if (lead.assignedTo === currentUserId || lead.assignedcounselor === currentUserId || lead.assigned_to === currentUserId) {
+    return true;
+  }
+  
+  // Get subordinates and check if lead belongs to any of them
+  const subordinates = await getSubordinateUsers(currentUserId);
+  const leadAssignee = lead.assignedTo || lead.assignedcounselor || lead.assigned_to;
+  
+  return subordinates.includes(leadAssignee);
+}
+
 // Calculate pipeline statistics
 function calculatePipelineStats(leads) {
   const now = new Date();
@@ -192,7 +254,7 @@ module.exports = async (req, res) => {
 
       try {
         // Get all leads from database with enhanced data
-        const { data: leads, error } = await supabase
+        const { data: allLeads, error } = await supabase
           .from('leads')
           .select(`*`)
           .order('created_at', { ascending: false });
@@ -205,6 +267,38 @@ module.exports = async (req, res) => {
             details: error.message
           });
         }
+
+        // Filter leads based on hierarchical access control
+        console.log(`🔍 Filtering ${allLeads?.length || 0} leads for user ${user.id} (${user.email})`);
+        
+        // Get subordinate users for current user
+        const subordinates = await getSubordinateUsers(user.id);
+        console.log(`🏢 User ${user.email} supervises ${subordinates.length} subordinates`);
+        
+        // Filter leads: user can see their own leads + subordinates' leads
+        const accessibleLeads = (allLeads || []).filter(lead => {
+          const leadAssignee = lead.assignedTo || lead.assignedcounselor || lead.assigned_to;
+          
+          // User can see their own leads
+          if (leadAssignee === user.id) {
+            return true;
+          }
+          
+          // User can see leads assigned to their subordinates
+          if (subordinates.includes(leadAssignee)) {
+            return true;
+          }
+          
+          // Super admins can see all leads
+          if (user.role === 'super_admin') {
+            return true;
+          }
+          
+          return false;
+        });
+        
+        console.log(`✅ User ${user.email} can access ${accessibleLeads.length} out of ${allLeads?.length || 0} leads`);
+        const leads = accessibleLeads;
 
         // Get dynamic configuration
         const config = await getSystemConfig();
@@ -321,10 +415,10 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // Get current lead
+        // Get current lead with all fields for access check
         const { data: lead, error: fetchError } = await supabase
           .from('leads')
-          .select('notes')
+          .select('*')
           .eq('id', leadId)
           .single();
 
@@ -332,6 +426,15 @@ module.exports = async (req, res) => {
           return res.status(404).json({
             success: false,
             error: 'Lead not found'
+          });
+        }
+
+        // Check if user has access to add notes to this lead
+        const hasAccess = await canAccessLead(lead, user.id);
+        if (!hasAccess && user.role !== 'super_admin') {
+          return res.status(403).json({
+            success: false,
+            error: 'Access denied: You can only add notes to leads assigned to you or your subordinates'
           });
         }
 
@@ -639,6 +742,29 @@ module.exports = async (req, res) => {
       }
 
       try {
+        // First, get the lead to check access permissions
+        const { data: existingLead, error: fetchError } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('id', leadId)
+          .single();
+
+        if (fetchError || !existingLead) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found'
+          });
+        }
+
+        // Check if user has access to this lead
+        const hasAccess = await canAccessLead(existingLead, user.id);
+        if (!hasAccess && user.role !== 'super_admin') {
+          return res.status(403).json({
+            success: false,
+            error: 'Access denied: You can only update leads assigned to you or your subordinates'
+          });
+        }
+
         const updateData = req.body;
         console.log(`🔄 Updating lead ${leadId} with data:`, updateData);
 
@@ -726,10 +852,10 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // Get lead details before deletion for logging
+        // Get lead details before deletion for logging and access check
         const { data: leadToDelete, error: fetchError } = await supabase
           .from('leads')
-          .select('id, fullName, email')
+          .select('*')
           .eq('id', leadId)
           .single();
 
@@ -737,6 +863,15 @@ module.exports = async (req, res) => {
           return res.status(404).json({
             success: false,
             error: 'Lead not found'
+          });
+        }
+
+        // Check if user has access to delete this lead
+        const hasAccess = await canAccessLead(leadToDelete, user.id);
+        if (!hasAccess && user.role !== 'super_admin') {
+          return res.status(403).json({
+            success: false,
+            error: 'Access denied: You can only delete leads assigned to you or your subordinates'
           });
         }
 
