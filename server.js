@@ -1003,6 +1003,21 @@ app.get('/api/test-deployment', (req, res) => {
 
 console.log('🚨 Emergency inline APIs loaded - Leads and Auth working!');
 
+// Enhanced Analytics API handler - MOVED BEFORE 404 HANDLER TO FIX ROUTING ISSUE
+try {
+  console.log('🔄 Loading Enhanced Analytics handler...');
+  const enhancedAnalyticsHandler = require('./api/enhanced-analytics.js');
+  console.log('📊 Enhanced Analytics handler type:', typeof enhancedAnalyticsHandler);
+  app.all('/api/analytics', enhancedAnalyticsHandler);
+  app.all('/api/analytics/*', enhancedAnalyticsHandler);
+  app.all('/api/enhanced-analytics', enhancedAnalyticsHandler);
+  app.all('/api/enhanced-analytics/*', enhancedAnalyticsHandler);
+  console.log('✅ Enhanced Analytics API loaded successfully - routes registered');
+} catch (error) {
+  console.log('⚠️ Enhanced Analytics API not available:', error.message);
+  console.log('⚠️ Error stack:', error.stack);
+}
+
 // ====================================
 // 🚫 ERROR HANDLING
 // ====================================
@@ -2353,20 +2368,7 @@ try {
   app.all('/api/permissions', permissionsHandler);
   app.all('/api/permissions/*', permissionsHandler);
 
-  // Enhanced Analytics API handler - ADDED FOR ANALYTICS COMPONENT
-  try {
-    console.log('🔄 Loading Enhanced Analytics handler...');
-    const enhancedAnalyticsHandler = require('./api/enhanced-analytics.js');
-    console.log('📊 Enhanced Analytics handler type:', typeof enhancedAnalyticsHandler);
-    app.all('/api/analytics', enhancedAnalyticsHandler);
-    app.all('/api/analytics/*', enhancedAnalyticsHandler);
-    app.all('/api/enhanced-analytics', enhancedAnalyticsHandler);
-    app.all('/api/enhanced-analytics/*', enhancedAnalyticsHandler);
-    console.log('✅ Enhanced Analytics API loaded successfully - routes registered');
-  } catch (error) {
-    console.log('⚠️ Enhanced Analytics API not available:', error.message);
-    console.log('⚠️ Error stack:', error.stack);
-  }
+
 
   // Students API handler - ADDED FOR DASHBOARD INTEGRATION  
   try {
