@@ -210,18 +210,28 @@ module.exports = async (req, res) => {
         const config = await getSystemConfig();
 
         // Process leads to ensure notes are properly formatted as arrays
-        const processedLeads = (leads || []).map(lead => {
+        console.log(`🔍 Processing ${leads?.length || 0} leads for notes formatting`);
+        
+        const processedLeads = (leads || []).map((lead, index) => {
           let notesArray = [];
+          
+          if (index < 3) { // Debug first 3 leads
+            console.log(`🔍 Lead ${index + 1} (${lead.id.substring(0, 8)}...):`);
+            console.log(`  Raw notes type: ${typeof lead.notes}`);
+            console.log(`  Raw notes value:`, lead.notes);
+          }
           
           if (lead.notes) {
             try {
               // If notes is already an array (JSON), use it
               if (Array.isArray(lead.notes)) {
                 notesArray = lead.notes;
+                if (index < 3) console.log(`  ✅ Notes already array: ${notesArray.length} items`);
               } 
               // If notes is a JSON string, parse it
               else if (typeof lead.notes === 'string' && lead.notes.trim().startsWith('[')) {
                 notesArray = JSON.parse(lead.notes);
+                if (index < 3) console.log(`  ✅ Parsed JSON array: ${notesArray.length} items`);
               }
               // If notes is a simple string, convert to array format
               else if (typeof lead.notes === 'string' && lead.notes.trim()) {
@@ -232,6 +242,7 @@ module.exports = async (req, res) => {
                   timestamp: lead.created_at || new Date().toISOString(),
                   note_type: 'general'
                 }];
+                if (index < 3) console.log(`  🔄 Converted string to array: 1 item`);
               }
             } catch (error) {
               console.log(`⚠️ Error parsing notes for lead ${lead.id}:`, error.message);
@@ -244,8 +255,11 @@ module.exports = async (req, res) => {
                   timestamp: lead.created_at || new Date().toISOString(),
                   note_type: 'general'
                 }];
+                if (index < 3) console.log(`  🔄 Fallback conversion: 1 item`);
               }
             }
+          } else {
+            if (index < 3) console.log(`  ℹ️ No notes found`);
           }
           
           return {
@@ -253,6 +267,8 @@ module.exports = async (req, res) => {
             notes: notesArray
           };
         });
+        
+        console.log(`✅ Processed ${processedLeads.length} leads with notes formatting`);
 
         // Calculate pipeline statistics
         const stats = calculatePipelineStats(processedLeads || []);
@@ -331,6 +347,9 @@ module.exports = async (req, res) => {
         currentNotes.push(newNote);
 
         // Update lead with new notes
+        console.log(`🔍 Updating lead ${leadId} with ${currentNotes.length} notes`);
+        console.log(`🔍 Notes JSON:`, JSON.stringify(currentNotes));
+        
         const { error: updateError } = await supabase
           .from('leads')
           .update({ 
@@ -340,8 +359,11 @@ module.exports = async (req, res) => {
           .eq('id', leadId);
 
         if (updateError) {
+          console.error('❌ Supabase update error:', updateError);
           throw updateError;
         }
+
+        console.log(`✅ Successfully updated lead ${leadId} with notes`);
 
         // Log activity
         await logLeadActivity(
