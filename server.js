@@ -2441,6 +2441,11 @@ try {
   const leadNotesHandler = require('./api/lead-notes.js');
   app.all('/api/lead-notes/*', leadNotesHandler);
 
+  // Enhanced Data Export API handler
+  const enhancedDataExportHandler = require('./api/enhanced-data-export.js');
+  app.all('/api/data-export', enhancedDataExportHandler);
+  app.all('/api/data-export/*', enhancedDataExportHandler);
+
   // Enhanced Leads API handler - REMOVED DUPLICATE (already loaded above)
 
   console.log('✅ Essential API handlers loaded successfully');
@@ -2448,8 +2453,9 @@ try {
   console.log('🔐 Super Admin endpoint available at /api/super-admin');
   console.log('🔗 Facebook Leads API available at /api/facebook-leads');
   console.log('️ Permissions API available at /api/permissions');
-  console.log('�📝 Lead Notes endpoint available at /api/lead-notes/{leadId}');
+  console.log('📝 Lead Notes endpoint available at /api/lead-notes/{leadId}');
   console.log('📊 Enhanced Leads endpoint available at /api/leads');
+  console.log('📤 Enhanced Data Export endpoint available at /api/data-export');
 
 } catch (error) {
   console.error('❌ CRITICAL ERROR loading API handlers:', error.message);
