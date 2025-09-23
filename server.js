@@ -1815,70 +1815,8 @@ app.get('/api/users/me', async (req, res) => {
   }
 });
 
-// INLINE ANALYTICS API - REAL DATA FROM DATABASE
-app.get('/api/analytics/realtime', async (req, res) => {
-  console.log('📊 Analytics realtime API called - fetching real data');
-  
-  try {
-    const { createClient } = require('@supabase/supabase-js');
-    
-    if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-      
-      // Fetch real data
-      const [leadsResult, usersResult] = await Promise.all([
-        supabase.from('leads').select('id, status, created_at'),
-        supabase.from('users').select('id, status, last_login')
-      ]);
-      
-      const leads = leadsResult.data || [];
-      const users = usersResult.data || [];
-      
-      // Calculate real analytics
-      const activeUsers = users.filter(u => u.status === 'active').length;
-      const conversions = leads.filter(l => l.status === 'converted').length;
-      
-      const analyticsData = {
-        success: true,
-        data: {
-          activeUsers,
-          pageViews: leads.length * 3, // Approximate based on lead activity
-          conversions,
-          revenue: conversions * 50000, // Estimate revenue per conversion
-          topPages: [
-            { page: '/leads', views: Math.floor(leads.length * 1.5) },
-            { page: '/dashboard', views: Math.floor(users.length * 2) },
-            { page: '/users', views: users.length }
-          ]
-        }
-      };
-      
-      console.log(`✅ Real analytics: ${activeUsers} active users, ${conversions} conversions`);
-      return res.json(analyticsData);
-    }
-  } catch (error) {
-    console.log('⚠️ Analytics database query failed:', error.message);
-  }
-  
-  // Return empty analytics when database fails
-  const emptyAnalytics = {
-    success: true,
-    data: {
-      activeUsers: 0,
-      pageViews: 0,
-      conversions: 0,
-      revenue: 0,
-      topPages: [
-        { page: '/leads', views: 0 },
-        { page: '/dashboard', views: 0 },
-        { page: '/users', views: 0 }
-      ]
-    }
-  };
-  
-  console.log('⚠️ Returning empty analytics - database connection failed');
-  res.json(emptyAnalytics);
-});
+// OLD ANALYTICS ENDPOINT REMOVED - NOW HANDLED BY ENHANCED ANALYTICS API
+// All analytics requests now go through /api/analytics/* routes handled by enhanced-analytics.js
 
 // INLINE DASHBOARD STATS API - REAL DATA FROM DATABASE
 app.get('/api/dashboard/stats', async (req, res) => {
