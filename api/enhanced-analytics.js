@@ -69,6 +69,9 @@ module.exports = async (req, res) => {
     console.log(`📊 Enhanced Analytics - Final endpoint: ${endpoint}`);
 
     switch (endpoint) {
+      case 'test':
+        res.status(200).json({ success: true, message: 'Analytics handler is working', endpoint, url: req.url });
+        break;
       case 'analytics/events':
         await handleEvents(req, res);
         break;
