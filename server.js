@@ -123,11 +123,13 @@ app.options('*', (req, res) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Enhanced Request Logging Middleware
+// Enhanced Request Logging Middleware with Debug Info
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   const origin = req.headers.origin || 'no-origin';
-  console.log(`[${timestamp}] ${req.method} ${req.path} - Origin: ${origin} - IP: ${req.ip}`);
+  const token = req.headers.authorization;
+  console.log(`[${timestamp}] ${req.method} ${req.path} - Origin: ${origin} - IP: ${req.ip} - Token: ${token ? 'Present' : 'None'}`);
+  console.log(`🔍 Request details: Method=${req.method}, Path=${req.path}, URL=${req.url}, OriginalURL=${req.originalUrl}`);
   next();
 });
 
@@ -1907,7 +1909,7 @@ app.post('/api/notes-test', async (req, res) => {
   }
 });
 
-// Apply authentication to all /api routes (except auth routes, dashboard, and notes)
+// Apply authentication to all /api routes (except auth routes, dashboard, notes, and health)
 app.use('/api', (req, res, next) => {
   // Skip authentication for specific endpoints
   const skipAuth = [
@@ -1916,8 +1918,13 @@ app.use('/api', (req, res, next) => {
     '/api/simple-auth/login',
     '/api/dashboard',
     '/api/notes',
-    '/api/notes-test'
+    '/api/notes-test',
+    '/api/health',
+    '/api/notes/health'
   ];
+  
+  // Log authentication check for debugging
+  console.log(`🔐 Auth check for: ${req.path} - Skip: ${skipAuth.includes(req.path)}`);
   
   if (skipAuth.includes(req.path)) {
     return next();
@@ -1938,6 +1945,18 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     features: ['Notes API Fixed', 'Course Filtering', 'Hierarchical Assignment', 'Status Updates']
+  });
+});
+
+// 🧪 AUTH DEBUG TEST ENDPOINT
+app.get('/auth-test', (req, res) => {
+  console.log('🧪 Auth test endpoint hit - should be public');
+  res.json({
+    success: true,
+    message: 'Auth test endpoint working - bypassing all middleware',
+    timestamp: new Date().toISOString(),
+    path: req.path,
+    headers: req.headers
   });
 });
 
