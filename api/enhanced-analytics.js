@@ -15,7 +15,7 @@ try {
   console.log('Analytics module: Supabase initialization failed:', error.message);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025';
+const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
 
 // Verify user authentication
 function verifyToken(req) {

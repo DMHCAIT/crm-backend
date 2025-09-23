@@ -2184,7 +2184,7 @@ app.post('/api/auth/debug-login', async (req, res) => {
       };
 
       const token = jwt.sign(superAdminUser, 
-        process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025', 
+        process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024', 
         { expiresIn: '24h' }
       );
 

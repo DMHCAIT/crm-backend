@@ -44,7 +44,7 @@ const simpleAuthHandler = async (req, res) => {
             username: 'admin',
             role: 'admin'
           },
-          process.env.JWT_SECRET || 'fallback-secret-key',
+          process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024',
           { expiresIn: '24h' }
         );
 
