@@ -109,14 +109,19 @@ module.exports = async (req, res) => {
         await handleRealtimeAnalytics(req, res);
         break;
       default:
-        // Check if the URL contains 'realtime' anywhere for fallback
-        if (req.url.includes('realtime')) {
-          console.log(`📊 Fallback: URL contains 'realtime', routing to handleRealtimeAnalytics`);
-          await handleRealtimeAnalytics(req, res);
-        } else {
-          console.log(`❌ Analytics endpoint not found: ${endpoint}`);
-          res.status(404).json({ error: 'Analytics endpoint not found', endpoint, url: req.url });
-        }
+        // Return debug info for unmatched endpoints
+        res.status(404).json({ 
+          error: 'Analytics endpoint not found',
+          debug: {
+            originalUrl: req.url,
+            extractedEndpoint: endpoint,
+            endpointLength: endpoint.length,
+            endpointType: typeof endpoint,
+            endpointBytes: [...endpoint].map(c => c.charCodeAt(0)),
+            availableEndpoints: ['realtime', 'test', 'analytics/events', 'analytics/dashboard/campaigns', 'analytics/dashboard/stats'],
+            fallback: req.url.includes('realtime') ? 'Would trigger realtime fallback' : 'No fallback available'
+          }
+        });
     }
   } catch (error) {
     console.error('Analytics API error:', error);
