@@ -243,6 +243,95 @@ module.exports = async (req, res) => {
         });
       }
 
+      // Check if this is a bulk operation
+      if (req.body.operation === 'bulk_update') {
+        const { leadIds, updateData, operationType, reason, updatedBy } = req.body;
+
+        if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Lead IDs array is required for bulk update'
+          });
+        }
+
+        if (!updateData || typeof updateData !== 'object') {
+          return res.status(400).json({
+            success: false,
+            error: 'Update data is required for bulk update'
+          });
+        }
+
+        try {
+          // Prepare update data
+          const cleanUpdateData = {};
+          Object.keys(updateData).forEach(key => {
+            if (updateData[key] !== undefined && key !== 'id') {
+              cleanUpdateData[key] = updateData[key];
+            }
+          });
+
+          // Sync assignment fields to match actual database schema
+          if (cleanUpdateData.assignedTo) {
+            cleanUpdateData.assignedcounselor = cleanUpdateData.assignedTo;
+          }
+
+          // Add updated timestamp and user
+          cleanUpdateData.updated_at = new Date().toISOString();
+          cleanUpdateData.updated_by = updatedBy || user.username || 'System';
+
+          // Update leads in database
+          const { data: updatedLeads, error } = await supabase
+            .from('leads')
+            .update(cleanUpdateData)
+            .in('id', leadIds)
+            .select();
+
+          if (error) {
+            console.error('❌ Bulk update error:', error);
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to update leads',
+              details: error.message
+            });
+          }
+
+          // Log activities for each updated lead
+          for (const lead of updatedLeads) {
+            const activityDescription = operationType === 'transfer' 
+              ? `Lead transferred to ${updateData.assignedTo}${reason ? `: ${reason}` : ''}` 
+              : `Lead ${operationType || 'updated'}${reason ? `: ${reason}` : ''}`;
+            
+            await logLeadActivity(
+              lead.id,
+              operationType || 'bulk_update',
+              activityDescription,
+              updatedBy || user.username || 'System'
+            );
+          }
+
+          console.log(`✅ Bulk ${operationType || 'update'} completed for ${updatedLeads.length} leads by ${updatedBy || user.username}`);
+
+          return res.json({
+            success: true,
+            updatedCount: updatedLeads.length,
+            updatedLeads: updatedLeads.map(lead => ({
+              id: lead.id,
+              fullName: lead.fullName,
+              assignedTo: lead.assignedTo || lead.assignedcounselor
+            })),
+            message: `${updatedLeads.length} lead(s) ${operationType || 'updated'} successfully`
+          });
+
+        } catch (error) {
+          console.error('❌ Bulk operation error:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Bulk operation failed',
+            details: error.message
+          });
+        }
+      }
+
       // Extract lead data with all new fields
       const { 
         fullName,
@@ -455,6 +544,87 @@ module.exports = async (req, res) => {
         return res.status(500).json({
           success: false,
           error: 'Failed to update lead',
+          details: error.message
+        });
+      }
+    }
+
+    if (req.method === 'DELETE') {
+      const leadId = req.query.id;
+      
+      if (!leadId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Lead ID is required for deletion'
+        });
+      }
+
+      if (!supabase) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database connection not available'
+        });
+      }
+
+      try {
+        // Get lead details before deletion for logging
+        const { data: leadToDelete, error: fetchError } = await supabase
+          .from('leads')
+          .select('id, fullName, email')
+          .eq('id', leadId)
+          .single();
+
+        if (fetchError || !leadToDelete) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found'
+          });
+        }
+
+        // Delete related records first (cascade delete)
+        // Delete lead notes
+        await supabase
+          .from('lead_notes')
+          .delete()
+          .eq('lead_id', leadId);
+
+        // Delete lead activities
+        await supabase
+          .from('lead_activities')
+          .delete()
+          .eq('lead_id', leadId);
+
+        // Delete the lead
+        const { error: deleteError } = await supabase
+          .from('leads')
+          .delete()
+          .eq('id', leadId);
+
+        if (deleteError) {
+          console.error('❌ Delete error:', deleteError);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to delete lead',
+            details: deleteError.message
+          });
+        }
+
+        console.log(`✅ Lead deleted: ${leadToDelete.fullName} (${leadToDelete.email}) by ${user.username}`);
+
+        return res.json({
+          success: true,
+          message: 'Lead deleted successfully',
+          deletedLead: {
+            id: leadToDelete.id,
+            name: leadToDelete.fullName
+          }
+        });
+
+      } catch (error) {
+        console.error('❌ Delete lead error:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to delete lead',
           details: error.message
         });
       }
