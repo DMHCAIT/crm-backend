@@ -28,6 +28,44 @@ function verifyToken(req) {
   return jwt.verify(token, JWT_SECRET);
 }
 
+// Get all subordinate users (same as in leads.js and dashboard.js)
+async function getSubordinateUsers(userId) {
+  if (!supabase) return [];
+  
+  try {
+    const { data: allUsers, error } = await supabase
+      .from('users')
+      .select('id, email, name, reports_to, role');
+    
+    if (error) {
+      console.error('Error fetching users for hierarchy:', error);
+      return [];
+    }
+    
+    const subordinates = [];
+    const visited = new Set();
+    
+    function findSubordinates(supervisorId) {
+      if (visited.has(supervisorId)) return;
+      visited.add(supervisorId);
+      
+      allUsers.forEach(user => {
+        if (user.reports_to === supervisorId && !subordinates.includes(user.id)) {
+          subordinates.push(user.id);
+          findSubordinates(user.id);
+        }
+      });
+    }
+    
+    findSubordinates(userId);
+    return subordinates;
+    
+  } catch (error) {
+    console.error('Error getting subordinate users:', error);
+    return [];
+  }
+}
+
 module.exports = async (req, res) => {
     // Set CORS headers
   const allowedOrigins = [
@@ -479,8 +517,15 @@ async function handleRealtimeAnalytics(req, res) {
   try {
     console.log('📊 handleRealtimeAnalytics called - Processing real-time analytics');
     
-    // Skip authentication for analytics - make it publicly accessible for dashboard
-    // const user = verifyToken(req);
+    // Verify authentication for hierarchical access control
+    const user = verifyToken(req);
+    console.log(`📊 Analytics requested by user ${user.email} (${user.role})`);
+    
+    // Get subordinate users for hierarchical filtering
+    const subordinates = await getSubordinateUsers(user.id);
+    const accessibleUserIds = [user.id, ...subordinates];
+    
+    console.log(`🏢 Analytics: User ${user.email} can access data for ${accessibleUserIds.length} users (self + ${subordinates.length} subordinates)`);
     
     // Get comprehensive real data from all tables
     const timeframe = req.query.timeframe || 'month';
@@ -503,11 +548,18 @@ async function handleRealtimeAnalytics(req, res) {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // 1. GET REAL LEADS DATA
-    const { data: leads, error: leadsError } = await supabase
+    // 1. GET REAL LEADS DATA WITH HIERARCHICAL FILTERING
+    let leadsQuery = supabase
       .from('leads')
       .select('*')
       .gte('created_at', startDate.toISOString());
+    
+    // Apply hierarchical filtering - Super admins can see all leads
+    if (user.role !== 'super_admin') {
+      leadsQuery = leadsQuery.or(`assignedTo.in.(${accessibleUserIds.join(',')}),assignedcounselor.in.(${accessibleUserIds.join(',')}),assigned_to.in.(${accessibleUserIds.join(',')})`);
+    }
+    
+    const { data: leads, error: leadsError } = await leadsQuery;
 
     if (leadsError) {
       console.error('Leads query error:', leadsError);

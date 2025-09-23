@@ -1,5 +1,8 @@
-// Dashboard Stats API
+// Dashboard Stats API with Hierarchical Access Control
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
 
 // Initialize Supabase conditionally
 let supabase;
@@ -12,6 +15,53 @@ try {
   }
 } catch (error) {
   console.log('Dashboard module: Supabase initialization failed:', error.message);
+}
+
+// JWT verification function
+function verifyToken(req) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) throw new Error('No token provided');
+  
+  const decoded = jwt.verify(token, JWT_SECRET);
+  return decoded;
+}
+
+// Get all subordinate users (same as in leads.js)
+async function getSubordinateUsers(userId) {
+  if (!supabase) return [];
+  
+  try {
+    const { data: allUsers, error } = await supabase
+      .from('users')
+      .select('id, email, name, reports_to, role');
+    
+    if (error) {
+      console.error('Error fetching users for hierarchy:', error);
+      return [];
+    }
+    
+    const subordinates = [];
+    const visited = new Set();
+    
+    function findSubordinates(supervisorId) {
+      if (visited.has(supervisorId)) return;
+      visited.add(supervisorId);
+      
+      allUsers.forEach(user => {
+        if (user.reports_to === supervisorId && !subordinates.includes(user.id)) {
+          subordinates.push(user.id);
+          findSubordinates(user.id);
+        }
+      });
+    }
+    
+    findSubordinates(userId);
+    return subordinates;
+    
+  } catch (error) {
+    console.error('Error getting subordinate users:', error);
+    return [];
+  }
 }
 
 module.exports = async (req, res) => {
@@ -41,10 +91,17 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Authentication is handled by server middleware, so we can proceed
-    console.log('📊 Dashboard data requested');
+    // Verify authentication
+    const user = verifyToken(req);
+    console.log(`📊 Dashboard data requested by user ${user.email} (${user.role})`);
 
-    // Get dashboard statistics with fallback data
+    // Get subordinate users for hierarchical filtering
+    const subordinates = await getSubordinateUsers(user.id);
+    const accessibleUserIds = [user.id, ...subordinates];
+    
+    console.log(`🏢 User ${user.email} can access data for ${accessibleUserIds.length} users (self + ${subordinates.length} subordinates)`);
+
+    // Get dashboard statistics with hierarchical filtering
     let leadsResult, studentsResult, communicationsResult, documentsResult;
     
     if (!supabase) {
@@ -54,8 +111,16 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Apply hierarchical filtering to leads and other data
+    let leadsQuery = supabase.from('leads').select('id, status, assignedTo, assignedcounselor, assigned_to', { count: 'exact' });
+    
+    // Super admins can see all leads, others see only their accessible leads
+    if (user.role !== 'super_admin') {
+      leadsQuery = leadsQuery.or(`assignedTo.in.(${accessibleUserIds.join(',')}),assignedcounselor.in.(${accessibleUserIds.join(',')}),assigned_to.in.(${accessibleUserIds.join(',')})`);
+    }
+    
     [leadsResult, studentsResult, communicationsResult, documentsResult] = await Promise.all([
-      supabase.from('leads').select('id, status', { count: 'exact' }),
+      leadsQuery,
       supabase.from('students').select('id, status', { count: 'exact' }),
       supabase.from('communications').select('id', { count: 'exact' }),
       supabase.from('documents').select('id', { count: 'exact' })
