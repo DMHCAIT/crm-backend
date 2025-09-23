@@ -275,6 +275,99 @@ module.exports = async (req, res) => {
       }
     }
 
+    // POST: Add note to existing lead (specific handler - must come before general POST)
+    if (req.method === 'POST' && req.query.action === 'addNote') {
+      if (!supabase) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database connection not available'
+        });
+      }
+
+      const { leadId, content, noteType = 'general' } = req.body;
+      
+      if (!leadId || !content || !content.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Lead ID and note content are required'
+        });
+      }
+
+      try {
+        // Get current lead
+        const { data: lead, error: fetchError } = await supabase
+          .from('leads')
+          .select('notes')
+          .eq('id', leadId)
+          .single();
+
+        if (fetchError || !lead) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found'
+          });
+        }
+
+        // Parse existing notes
+        let currentNotes = [];
+        if (lead.notes) {
+          try {
+            currentNotes = Array.isArray(lead.notes) ? lead.notes : JSON.parse(lead.notes);
+          } catch (parseError) {
+            console.log('⚠️ Error parsing existing notes, creating new array');
+            currentNotes = [];
+          }
+        }
+
+        // Add new note
+        const newNote = {
+          id: Date.now().toString(),
+          content: content.trim(),
+          author: user.username || 'User',
+          timestamp: new Date().toISOString(),
+          note_type: noteType
+        };
+
+        currentNotes.push(newNote);
+
+        // Update lead with new notes
+        const { error: updateError } = await supabase
+          .from('leads')
+          .update({ 
+            notes: JSON.stringify(currentNotes),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', leadId);
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        // Log activity
+        await logLeadActivity(
+          leadId,
+          'note_added',
+          `Note added: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+          user.username || 'System'
+        );
+
+        return res.json({
+          success: true,
+          data: currentNotes,
+          notes: currentNotes, // For compatibility
+          message: 'Note added successfully'
+        });
+
+      } catch (error) {
+        console.error('❌ Error adding note:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to add note',
+          details: error.message
+        });
+      }
+    }
+
     if (req.method === 'POST') {
       if (!supabase) {
         return res.status(500).json({
@@ -654,92 +747,6 @@ module.exports = async (req, res) => {
         return res.status(500).json({
           success: false,
           error: 'Failed to delete lead',
-          details: error.message
-        });
-      }
-    }
-
-    // POST: Add note to existing lead
-    if (req.method === 'POST' && req.query.action === 'addNote') {
-      const { leadId, content, noteType = 'general' } = req.body;
-      
-      if (!leadId || !content || !content.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Lead ID and note content are required'
-        });
-      }
-
-      try {
-        // Get current lead
-        const { data: lead, error: fetchError } = await supabase
-          .from('leads')
-          .select('notes')
-          .eq('id', leadId)
-          .single();
-
-        if (fetchError || !lead) {
-          return res.status(404).json({
-            success: false,
-            error: 'Lead not found'
-          });
-        }
-
-        // Parse existing notes
-        let currentNotes = [];
-        if (lead.notes) {
-          try {
-            currentNotes = Array.isArray(lead.notes) ? lead.notes : JSON.parse(lead.notes);
-          } catch (parseError) {
-            console.log('⚠️ Error parsing existing notes, creating new array');
-            currentNotes = [];
-          }
-        }
-
-        // Add new note
-        const newNote = {
-          id: Date.now().toString(),
-          content: content.trim(),
-          author: user.username || 'User',
-          timestamp: new Date().toISOString(),
-          note_type: noteType
-        };
-
-        currentNotes.push(newNote);
-
-        // Update lead with new notes
-        const { error: updateError } = await supabase
-          .from('leads')
-          .update({ 
-            notes: JSON.stringify(currentNotes),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', leadId);
-
-        if (updateError) {
-          throw updateError;
-        }
-
-        // Log activity
-        await logLeadActivity(
-          leadId,
-          'note_added',
-          `Note added: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
-          user.username || 'System'
-        );
-
-        return res.json({
-          success: true,
-          data: currentNotes,
-          notes: currentNotes, // For compatibility
-          message: 'Note added successfully'
-        });
-
-      } catch (error) {
-        console.error('❌ Error adding note:', error);
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to add note',
           details: error.message
         });
       }
