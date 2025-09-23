@@ -58,9 +58,12 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Parse URL to determine endpoint
-    const urlParts = req.url.split('/').filter(part => part);
+    // Parse URL to determine endpoint (remove query parameters)
+    const urlWithoutQuery = req.url.split('?')[0];
+    const urlParts = urlWithoutQuery.split('/').filter(part => part);
     const endpoint = urlParts.join('/');
+
+    console.log(`📊 Enhanced Analytics - Processing endpoint: ${endpoint}`);
 
     switch (endpoint) {
       case 'analytics/events':
@@ -76,7 +79,8 @@ module.exports = async (req, res) => {
         await handleRealtimeAnalytics(req, res);
         break;
       default:
-        res.status(404).json({ error: 'Analytics endpoint not found' });
+        console.log(`❌ Analytics endpoint not found: ${endpoint}`);
+        res.status(404).json({ error: 'Analytics endpoint not found', endpoint });
     }
   } catch (error) {
     console.error('Analytics API error:', error);
@@ -432,11 +436,15 @@ async function handleDashboardStats(req, res) {
 // Realtime Analytics Handler - COMPREHENSIVE REAL DATA ANALYTICS
 async function handleRealtimeAnalytics(req, res) {
   try {
+    console.log('📊 handleRealtimeAnalytics called - Processing real-time analytics');
+    
     // Skip authentication for analytics - make it publicly accessible for dashboard
     // const user = verifyToken(req);
     
     // Get comprehensive real data from all tables
     const timeframe = req.query.timeframe || 'month';
+    console.log(`📊 Analytics timeframe: ${timeframe}`);
+    
     const now = new Date();
     let startDate;
     
