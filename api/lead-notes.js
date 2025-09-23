@@ -134,7 +134,8 @@ async function handleGetLeadNotes(req, res, leadId) {
 
         return res.json({
           success: true,
-          notes: formattedNotes,
+          data: formattedNotes,  // Fixed: use 'data' instead of 'notes' for frontend compatibility
+          notes: formattedNotes, // Keep 'notes' for backward compatibility
           total: formattedNotes.length,
           leadId: leadId,
           source: 'database',
@@ -147,7 +148,8 @@ async function handleGetLeadNotes(req, res, leadId) {
     console.log('⚠️ Database unavailable, returning empty notes');
     return res.json({
       success: true,
-      notes: [],
+      data: [],         // Fixed: use 'data' for frontend compatibility
+      notes: [],        // Keep 'notes' for backward compatibility
       total: 0,
       leadId: leadId,
       source: 'fallback',
