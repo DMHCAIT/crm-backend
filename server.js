@@ -134,6 +134,132 @@ app.get('/emergency-test', (req, res) => {
   });
 });
 
+// 🚨 EMERGENCY ADD NOTE - DEFINED BEFORE ALL MIDDLEWARE TO BYPASS ROUTING ISSUES
+app.post('/api/emergency-add-note', async (req, res) => {
+  console.log('🚨 EMERGENCY ADD NOTE endpoint hit - BEFORE ALL MIDDLEWARE');
+  
+  // Manual CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  try {
+    console.log('🔍 Raw request body:', req.body);
+    console.log('🔍 Content-Type:', req.headers['content-type']);
+    
+    const { leadId, content, noteType = 'general' } = req.body;
+    
+    if (!leadId || !content || !content.trim()) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        error: 'Lead ID and note content are required',
+        received: { leadId: !!leadId, content: !!content }
+      });
+    }
+
+    if (!supabase) {
+      console.log('❌ Supabase not available');
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection not available'
+      });
+    }
+
+    console.log(`🔍 Processing: Add note "${content}" to lead ${leadId}`);
+
+    // Get current lead
+    const { data: lead, error: fetchError } = await supabase
+      .from('leads')
+      .select('notes')
+      .eq('id', leadId)
+      .single();
+
+    if (fetchError || !lead) {
+      console.error('❌ Lead fetch error:', fetchError);
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found',
+        details: fetchError?.message
+      });
+    }
+
+    console.log('✅ Lead found, current notes:', typeof lead.notes, lead.notes);
+
+    // Parse existing notes
+    let currentNotes = [];
+    if (lead.notes) {
+      try {
+        currentNotes = Array.isArray(lead.notes) ? lead.notes : JSON.parse(lead.notes);
+      } catch (parseError) {
+        console.log('⚠️  Parse error, creating new array:', parseError.message);
+        currentNotes = [];
+      }
+    }
+
+    // Add new note
+    const newNote = {
+      id: `emergency_${Date.now()}`,
+      content: content.trim(),
+      author: 'Emergency User',
+      timestamp: new Date().toISOString(),
+      note_type: noteType
+    };
+
+    currentNotes.push(newNote);
+    console.log(`✅ New notes array has ${currentNotes.length} items`);
+
+    // Update lead
+    const { error: updateError } = await supabase
+      .from('leads')
+      .update({ 
+        notes: JSON.stringify(currentNotes),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', leadId);
+
+    if (updateError) {
+      console.error('❌ Update error:', updateError);
+      throw updateError;
+    }
+
+    console.log('🎉 SUCCESS: Note added via emergency endpoint');
+
+    return res.json({
+      success: true,
+      data: currentNotes,
+      notes: currentNotes,
+      message: 'Note added successfully via emergency endpoint',
+      debug: {
+        endpoint: 'emergency-add-note',
+        notesCount: currentNotes.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('💥 EMERGENCY ENDPOINT ERROR:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to add note',
+      details: error.message,
+      debug: {
+        endpoint: 'emergency-add-note',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+});
+
+// OPTIONS handler for emergency endpoint
+app.options('/api/emergency-add-note', (req, res) => {
+  console.log('🔧 OPTIONS for emergency-add-note');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
 // Enhanced Request Logging Middleware with Debug Info
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
