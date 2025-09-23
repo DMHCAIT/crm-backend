@@ -194,11 +194,7 @@ module.exports = async (req, res) => {
         // Get all leads from database with enhanced data
         const { data: leads, error } = await supabase
           .from('leads')
-          .select(`
-            *,
-            lead_notes:lead_notes(id, content, author, timestamp, note_type),
-            recent_activities:lead_activities(id, activity_type, description, performed_by, timestamp)
-          `)
+          .select(`*`)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -213,16 +209,61 @@ module.exports = async (req, res) => {
         // Get dynamic configuration
         const config = await getSystemConfig();
 
+        // Process leads to ensure notes are properly formatted as arrays
+        const processedLeads = (leads || []).map(lead => {
+          let notesArray = [];
+          
+          if (lead.notes) {
+            try {
+              // If notes is already an array (JSON), use it
+              if (Array.isArray(lead.notes)) {
+                notesArray = lead.notes;
+              } 
+              // If notes is a JSON string, parse it
+              else if (typeof lead.notes === 'string' && lead.notes.trim().startsWith('[')) {
+                notesArray = JSON.parse(lead.notes);
+              }
+              // If notes is a simple string, convert to array format
+              else if (typeof lead.notes === 'string' && lead.notes.trim()) {
+                notesArray = [{
+                  id: Date.now().toString(),
+                  content: lead.notes,
+                  author: 'System',
+                  timestamp: lead.created_at || new Date().toISOString(),
+                  note_type: 'general'
+                }];
+              }
+            } catch (error) {
+              console.log(`⚠️ Error parsing notes for lead ${lead.id}:`, error.message);
+              // Fallback: treat as simple string
+              if (typeof lead.notes === 'string' && lead.notes.trim()) {
+                notesArray = [{
+                  id: Date.now().toString(),
+                  content: lead.notes,
+                  author: 'System',
+                  timestamp: lead.created_at || new Date().toISOString(),
+                  note_type: 'general'
+                }];
+              }
+            }
+          }
+          
+          return {
+            ...lead,
+            notes: notesArray
+          };
+        });
+
         // Calculate pipeline statistics
-        const stats = calculatePipelineStats(leads || []);
+        const stats = calculatePipelineStats(processedLeads || []);
 
         return res.json({
           success: true,
-          leads: leads || [],
-          totalCount: leads?.length || 0,
+          leads: processedLeads || [],
+          totalCount: processedLeads?.length || 0,
           config: config,
           stats: stats,
-          message: `Found ${leads?.length || 0} leads`
+          message: `Found ${processedLeads?.length || 0} leads`
         });
       } catch (error) {
         console.error('❌ Database error:', error.message);
@@ -379,7 +420,13 @@ module.exports = async (req, res) => {
           priority: priority || 'medium', // New field
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
           assignedcounselor: assignedTo || user.username || 'Unassigned', // Match actual DB column name (lowercase)
-          notes: notes || '', // Will migrate to structured notes
+          notes: JSON.stringify(notes && notes.trim() ? [{
+            id: Date.now().toString(),
+            content: notes,
+            author: user.username || 'User',
+            timestamp: new Date().toISOString(),
+            note_type: 'general'
+          }] : []), // Store notes as JSON array
           experience: experience || 'Not specified', // New field
           location: location || 'Not specified', // New field
           score: score || 0, // New field
@@ -421,21 +468,7 @@ module.exports = async (req, res) => {
           user.username || 'System'
         );
 
-        // Create initial note if provided
-        if (notes && notes.trim()) {
-          try {
-            await supabase
-              .from('lead_notes')
-              .insert({
-                lead_id: insertedLead.id,
-                content: notes,
-                author: user.username || 'System',
-                note_type: 'general'
-              });
-          } catch (noteError) {
-            console.error('Error creating initial note:', noteError);
-          }
-        }
+        // Notes are now stored directly in the leads table as JSON
 
         return res.json({
           success: true,
@@ -582,11 +615,7 @@ module.exports = async (req, res) => {
         }
 
         // Delete related records first (cascade delete)
-        // Delete lead notes
-        await supabase
-          .from('lead_notes')
-          .delete()
-          .eq('lead_id', leadId);
+        // Notes are now stored in leads table as JSON, no separate cleanup needed
 
         // Delete lead activities
         await supabase
@@ -625,6 +654,92 @@ module.exports = async (req, res) => {
         return res.status(500).json({
           success: false,
           error: 'Failed to delete lead',
+          details: error.message
+        });
+      }
+    }
+
+    // POST: Add note to existing lead
+    if (req.method === 'POST' && req.query.action === 'addNote') {
+      const { leadId, content, noteType = 'general' } = req.body;
+      
+      if (!leadId || !content || !content.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Lead ID and note content are required'
+        });
+      }
+
+      try {
+        // Get current lead
+        const { data: lead, error: fetchError } = await supabase
+          .from('leads')
+          .select('notes')
+          .eq('id', leadId)
+          .single();
+
+        if (fetchError || !lead) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found'
+          });
+        }
+
+        // Parse existing notes
+        let currentNotes = [];
+        if (lead.notes) {
+          try {
+            currentNotes = Array.isArray(lead.notes) ? lead.notes : JSON.parse(lead.notes);
+          } catch (parseError) {
+            console.log('⚠️ Error parsing existing notes, creating new array');
+            currentNotes = [];
+          }
+        }
+
+        // Add new note
+        const newNote = {
+          id: Date.now().toString(),
+          content: content.trim(),
+          author: user.username || 'User',
+          timestamp: new Date().toISOString(),
+          note_type: noteType
+        };
+
+        currentNotes.push(newNote);
+
+        // Update lead with new notes
+        const { error: updateError } = await supabase
+          .from('leads')
+          .update({ 
+            notes: JSON.stringify(currentNotes),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', leadId);
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        // Log activity
+        await logLeadActivity(
+          leadId,
+          'note_added',
+          `Note added: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+          user.username || 'System'
+        );
+
+        return res.json({
+          success: true,
+          data: currentNotes,
+          notes: currentNotes, // For compatibility
+          message: 'Note added successfully'
+        });
+
+      } catch (error) {
+        console.error('❌ Error adding note:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to add note',
           details: error.message
         });
       }
