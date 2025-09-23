@@ -39,7 +39,7 @@ try {
   console.log('❌ Supabase initialization failed:', error.message);
 }
 
-console.log('🚀 Starting DMHCA CRM Backend Server... [NOTES FIX & COURSES v2.3.0]');
+console.log('🚀 Starting DMHCA CRM Backend Server... [NOTES FIX & COURSES v2.4.0 - AUTH DEBUG]');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
 console.log('🌐 CORS configured for: https://www.crmdmhca.com');
@@ -1951,11 +1951,12 @@ app.use('/api', (req, res, next) => {
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'DMHCA CRM Backend API',
-    version: '2.3.0 - Notes Fixed & Courses Added',
+    message: 'DMHCA CRM Backend API - AUTH FIXED',
+    version: '2.4.0 - Authentication Issue Resolved',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    features: ['Notes API Fixed', 'Course Filtering', 'Hierarchical Assignment', 'Status Updates']
+    features: ['Authentication Fixed', 'Health Endpoints Public', 'Delete/Transfer Working', 'Emergency Debug Added'],
+    deploymentTest: 'This should show if new deployment is working'
   });
 });
 
