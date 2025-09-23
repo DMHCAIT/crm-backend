@@ -60,15 +60,23 @@ module.exports = async (req, res) => {
   try {
     // Parse URL to determine endpoint (remove query parameters)
     const urlWithoutQuery = req.url.split('?')[0];
-    const urlParts = urlWithoutQuery.split('/').filter(part => part);
-    const endpoint = urlParts.join('/');
+    
+    // Extract endpoint after /api/analytics/ or /api/enhanced-analytics/
+    let endpoint = urlWithoutQuery.replace(/^\/api\/(enhanced-)?analytics\//, '');
+    
+    // If no specific endpoint, default to the full path for debugging
+    if (!endpoint) {
+      endpoint = urlWithoutQuery;
+    }
 
     console.log(`📊 Enhanced Analytics - Raw URL: ${req.url}`);
     console.log(`📊 Enhanced Analytics - URL without query: ${urlWithoutQuery}`);
-    console.log(`📊 Enhanced Analytics - URL parts: [${urlParts.join(', ')}]`);
-    console.log(`📊 Enhanced Analytics - Final endpoint: ${endpoint}`);
+    console.log(`📊 Enhanced Analytics - Extracted endpoint: ${endpoint}`);
 
     switch (endpoint) {
+      case 'realtime':
+        await handleRealtimeAnalytics(req, res);
+        break;
       case 'test':
         res.status(200).json({ success: true, message: 'Analytics handler is working', endpoint, url: req.url });
         break;
