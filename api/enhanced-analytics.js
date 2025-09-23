@@ -63,7 +63,10 @@ module.exports = async (req, res) => {
     const urlParts = urlWithoutQuery.split('/').filter(part => part);
     const endpoint = urlParts.join('/');
 
-    console.log(`📊 Enhanced Analytics - Processing endpoint: ${endpoint}`);
+    console.log(`📊 Enhanced Analytics - Raw URL: ${req.url}`);
+    console.log(`📊 Enhanced Analytics - URL without query: ${urlWithoutQuery}`);
+    console.log(`📊 Enhanced Analytics - URL parts: [${urlParts.join(', ')}]`);
+    console.log(`📊 Enhanced Analytics - Final endpoint: ${endpoint}`);
 
     switch (endpoint) {
       case 'analytics/events':
@@ -79,8 +82,14 @@ module.exports = async (req, res) => {
         await handleRealtimeAnalytics(req, res);
         break;
       default:
-        console.log(`❌ Analytics endpoint not found: ${endpoint}`);
-        res.status(404).json({ error: 'Analytics endpoint not found', endpoint });
+        // Check if the URL contains 'realtime' anywhere for fallback
+        if (req.url.includes('realtime')) {
+          console.log(`📊 Fallback: URL contains 'realtime', routing to handleRealtimeAnalytics`);
+          await handleRealtimeAnalytics(req, res);
+        } else {
+          console.log(`❌ Analytics endpoint not found: ${endpoint}`);
+          res.status(404).json({ error: 'Analytics endpoint not found', endpoint, url: req.url });
+        }
     }
   } catch (error) {
     console.error('Analytics API error:', error);
