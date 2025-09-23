@@ -73,12 +73,28 @@ module.exports = async (req, res) => {
     console.log(`📊 Enhanced Analytics - URL without query: ${urlWithoutQuery}`);
     console.log(`📊 Enhanced Analytics - Extracted endpoint: ${endpoint}`);
 
+    // Show debug info for any request
+    console.log(`🔍 DEBUG - Final endpoint value: "${endpoint}"`);
+    console.log(`🔍 DEBUG - Endpoint === 'realtime': ${endpoint === 'realtime'}`);
+    console.log(`🔍 DEBUG - Endpoint === 'test': ${endpoint === 'test'}`);
+
     switch (endpoint) {
       case 'realtime':
         await handleRealtimeAnalytics(req, res);
         break;
       case 'test':
-        res.status(200).json({ success: true, message: 'Analytics handler is working', endpoint, url: req.url });
+        res.status(200).json({ 
+          success: true, 
+          message: 'Analytics handler is working', 
+          debug: {
+            originalUrl: req.url,
+            extractedEndpoint: endpoint,
+            endpointLength: endpoint.length,
+            endpointType: typeof endpoint,
+            endpointEqualsRealtime: endpoint === 'realtime',
+            endpointEqualsTest: endpoint === 'test'
+          }
+        });
         break;
       case 'analytics/events':
         await handleEvents(req, res);
