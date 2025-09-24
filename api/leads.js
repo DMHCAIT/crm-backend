@@ -799,9 +799,11 @@ module.exports = async (req, res) => {
           }
         });
 
-        // Sync assignment fields to match actual database schema
+        // Sync assignment fields to match actual database schema - ensure consistency across all fields
         if (cleanUpdateData.assignedTo) {
           cleanUpdateData.assignedcounselor = cleanUpdateData.assignedTo; // Match actual DB column (lowercase)
+          cleanUpdateData.assigned_to = cleanUpdateData.assignedTo; // Snake case version
+          cleanUpdateData.assignedCounselor = cleanUpdateData.assignedTo; // Camel case version
         }
 
         // Add updated timestamp

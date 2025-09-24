@@ -131,6 +131,9 @@ module.exports = async (req, res) => {
     const activeLeads = leadsResult.data?.filter(lead => 
       ['hot', 'followup', 'warm', 'fresh'].includes(lead.status)
     ).length || 0;
+    const hotLeads = leadsResult.data?.filter(lead => 
+      lead.status === 'hot'
+    ).length || 0;
 
     // Calculate student statistics
     const totalStudents = studentsResult.count || 0;
@@ -160,6 +163,7 @@ module.exports = async (req, res) => {
     const stats = {
       totalLeads,
       activeLeads,
+      hotLeads,
       newLeadsThisWeek,
       totalStudents,
       activeStudents,

@@ -1000,6 +1000,7 @@ app.get('/api/dashboard', async (req, res) => {
       // Calculate real statistics
       const totalLeads = leads.length;
       const activeLeads = leads.filter(l => ['hot', 'followup', 'warm', 'fresh'].includes(l.status)).length;
+      const hotLeads = leads.filter(l => l.status === 'hot').length;
       const totalStudents = students.length;
       const activeStudents = students.filter(s => s.status === 'active').length;
       const convertedLeads = leads.filter(l => l.status === 'enrolled').length;
@@ -1731,22 +1732,203 @@ app.get('/api/users/me', async (req, res) => {
   }
 });
 
-// OLD ANALYTICS ENDPOINT REMOVED - NOW HANDLED BY ENHANCED ANALYTICS API
-// All analytics requests now go through /api/analytics/* routes handled by enhanced-analytics.js
-
-// INLINE DASHBOARD STATS API - REAL DATA FROM DATABASE
-app.get('/api/dashboard/stats', async (req, res) => {
-  console.log('📈 Dashboard stats API called - fetching real data');
+// ASSIGNABLE USERS API - HIERARCHICAL FILTERING FOR LEAD ASSIGNMENT
+app.get('/api/assignable-users', async (req, res) => {
+  console.log('👥 Assignable users API called - fetching hierarchical data');
   
   try {
+    // Add authentication
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+    
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'No token provided' });
+    }
+    
+    const user = jwt.verify(token, JWT_SECRET);
+    console.log(`👥 Assignable users requested by ${user.email} (${user.role})`);
+    
     const { createClient } = require('@supabase/supabase-js');
     
     if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
       
-      // Fetch real data from database
+      // Get subordinate users for hierarchical filtering
+      const getSubordinateUsers = async (userId) => {
+        try {
+          const { data: allUsers, error } = await supabase
+            .from('users')
+            .select('id, email, name, username, role, reports_to');
+          
+          if (error) return [];
+          
+          const subordinates = [];
+          const visited = new Set();
+          
+          function findSubordinates(supervisorId) {
+            if (visited.has(supervisorId)) return;
+            visited.add(supervisorId);
+            
+            allUsers.forEach(u => {
+              if (u.reports_to === supervisorId && !subordinates.find(s => s.id === u.id)) {
+                subordinates.push(u);
+                findSubordinates(u.id);
+              }
+            });
+          }
+          
+          findSubordinates(userId);
+          return subordinates;
+        } catch (error) {
+          console.error('Error getting subordinate users:', error);
+          return [];
+        }
+      };
+      
+      let assignableUsers = [];
+      
+      if (user.role === 'super_admin') {
+        // Super admins can assign to anyone
+        const { data: allUsers, error } = await supabase
+          .from('users')
+          .select('id, name, username, email, role')
+          .eq('status', 'active');
+        
+        if (error) {
+          console.error('Error fetching all users:', error);
+          return res.status(500).json({ success: false, error: 'Failed to fetch users' });
+        }
+        
+        assignableUsers = allUsers || [];
+      } else {
+        // Non-super admins can assign to themselves and their subordinates
+        const subordinates = await getSubordinateUsers(user.id);
+        
+        // Get current user info
+        const { data: currentUser, error: userError } = await supabase
+          .from('users')
+          .select('id, name, username, email, role')
+          .eq('id', user.id)
+          .single();
+        
+        if (userError) {
+          console.error('Error fetching current user:', userError);
+          return res.status(500).json({ success: false, error: 'Failed to fetch user info' });
+        }
+        
+        // Include self and subordinates
+        assignableUsers = [currentUser, ...subordinates];
+      }
+      
+      // Format response
+      const formattedUsers = assignableUsers.map(u => ({
+        id: u.id,
+        name: u.name || u.username,
+        username: u.username,
+        email: u.email,
+        role: u.role,
+        display_name: `${u.name || u.username} (${u.role})`
+      }));
+      
+      console.log(`✅ Returning ${formattedUsers.length} assignable users for ${user.email}`);
+      
+      return res.json({
+        success: true,
+        users: formattedUsers,
+        total: formattedUsers.length,
+        message: `Found ${formattedUsers.length} assignable users`
+      });
+    }
+    
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+    
+  } catch (error) {
+    console.error('Assignable users error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch assignable users',
+      message: error.message
+    });
+  }
+});
+
+// OLD ANALYTICS ENDPOINT REMOVED - NOW HANDLED BY ENHANCED ANALYTICS API
+// All analytics requests now go through /api/analytics/* routes handled by enhanced-analytics.js
+
+// INLINE DASHBOARD STATS API - REAL DATA FROM DATABASE WITH AUTHENTICATION
+app.get('/api/dashboard/stats', async (req, res) => {
+  console.log('📈 Dashboard stats API called - fetching real data');
+  
+  try {
+    // Add authentication
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+    
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'No token provided' });
+    }
+    
+    const user = jwt.verify(token, JWT_SECRET);
+    console.log(`📊 Dashboard stats requested by user ${user.email} (${user.role})`);
+    
+    const { createClient } = require('@supabase/supabase-js');
+    
+    if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+      
+      // Get subordinate users for hierarchical filtering (same logic as dashboard.js)
+      const getSubordinateUsers = async (userId) => {
+        try {
+          const { data: allUsers, error } = await supabase
+            .from('users')
+            .select('id, email, name, reports_to, role');
+          
+          if (error) return [];
+          
+          const subordinates = [];
+          const visited = new Set();
+          
+          function findSubordinates(supervisorId) {
+            if (visited.has(supervisorId)) return;
+            visited.add(supervisorId);
+            
+            allUsers.forEach(u => {
+              if (u.reports_to === supervisorId && !subordinates.includes(u.id)) {
+                subordinates.push(u.id);
+                findSubordinates(u.id);
+              }
+            });
+          }
+          
+          findSubordinates(userId);
+          return subordinates;
+        } catch (error) {
+          console.error('Error getting subordinate users:', error);
+          return [];
+        }
+      };
+      
+      const subordinates = await getSubordinateUsers(user.id);
+      const accessibleUserIds = [user.id, ...subordinates];
+      
+      console.log(`🏢 User ${user.email} can access data for ${accessibleUserIds.length} users (self + ${subordinates.length} subordinates)`);
+      
+      // Apply hierarchical filtering to leads
+      let leadsQuery = supabase.from('leads').select('id, status, created_at, assignedTo, assignedcounselor, assigned_to');
+      
+      // Super admins can see all leads, others see only their accessible leads
+      if (user.role !== 'super_admin') {
+        leadsQuery = leadsQuery.or(`assignedTo.in.(${accessibleUserIds.join(',')}),assignedcounselor.in.(${accessibleUserIds.join(',')}),assigned_to.in.(${accessibleUserIds.join(',')})`);
+      }
+      
+      // Fetch real data from database with filtering
       const [leadsResult, studentsResult, usersResult] = await Promise.all([
-        supabase.from('leads').select('id, status, created_at'),
+        leadsQuery,
         supabase.from('students').select('id, status, created_at'),
         supabase.from('users').select('id, status, created_at')
       ]);
@@ -1758,6 +1940,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
       // Calculate real statistics
       const totalLeads = leads.length;
       const activeLeads = leads.filter(l => ['hot', 'followup', 'warm', 'fresh'].includes(l.status)).length;
+      const hotLeads = leads.filter(l => l.status === 'hot').length;
       const totalStudents = students.length;
       const activeStudents = students.filter(s => s.status === 'active').length;
       
@@ -1772,6 +1955,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
       const stats = {
         totalLeads,
         activeLeads,
+        hotLeads,
         conversionRate: parseFloat(conversionRate),
         revenue: 0, // Would need revenue table to calculate
         newLeadsToday,
