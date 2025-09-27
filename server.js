@@ -1989,6 +1989,277 @@ app.options('/api/assignable-users', (req, res) => {
   res.status(200).end();
 });
 
+// API to get subordinates for a specific user (reporting hierarchy)
+app.get('/api/users/:userId/subordinates', async (req, res) => {
+  console.log('👥 Subordinates API called');
+  
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 Getting subordinates for user ID: ${userId}`);
+    
+    // Authenticate user
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+    
+    let user = null;
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        user = jwt.verify(token, JWT_SECRET);
+        console.log(`👤 Request from: ${user.username} (${user.role})`);
+      } catch (tokenError) {
+        console.log('⚠️ Token verification failed:', tokenError.message);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or expired token'
+        });
+      }
+    } else {
+      return res.status(401).json({
+        success: false,
+        error: 'Authorization token required'
+      });
+    }
+    
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not available'
+      });
+    }
+    
+    // Get all users from database
+    const { data: allUsers, error } = await supabase
+      .from('users')
+      .select('id, name, username, email, role, status, reports_to, department, designation, phone, location')
+      .eq('status', 'active')
+      .order('name');
+    
+    if (error) {
+      console.error('❌ Database query error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Database query failed'
+      });
+    }
+    
+    if (!allUsers || allUsers.length === 0) {
+      return res.json({
+        success: true,
+        subordinates: [],
+        total: 0,
+        message: 'No users found'
+      });
+    }
+    
+    // Function to get all subordinates recursively
+    const getSubordinates = (supervisorId) => {
+      const directReports = allUsers.filter(u => u.reports_to === supervisorId);
+      let allSubordinates = [...directReports];
+      
+      // Recursively get subordinates of each direct report
+      directReports.forEach(report => {
+        allSubordinates = [...allSubordinates, ...getSubordinates(report.id)];
+      });
+      
+      return allSubordinates;
+    };
+    
+    // Get subordinates for the requested user
+    const subordinates = getSubordinates(userId);
+    
+    // Format response
+    const formattedSubordinates = subordinates.map(sub => {
+      const reportsTo = allUsers.find(u => u.id === sub.reports_to);
+      return {
+        ...sub,
+        reportsToName: reportsTo ? reportsTo.name : null,
+        reportsToRole: reportsTo ? reportsTo.role : null,
+        level: getHierarchyLevel(sub.id, allUsers)
+      };
+    });
+    
+    console.log(`✅ Found ${subordinates.length} subordinates for user ${userId}`);
+    
+    return res.json({
+      success: true,
+      subordinates: formattedSubordinates,
+      total: subordinates.length,
+      message: `Found ${subordinates.length} subordinates`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in subordinates API:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch subordinates',
+      details: error.message
+    });
+  }
+});
+
+// Helper function to calculate hierarchy level
+function getHierarchyLevel(userId, allUsers, visited = new Set()) {
+  if (visited.has(userId)) return 0; // Prevent infinite loops
+  visited.add(userId);
+  
+  const user = allUsers.find(u => u.id === userId);
+  if (!user || !user.reports_to) return 0;
+  
+  return 1 + getHierarchyLevel(user.reports_to, allUsers, visited);
+}
+
+// OPTIONS handler for subordinates endpoint
+app.options('/api/users/:userId/subordinates', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+// API to get leads for a specific user and their team (subordinates)
+app.get('/api/users/:userId/leads', async (req, res) => {
+  console.log('📊 User leads API called');
+  
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  try {
+    const { userId } = req.params;
+    const { includeTeam = 'true' } = req.query;
+    console.log(`🔍 Getting leads for user ID: ${userId}, includeTeam: ${includeTeam}`);
+    
+    // Authenticate user
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+    
+    let user = null;
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        user = jwt.verify(token, JWT_SECRET);
+      } catch (tokenError) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or expired token'
+        });
+      }
+    } else {
+      return res.status(401).json({
+        success: false,
+        error: 'Authorization token required'
+      });
+    }
+    
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not available'
+      });
+    }
+    
+    // Get target user info
+    const { data: targetUser, error: userError } = await supabase
+      .from('users')
+      .select('id, name, username, email, role')
+      .eq('id', userId)
+      .single();
+    
+    if (userError || !targetUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Build list of usernames to filter leads by
+    let targetUsernames = [targetUser.username];
+    
+    if (includeTeam === 'true') {
+      // Get all users to build hierarchy
+      const { data: allUsers } = await supabase
+        .from('users')
+        .select('id, username, reports_to')
+        .eq('status', 'active');
+      
+      if (allUsers) {
+        // Function to get all subordinates recursively
+        const getSubordinates = (supervisorId) => {
+          const directReports = allUsers.filter(u => u.reports_to === supervisorId);
+          let allSubordinates = [...directReports];
+          
+          directReports.forEach(report => {
+            allSubordinates = [...allSubordinates, ...getSubordinates(report.id)];
+          });
+          
+          return allSubordinates;
+        };
+        
+        const subordinates = getSubordinates(userId);
+        const subordinateUsernames = subordinates.map(s => s.username);
+        targetUsernames = [targetUser.username, ...subordinateUsernames];
+        
+        console.log(`📊 Including leads for ${targetUsernames.length} users: ${targetUsernames.join(', ')}`);
+      }
+    }
+    
+    // Get leads assigned to target user and their team
+    const { data: leads, error: leadsError } = await supabase
+      .from('leads')
+      .select('*')
+      .or(targetUsernames.map(username => 
+        `assignedTo.eq.${username},assigned_to.eq.${username},assignedcounselor.eq.${username}`
+      ).join(','))
+      .order('updated_at', { ascending: false });
+    
+    if (leadsError) {
+      console.error('❌ Leads query error:', leadsError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch leads'
+      });
+    }
+    
+    console.log(`✅ Found ${leads?.length || 0} leads for user ${targetUser.name} and team`);
+    
+    return res.json({
+      success: true,
+      leads: leads || [],
+      total: leads?.length || 0,
+      user: targetUser,
+      includeTeam: includeTeam === 'true',
+      teamUsernames: targetUsernames
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in user leads API:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch user leads',
+      details: error.message
+    });
+  }
+});
+
+// OPTIONS handler for user leads endpoint
+app.options('/api/users/:userId/leads', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
 // OLD ANALYTICS ENDPOINT REMOVED - NOW HANDLED BY ENHANCED ANALYTICS API
 // All analytics requests now go through /api/analytics/* routes handled by enhanced-analytics.js
 
