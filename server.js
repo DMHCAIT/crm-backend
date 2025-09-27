@@ -1070,7 +1070,7 @@ app.get('/api/dashboard', async (req, res) => {
         activeLeads,
         totalStudents,
         activeStudents,
-        conversionRate,
+        conversionRate: parseFloat(conversionRate),
         leadsUpdatedToday,
         newLeadsToday,
         totalCommunications: 0, // Would need communications table
@@ -1084,13 +1084,17 @@ app.get('/api/dashboard', async (req, res) => {
         stats: {
           newLeadsToday,
           conversionsThisWeek: convertedLeads,
-          activeUsers: users.filter(u => u.status === 'active').length,
           systemHealth: 'excellent'
         },
-        message: `Real data: ${totalLeads} leads, ${totalStudents} students`
+        userSpecific: {
+          username: user.username,
+          role: user.role,
+          isUserSpecificData: user.role !== 'super_admin'
+        },
+        message: `User-specific data for ${user.username}: ${totalLeads} leads, ${leadsUpdatedToday} updated today`
       };
       
-      console.log(`✅ Real dashboard data: ${totalLeads} leads, ${totalStudents} students`);
+      console.log(`✅ User-specific dashboard data for ${user.username}: ${totalLeads} leads, ${leadsUpdatedToday} updated today`);
       return res.json(dashboardData);
     }
   } catch (error) {
@@ -1108,6 +1112,14 @@ app.get('/api/dashboard', async (req, res) => {
     error: 'Database not configured',
     message: 'SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required'
   });
+});
+
+// OPTIONS handler for dashboard endpoint
+app.options('/api/dashboard', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
 });
 
 // EMERGENCY LEADS API USING WORKING DASHBOARD PATTERN
