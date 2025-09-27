@@ -1877,33 +1877,62 @@ app.get('/api/assignable-users', async (req, res) => {
       console.log(`📊 Found ${allUsers.length} active users in database`);
       assignableUsers = allUsers;
       
-      // Apply hierarchy filtering based on user role
+      // Apply hierarchy filtering based on reports_to relationships and role
       if (user && user.role) {
-        console.log(`🔒 Applying hierarchy filtering for role: ${user.role}`);
+        console.log(`🔒 Applying hierarchy filtering for user: ${user.username} (${user.role})`);
         
-        const privilegeOrder = {
-          'super_admin': 100,
-          'admin': 90,
-          'manager': 80,
-          'senior-counselor': 70,
-          'counselor': 60,
-          'junior-counselor': 50,
-          'user': 40
-        };
+        // Find current user in database to get their ID
+        const currentDbUser = allUsers.find(u => u.username === user.username || u.id === user.userId);
         
-        const currentUserLevel = privilegeOrder[user.role] || 40;
-        
-        // For super_admin and admin: show all users
-        if (user.role === 'super_admin' || user.role === 'admin') {
-          console.log(`🔑 ${user.role} can see all users`);
+        if (currentDbUser) {
+          console.log(`👤 Found current user in database: ${currentDbUser.name} (ID: ${currentDbUser.id})`);
+          
+          // Function to get all subordinates recursively
+          const getSubordinates = (supervisorId) => {
+            const directReports = allUsers.filter(u => u.reports_to === supervisorId);
+            let allSubordinates = [...directReports];
+            
+            // Recursively get subordinates of each direct report
+            directReports.forEach(report => {
+              allSubordinates = [...allSubordinates, ...getSubordinates(report.id)];
+            });
+            
+            return allSubordinates;
+          };
+          
+          // For super_admin and admin: show all users
+          if (user.role === 'super_admin' || user.role === 'admin') {
+            console.log(`🔑 ${user.role} can see all users`);
+          } else {
+            // For other roles: show only their subordinates (users who report to them directly or indirectly)
+            const subordinates = getSubordinates(currentDbUser.id);
+            assignableUsers = subordinates;
+            
+            console.log(`📊 Found ${subordinates.length} subordinates for ${currentDbUser.name}:`);
+            subordinates.forEach(sub => {
+              console.log(`  - ${sub.name} (${sub.role}) reports to: ${allUsers.find(u => u.id === sub.reports_to)?.name || 'None'}`);
+            });
+          }
         } else {
-          // For other roles: show only users with lower privilege levels (not equal or higher)
+          console.log(`⚠️ Current user not found in database, using role-based fallback`);
+          // Fallback to role-based filtering
+          const privilegeOrder = {
+            'super_admin': 100,
+            'admin': 90,
+            'manager': 80,
+            'senior-counselor': 70,
+            'counselor': 60,
+            'junior-counselor': 50,
+            'user': 40
+          };
+          
+          const currentUserLevel = privilegeOrder[user.role] || 40;
           assignableUsers = allUsers.filter(u => {
             const targetUserLevel = privilegeOrder[u.role] || 40;
-            return targetUserLevel < currentUserLevel; // Only users below current user level
+            return targetUserLevel < currentUserLevel;
           });
           
-          console.log(`📊 After hierarchy filtering: ${assignableUsers.length} users (can only assign to lower level users)`);
+          console.log(`📊 After role-based filtering: ${assignableUsers.length} users`);
         }
       }
       
