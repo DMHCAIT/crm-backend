@@ -91,24 +91,35 @@ function verifyToken(req) {
 // Get real user name from database instead of relying on JWT token
 async function getUserRealName(username) {
   if (!supabase || !username) {
+    console.log('⚠️ getUserRealName: No supabase or username provided:', { supabase: !!supabase, username });
     return username || 'User';
   }
   
   try {
-    const { data: userData } = await supabase
+    console.log(`🔍 getUserRealName: Looking up user "${username}"`);
+    const { data: userData, error } = await supabase
       .from('users')
       .select('name, fullName, email')
       .eq('username', username)
       .single();
     
+    if (error) {
+      console.log('⚠️ getUserRealName: Database error:', error.message);
+      return username;
+    }
+    
     if (userData) {
-      return userData.fullName || userData.name || userData.email || username;
+      const realName = userData.fullName || userData.name || userData.email || username;
+      console.log(`✅ getUserRealName: Found user "${username}" -> "${realName}"`);
+      return realName;
+    } else {
+      console.log(`⚠️ getUserRealName: No user found for username "${username}"`);
+      return username;
     }
   } catch (error) {
-    console.log('⚠️ Could not fetch user data for name, using username:', username);
+    console.log('⚠️ getUserRealName: Exception occurred:', error.message);
+    return username;
   }
-  
-  return username || 'User';
 }
 
 // Get all subordinate users (returns UUIDs for backward compatibility)
@@ -196,15 +207,19 @@ async function canAccessLead(lead, currentUser) {
   // Standardized to username-only assignments
   const leadAssignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
   
-  // User can access their own leads - check username only
-  if (leadAssignee === currentUser.username) {
+  // Handle null/undefined assignee
+  if (!leadAssignee) return false;
+  
+  // User can access their own leads - CASE-INSENSITIVE username comparison
+  if (currentUser.username && leadAssignee.toLowerCase() === currentUser.username.toLowerCase()) {
     return true;
   }
   
-  // Get subordinate usernames and check if lead belongs to any of them
+  // Get subordinate usernames and check if lead belongs to any of them - CASE-INSENSITIVE
   const subordinateUsernames = await getSubordinateUsernames(currentUser.id);
+  const lowerCaseSubordinates = subordinateUsernames.filter(u => u).map(u => u.toLowerCase());
   
-  return subordinateUsernames.includes(leadAssignee);
+  return lowerCaseSubordinates.includes(leadAssignee.toLowerCase());
 }
 
 // Calculate pipeline statistics
@@ -336,18 +351,24 @@ module.exports = async (req, res) => {
         const subordinateUsernames = await getSubordinateUsernames(user.id);
         console.log(`🏢 User ${user.username} supervises usernames: [${subordinateUsernames.join(', ')}]`);
         
-        // Filter leads: user can see their own leads + subordinates' leads (username-only)
+        // Filter leads: user can see their own leads + subordinates' leads (username-only) - CASE-INSENSITIVE
         const accessibleLeads = (allLeads || []).filter(lead => {
           // Standardized to username-only assignments
           const leadAssignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
           
-          // User can see their own leads - check username only
-          if (leadAssignee === user.username) {
+          // Skip null/undefined assignments
+          if (!leadAssignee) {
+            return false;
+          }
+          
+          // User can see their own leads - CASE-INSENSITIVE username comparison
+          if (user.username && leadAssignee.toLowerCase() === user.username.toLowerCase()) {
             return true;
           }
           
-          // User can see leads assigned to their subordinates (by username)
-          if (subordinateUsernames.includes(leadAssignee)) {
+          // User can see leads assigned to their subordinates (by username) - CASE-INSENSITIVE
+          const lowerCaseSubordinates = subordinateUsernames.filter(u => u).map(u => u.toLowerCase());
+          if (lowerCaseSubordinates.includes(leadAssignee.toLowerCase())) {
             return true;
           }
           
@@ -706,6 +727,14 @@ module.exports = async (req, res) => {
       }
 
       try {
+        // Debug: Log user information during lead creation
+        console.log(`👤 Creating lead - User: ${user.username} (${user.email}) - Role: ${user.role}`);
+        console.log(`📝 Assignment intention: ${assignedTo || user.username || 'Unassigned'}`);
+        
+        // Get user's real name for notes - with fallback logic
+        const userRealName = await getUserRealName(user.username);
+        console.log(`👤 User real name resolved: "${userRealName}"`);
+        
         // Prepare lead data for database with all new fields
         const leadData = {
           fullName: leadName, // Use resolved name (fullName or name)
@@ -718,12 +747,13 @@ module.exports = async (req, res) => {
           course: course || 'Emergency Medicine',
           status: status || 'fresh',
           priority: priority || 'medium', // New field
+          assigned_to: assignedTo || user.username || 'Unassigned', // PRIMARY assignment field (snake_case)
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
           assignedcounselor: assignedTo || user.username || 'Unassigned', // Match actual DB column name (lowercase)
           notes: JSON.stringify(notes && notes.trim() ? [{
             id: Date.now().toString(),
             content: notes,
-            author: await getUserRealName(user.username),
+            author: userRealName,
             timestamp: new Date().toISOString(),
             note_type: 'general'
           }] : []), // Store notes as JSON array
@@ -838,6 +868,10 @@ module.exports = async (req, res) => {
 
         const updateData = req.body;
         console.log(`🔄 Updating lead ${leadId} with data:`, updateData);
+        
+        // Log current assignment before update
+        const currentAssignment = existingLead.assigned_to || existingLead.assignedTo || existingLead.assignedcounselor;
+        console.log(`📋 Current assignment: "${currentAssignment}"`);
 
         // Remove undefined values and prepare update object
         const cleanUpdateData = {};
@@ -847,11 +881,13 @@ module.exports = async (req, res) => {
           }
         });
 
-        // Sync assignment fields to match actual database schema - ensure consistency across all fields
+        // Enhanced assignment synchronization with debugging
         if (cleanUpdateData.assignedTo) {
+          console.log(`🎯 New assignment detected: "${cleanUpdateData.assignedTo}"`);
           cleanUpdateData.assignedcounselor = cleanUpdateData.assignedTo; // Match actual DB column (lowercase)
-          cleanUpdateData.assigned_to = cleanUpdateData.assignedTo; // Snake case version
+          cleanUpdateData.assigned_to = cleanUpdateData.assignedTo; // Snake case version (PRIMARY)
           cleanUpdateData.assignedCounselor = cleanUpdateData.assignedTo; // Camel case version
+          console.log(`✅ Synchronized assignment fields to: "${cleanUpdateData.assigned_to}"`);
         }
 
         // Add updated timestamp

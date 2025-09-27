@@ -38,11 +38,36 @@ const simpleAuthHandler = async (req, res) => {
 
       // Simple hardcoded authentication
       if (username === 'admin' && password === 'admin123') {
+        console.log('✅ Simple Auth - looking up admin user in database');
+        
+        let adminUser = null;
+        
+        // Try to get admin user data from database
+        if (supabase) {
+          try {
+            const { data: dbAdmin, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('username', 'admin')
+              .single();
+            
+            if (!error && dbAdmin) {
+              adminUser = dbAdmin;
+              console.log(`✅ Simple Auth: Found admin in database: ${adminUser.name}`);
+            } else {
+              console.log('⚠️ Simple Auth: Admin not found in database, using fallback');
+            }
+          } catch (dbError) {
+            console.log('⚠️ Simple Auth: Database lookup failed:', dbError.message);
+          }
+        }
+        
         const token = jwt.sign(
           { 
-            userId: 'admin-001',
+            userId: adminUser?.id || 'admin-001',
             username: 'admin',
-            role: 'admin'
+            role: adminUser?.role || 'admin',
+            name: adminUser?.fullName || adminUser?.name
           },
           process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024',
           { expiresIn: '24h' }
@@ -69,12 +94,13 @@ const simpleAuthHandler = async (req, res) => {
           message: 'Login successful',
           token: token,
           user: {
-            id: 'admin-001',
+            id: adminUser?.id || 'admin-001',
             username: 'admin',
-            email: 'admin@dmhca.com',
-            role: 'admin',
-            firstName: 'System',
-            lastName: 'Administrator'
+            email: adminUser?.email || 'admin@dmhca.com',
+            role: adminUser?.role || 'admin',
+            name: adminUser?.fullName || adminUser?.name || 'Admin User',
+            firstName: (adminUser?.fullName || adminUser?.name || 'Admin User').split(' ')[0],
+            lastName: (adminUser?.fullName || adminUser?.name || 'Admin User').split(' ').slice(1).join(' ') || 'User'
           }
         });
       }

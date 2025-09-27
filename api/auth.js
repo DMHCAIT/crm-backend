@@ -108,26 +108,49 @@ async function handleUltraSimpleLogin(req, res) {
 
     // Fallback to hardcoded admin if database fails
     if (username === 'admin' && password === 'admin123') {
-      console.log('✅ Fallback admin login successful for:', username);
+      console.log('✅ Fallback admin login - checking database for admin user data');
+      
+      let adminUser = null;
+      
+      // Try to get admin user data from database
+      if (supabase) {
+        try {
+          const { data: dbAdmin, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', 'admin')
+            .single();
+          
+          if (!error && dbAdmin) {
+            adminUser = dbAdmin;
+            console.log(`✅ Found admin in database: ${adminUser.name}`);
+          }
+        } catch (dbError) {
+          console.log('⚠️ Could not fetch admin from database:', dbError.message);
+        }
+      }
       
       const token = jwt.sign({
         username: 'admin',
-        role: 'super_admin',
+        role: adminUser?.role || 'super_admin',
+        name: adminUser?.fullName || adminUser?.name,
+        userId: adminUser?.id,
         loginTime: Date.now()
       }, JWT_SECRET, { expiresIn: '24h' });
 
       // Generate role-based permissions for super admin
-      const rolePermissions = generateUserPermissions('super_admin');
+      const rolePermissions = generateUserPermissions(adminUser?.role || 'super_admin');
       
       return res.json({
         success: true,
         token: token,
         user: {
+          id: adminUser?.id,
           username: 'admin',
-          name: 'System Administrator',
-          role: 'super_admin',
-          department: 'Administration',
-          permissions: '["read", "write", "admin", "delete", "super_admin"]'
+          name: adminUser?.fullName || adminUser?.name || 'Admin User',
+          role: adminUser?.role || 'super_admin',
+          department: adminUser?.department || 'Administration',
+          permissions: adminUser?.permissions || '["read", "write", "admin", "delete", "super_admin"]'
         },
         rolePermissions: rolePermissions,
         message: 'Login successful'
@@ -172,45 +195,72 @@ async function handleTokenVerification(req, res) {
     
     console.log('✅ Token verified for user:', decoded.username);
 
-    // If we have userId, get fresh user data from database
-    if (decoded.userId && supabase) {
+    // Try to get fresh user data from database - First by userId, then by username
+    if (supabase) {
       try {
-        const { data: user, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', decoded.userId)
-          .eq('status', 'active')
-          .single();
+        let user = null, error = null;
+        
+        // Try lookup by userId first
+        if (decoded.userId) {
+          console.log(`🔍 Looking up user by ID: ${decoded.userId}`);
+          const result = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', decoded.userId)
+            .eq('status', 'active')
+            .single();
+          user = result.data;
+          error = result.error;
+        }
+        
+        // If userId lookup failed, try username lookup
+        if (!user && decoded.username) {
+          console.log(`🔍 Looking up user by username: ${decoded.username}`);
+          const result = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', decoded.username)
+            .eq('status', 'active')
+            .single();
+          user = result.data;
+          error = result.error;
+        }
 
         if (!error && user) {
+          console.log(`✅ Found user in database: ${user.name} (${user.username})`);
           return res.json({
             success: true,
             user: {
               id: user.id,
               username: user.username,
-              name: user.name,
+              name: user.fullName || user.name,
               email: user.email,
               role: user.role,
               department: user.department,
-              permissions: user.permissions
+              permissions: user.permissions || decoded.permissions
             },
             message: 'Token valid'
           });
+        } else {
+          console.log(`⚠️ User not found in database: ${decoded.username}`);
         }
       } catch (dbError) {
-        console.log('⚠️ Database lookup failed, using token data');
+        console.log('⚠️ Database lookup failed:', dbError.message);
       }
     }
 
-    // Fallback to token data
+    // Fallback to token data - but use username as name instead of hardcoded "System Administrator"
+    const fallbackName = decoded.name || decoded.fullName || decoded.username;
+    console.log(`⚠️ Using fallback user data for ${decoded.username}: name="${fallbackName}"`);
+    
     return res.json({
       success: true,
       user: {
         username: decoded.username,
         role: decoded.role,
-        name: decoded.name || 'System Administrator',
-        department: decoded.department || 'Administration',
-        permissions: decoded.permissions || '["read", "write", "admin", "delete", "super_admin"]'
+        name: fallbackName,
+        department: decoded.department || 'Unknown',
+        permissions: decoded.permissions || '["read", "write"]'
       },
       message: 'Token valid'
     });
