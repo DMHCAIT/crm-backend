@@ -2290,6 +2290,85 @@ app.options('/api/users/:userId/leads', (req, res) => {
   res.status(200).end();
 });
 
+// Debug API to check user data
+app.get('/api/debug/user/:userId', async (req, res) => {
+  console.log('🔍 Debug user API called');
+  
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  try {
+    const { userId } = req.params;
+    
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not available'
+      });
+    }
+    
+    // Get user data from database
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('❌ Debug query error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Database query failed'
+      });
+    }
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Get supervisor info if reports_to is set
+    let supervisor = null;
+    if (user.reports_to) {
+      const { data: supervisorData } = await supabase
+        .from('users')
+        .select('id, name, username, email, role')
+        .eq('id', user.reports_to)
+        .single();
+      supervisor = supervisorData;
+    }
+    
+    // Remove password hash for security
+    const { password_hash, ...safeUser } = user;
+    
+    console.log(`🔍 Debug user data for ${user.email}:`, {
+      id: user.id,
+      name: user.name,
+      reports_to: user.reports_to,
+      supervisor: supervisor?.name || 'None'
+    });
+    
+    return res.json({
+      success: true,
+      user: safeUser,
+      supervisor,
+      message: `Debug data for user ${user.name}`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in debug API:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Debug API failed',
+      details: error.message
+    });
+  }
+});
+
 // OLD ANALYTICS ENDPOINT REMOVED - NOW HANDLED BY ENHANCED ANALYTICS API
 // All analytics requests now go through /api/analytics/* routes handled by enhanced-analytics.js
 
