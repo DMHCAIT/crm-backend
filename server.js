@@ -1607,6 +1607,34 @@ app.put('/api/users', async (req, res) => {
     if (userData.status) updateData.status = userData.status;
     if (userData.branch !== undefined) updateData.branch = userData.branch;
 
+    // Handle reports_to field - convert email/username to UUID if needed
+    if (userData.reports_to !== undefined) {
+      let reportsToUuid = null;
+      if (userData.reports_to) {
+        // Check if it's already a UUID
+        if (userData.reports_to.length === 36 && userData.reports_to.includes('-')) {
+          reportsToUuid = userData.reports_to;
+        } else {
+          // Try to find user by username or email
+          try {
+            const { data: supervisorUser, error: supervisorError } = await supabase
+              .from('users')
+              .select('id')
+              .or(`username.eq.${userData.reports_to},email.eq.${userData.reports_to}`)
+              .single();
+            
+            if (supervisorUser && !supervisorError) {
+              reportsToUuid = supervisorUser.id;
+            }
+          } catch (err) {
+            console.log('⚠️ Error looking up supervisor user:', err.message);
+          }
+        }
+      }
+      updateData.reports_to = reportsToUuid;
+      console.log(`👤 Setting reports_to: ${userData.reports_to} -> ${reportsToUuid}`);
+    }
+
     // Handle assigned_to field - convert email to UUID if needed
     if (userData.assignedTo !== undefined) {
       let assignedToUuid = null;
@@ -1649,6 +1677,7 @@ app.put('/api/users', async (req, res) => {
       
     if (error) {
       console.log('❌ Supabase update error:', error);
+      console.log('❌ Error details:', JSON.stringify(error, null, 2));
       return res.status(500).json({ 
         success: false, 
         error: `Database error: ${error.message}` 
@@ -1657,6 +1686,7 @@ app.put('/api/users', async (req, res) => {
     
     if (updatedUser) {
       console.log(`✅ User updated successfully:`, updatedUser.email);
+      console.log(`👤 Updated reports_to field:`, updatedUser.reports_to);
       // Don't return password hash in response
       const { password_hash, ...userResponse } = updatedUser;
       return res.json({ success: true, user: userResponse });
