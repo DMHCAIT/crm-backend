@@ -203,6 +203,11 @@ module.exports = async (req, res) => {
     ).length || 0;
     const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0.0';
 
+    // Get today's date for filtering
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+    
     // Get recent leads (last 7 days) with proper filtering
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     let recentLeadsQuery = supabase
@@ -210,32 +215,58 @@ module.exports = async (req, res) => {
       .select('id, assignedTo, assignedcounselor, assigned_to')
       .gte('created_at', sevenDaysAgo);
     
+    // Get leads updated today with user-specific filtering
+    let updatedTodayQuery = supabase
+      .from('leads')
+      .select('id, assignedTo, assignedcounselor, assigned_to, updated_at')
+      .gte('updated_at', todayStart)
+      .lt('updated_at', todayEnd);
+    
     // Apply same username-only filtering as main leads query
     if (user.role !== 'super_admin') {
       const subordinateUsernames = await getSubordinateUsernames(user.id);
       const accessibleUsernames = [user.username, ...subordinateUsernames].filter(Boolean);
       
+      console.log(`🔍 Dashboard Stats: Filtering recent activity for usernames: [${accessibleUsernames.join(', ')}]`);
+      
       if (accessibleUsernames.length > 0) {
-        recentLeadsQuery = recentLeadsQuery.or(`assigned_to.in.(${accessibleUsernames.join(',')}),assignedTo.in.(${accessibleUsernames.join(',')}),assignedcounselor.in.(${accessibleUsernames.join(',')})`);
+        const usernameFilter = `assigned_to.in.(${accessibleUsernames.join(',')}),assignedTo.in.(${accessibleUsernames.join(',')}),assignedcounselor.in.(${accessibleUsernames.join(',')})`;
+        recentLeadsQuery = recentLeadsQuery.or(usernameFilter);
+        updatedTodayQuery = updatedTodayQuery.or(usernameFilter);
+        console.log(`🔍 Dashboard Stats: Applied user-specific filtering for recent activity`);
       }
+    } else {
+      console.log(`🔍 Dashboard Stats: Super admin accessing all recent activity`);
     }
     
-    const { data: recentLeads } = await recentLeadsQuery;
+    const [recentLeadsResult, updatedTodayResult] = await Promise.all([
+      recentLeadsQuery,
+      updatedTodayQuery
+    ]);
 
-    const newLeadsThisWeek = recentLeads?.length || 0;
+    const newLeadsThisWeek = recentLeadsResult.data?.length || 0;
+    const leadsUpdatedToday = updatedTodayResult.data?.length || 0;
+    
+    console.log(`📊 Dashboard Stats for ${user.username}: ${totalLeads} total leads, ${newLeadsThisWeek} new this week, ${leadsUpdatedToday} updated today`);
 
     const stats = {
       totalLeads,
       activeLeads,
       hotLeads,
       newLeadsThisWeek,
+      leadsUpdatedToday,
       totalStudents,
       activeStudents,
       totalCommunications,
       totalDocuments,
       conversionRate: parseFloat(conversionRate),
       responseTime: '2.4h', // This could be calculated from communications data
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      userSpecific: {
+        username: user.username,
+        role: user.role,
+        isUserSpecificData: user.role !== 'super_admin'
+      }
     };
 
     res.json({

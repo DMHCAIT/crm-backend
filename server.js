@@ -976,28 +976,83 @@ function authenticateToken(req, res, next) {
   }
 }
 
-// INLINE DASHBOARD API - REAL DATA FROM DATABASE
+// INLINE DASHBOARD API - USER-SPECIFIC DATA FROM DATABASE
 app.get('/api/dashboard', async (req, res) => {
-  console.log('📊 Dashboard API called - fetching real data');
+  console.log('📊 Dashboard API called - fetching user-specific data');
+  
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   try {
+    // Get user from JWT token
+    let user = null;
+    const authHeader = req.headers.authorization;
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        user = jwt.verify(token, JWT_SECRET);
+        console.log(`📊 Dashboard requested by ${user.username || user.email} (${user.role})`);
+      } catch (tokenError) {
+        console.log('⚠️ Token verification failed:', tokenError.message);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or expired token'
+        });
+      }
+    } else {
+      return res.status(401).json({
+        success: false,
+        error: 'Authorization token required'
+      });
+    }
+    
     const { createClient } = require('@supabase/supabase-js');
     
     if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
       
-      // Fetch real data from database
-      const [leadsResult, studentsResult, usersResult] = await Promise.all([
-        supabase.from('leads').select('id, status, created_at'),
-        supabase.from('students').select('id, status, created_at'),
-        supabase.from('users').select('id, status')
+      // Get today's date ranges
+      const today = new Date();
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+      
+      // Build user-specific queries
+      let leadsQuery = supabase.from('leads').select('id, status, created_at, updated_at, assignedTo, assignedcounselor, assigned_to');
+      let studentsQuery = supabase.from('students').select('id, status, created_at');
+      let updatedTodayQuery = supabase.from('leads').select('id, assignedTo, assignedcounselor, assigned_to').gte('updated_at', todayStart).lt('updated_at', todayEnd);
+      
+      // Apply user-specific filtering
+      if (user.role !== 'super_admin') {
+        const username = user.username || user.email;
+        const usernameFilter = `assigned_to.eq.${username},assignedTo.eq.${username},assignedcounselor.eq.${username}`;
+        
+        leadsQuery = leadsQuery.or(usernameFilter);
+        updatedTodayQuery = updatedTodayQuery.or(usernameFilter);
+        
+        console.log(`🔒 Applied user filter for ${username}`);
+      } else {
+        console.log(`👑 Super admin ${user.username} - showing all data`);
+      }
+      
+      // Fetch data
+      const [leadsResult, studentsResult, updatedTodayResult] = await Promise.all([
+        leadsQuery,
+        studentsQuery,
+        updatedTodayQuery
       ]);
       
       const leads = leadsResult.data || [];
       const students = studentsResult.data || [];
-      const users = usersResult.data || [];
+      const leadsUpdatedToday = updatedTodayResult.data?.length || 0;
       
-      // Calculate real statistics
+      console.log(`📊 Dashboard data for ${user.username}: ${leads.length} leads, ${students.length} students, ${leadsUpdatedToday} updated today`);
+      
+      // Calculate statistics
       const totalLeads = leads.length;
       const activeLeads = leads.filter(l => ['hot', 'followup', 'warm', 'fresh'].includes(l.status)).length;
       const hotLeads = leads.filter(l => l.status === 'hot').length;
@@ -1006,9 +1061,8 @@ app.get('/api/dashboard', async (req, res) => {
       const convertedLeads = leads.filter(l => l.status === 'enrolled').length;
       const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0.0';
       
-      // Calculate today's leads
-      const today = new Date().toISOString().split('T')[0];
-      const newLeadsToday = leads.filter(l => l.created_at && l.created_at.startsWith(today)).length;
+      // Calculate today's new leads  
+      const newLeadsToday = leads.filter(l => l.created_at && l.created_at.startsWith(todayStart.split('T')[0])).length;
       
       const dashboardData = {
         success: true,
@@ -1017,6 +1071,8 @@ app.get('/api/dashboard', async (req, res) => {
         totalStudents,
         activeStudents,
         conversionRate,
+        leadsUpdatedToday,
+        newLeadsToday,
         totalCommunications: 0, // Would need communications table
         totalDocuments: 0, // Would need documents table
         recentLeads: Math.min(totalLeads, 12),
