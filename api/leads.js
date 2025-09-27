@@ -885,7 +885,8 @@ module.exports = async (req, res) => {
         // Remove undefined values and prepare update object
         const cleanUpdateData = {};
         Object.keys(updateData).forEach(key => {
-          if (updateData[key] !== undefined && key !== 'id') {
+          if (updateData[key] !== undefined && key !== 'id' && key !== 'assignedCounselor') {
+            // Skip assignedCounselor (camelCase) as it doesn't exist in DB schema
             cleanUpdateData[key] = updateData[key];
           }
         });
@@ -895,7 +896,8 @@ module.exports = async (req, res) => {
           console.log(`🎯 New assignment detected: "${cleanUpdateData.assignedTo}"`);
           cleanUpdateData.assignedcounselor = cleanUpdateData.assignedTo; // Match actual DB column (lowercase)
           cleanUpdateData.assigned_to = cleanUpdateData.assignedTo; // Snake case version (PRIMARY)
-          cleanUpdateData.assignedCounselor = cleanUpdateData.assignedTo; // Camel case version
+          // Remove camelCase version that doesn't exist in database schema
+          delete cleanUpdateData.assignedCounselor; // This column doesn't exist in DB
           console.log(`✅ Synchronized assignment fields to: "${cleanUpdateData.assigned_to}"`);
         }
 
