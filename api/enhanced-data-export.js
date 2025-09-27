@@ -17,7 +17,7 @@ try {
   console.log('Data Export module: Supabase initialization failed:', error.message);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025';
+const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
 
 // Verify user authentication
 function verifyToken(req) {
@@ -30,8 +30,93 @@ function verifyToken(req) {
   return jwt.verify(token, JWT_SECRET);
 }
 
+// Helper function to format notes for export - FIXED VERSION
+const formatNotes = (item, options) => {
+  // Debug specific lead
+  const isDebugLead = item.id === '2d4b57f0-41eb-46f1-b7a2-d2267f71b009';
+  if (isDebugLead) {
+    console.log('🔍 DEBUG: Processing Dr Arooja Wani lead notes');
+    console.log('🔍 DEBUG: Notes value:', item.notes);
+    console.log('🔍 DEBUG: Notes type:', typeof item.notes);
+  }
+  
+  let notesToFormat = [];
+  
+  // Parse notes from leads.notes column (JSON string)
+  if (item.notes && typeof item.notes === 'string' && item.notes.trim()) {
+    try {
+      notesToFormat = JSON.parse(item.notes);
+      if (isDebugLead) {
+        console.log('📝 DEBUG: Successfully parsed', notesToFormat.length, 'notes');
+      }
+    } catch (error) {
+      if (isDebugLead) {
+        console.log('📝 DEBUG: Error parsing notes:', error.message);
+      }
+      return '';
+    }
+  } else if (Array.isArray(item.notes)) {
+    notesToFormat = item.notes;
+  }
+  
+  if (!notesToFormat || notesToFormat.length === 0) {
+    return '';
+  }
+  
+  try {
+    // Format each note: [date] Author: content
+    const formattedNotes = notesToFormat.map(note => {
+      const date = new Date(note.timestamp).toLocaleDateString();
+      return `[${date}] ${note.author}: ${note.content}`;
+    }).join(' | ');
+    
+    // Escape quotes for CSV
+    return `"${formattedNotes.replace(/"/g, '""')}"`;
+  } catch (error) {
+    if (isDebugLead) {
+      console.log('📝 DEBUG: Error formatting notes:', error.message);
+    }
+    return '';
+  }
+};
+
+// Get subordinate usernames for hierarchical access
+async function getSubordinateUsernames(currentUser) {
+  if (!currentUser) return [];
+  
+  try {
+    let usernames = [currentUser.username];
+    
+    // Add role-based hierarchy
+    if (currentUser.role === 'admin' || currentUser.role === 'super_admin') {
+      const { data: allUsers } = await supabase
+        .from('users')
+        .select('username')
+        .neq('role', 'super_admin');
+      
+      if (allUsers) {
+        usernames = usernames.concat(allUsers.map(u => u.username));
+      }
+    } else if (currentUser.role === 'manager') {
+      const { data: subordinates } = await supabase
+        .from('users')
+        .select('username')
+        .in('role', ['employee', 'intern']);
+      
+      if (subordinates) {
+        usernames = usernames.concat(subordinates.map(u => u.username));
+      }
+    }
+    
+    return [...new Set(usernames)]; // Remove duplicates
+  } catch (error) {
+    console.error('Error getting subordinate usernames:', error);
+    return [currentUser.username];
+  }
+}
+
 module.exports = async (req, res) => {
-    // Set CORS headers
+  // Set CORS headers
   const allowedOrigins = [
     'https://www.crmdmhca.com', 
     'https://crmdmhca.com', 
@@ -68,678 +153,370 @@ module.exports = async (req, res) => {
       case 'GET':
         if (action.includes('status')) {
           await handleGetExportStatus(req, res);
-        } else if (action.includes('download')) {
-          await handleDownloadExport(req, res);
         } else {
-          await handleGetExports(req, res);
+          await handleDataExport(req, res);
         }
         break;
-      
       case 'POST':
-        if (action === 'leads') {
-          await handleExportLeads(req, res);
-        } else if (action === 'students') {
-          await handleExportStudents(req, res);
-        } else if (action === 'payments') {
-          await handleExportPayments(req, res);
-        } else if (action === 'communications') {
-          await handleExportCommunications(req, res);
-        } else if (action === 'analytics') {
-          await handleExportAnalytics(req, res);
-        } else {
-          await handleCreateExport(req, res);
-        }
+        await handleDataExport(req, res);
         break;
-      
-      case 'DELETE':
-        await handleDeleteExport(req, res);
-        break;
-      
       default:
-        res.status(405).json({ error: 'Method not allowed' });
+        res.status(405).json({ success: false, error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('Data Export API error:', error);
-    
-    if (error.message === 'No valid token provided' || error.name === 'JsonWebTokenError') {
-      res.status(401).json({
-        success: false,
-        error: 'Unauthorized'
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        details: error.message
-      });
-    }
+    console.error('Enhanced Data Export API Error:', error);
+    res.status(error.message.includes('token') ? 401 : 500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
   }
 };
 
-// Get export jobs list
-async function handleGetExports(req, res) {
+// Handle data export request
+async function handleDataExport(req, res) {
   try {
     const user = verifyToken(req);
-    const { status, type, limit = 50 } = req.query;
-
-    let query = supabase
-      .from('data_exports')
-      .select('*')
-      .eq('created_by_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(parseInt(limit));
-
-    if (status) query = query.eq('status', status);
-    if (type) query = query.eq('export_type', type);
-
-    const { data: exports, error } = await query;
-
-    if (error) throw error;
-
-    res.json({
-      success: true,
-      exports: exports || [],
-      total_count: exports?.length || 0
-    });
-  } catch (error) {
-    throw error;
-  }
-}
-
-// Get export job status
-async function handleGetExportStatus(req, res) {
-  try {
-    const user = verifyToken(req);
-    const { jobId } = req.query;
-
-    if (!jobId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Job ID is required'
-      });
+    if (!user || !user.username) {
+      throw new Error('Invalid token or missing username');
     }
 
-    const { data: exportJob, error } = await supabase
-      .from('data_exports')
-      .select('*')
-      .eq('id', jobId)
-      .eq('created_by_id', user.id)
-      .single();
+    const { 
+      dataType = 'leads', 
+      format = 'csv',
+      filters = {},
+      columns = null,
+      dateRange = null
+    } = req.method === 'GET' ? req.query : req.body;
 
-    if (error || !exportJob) {
+    console.log(`📊 Export request from ${user.username}: ${dataType} as ${format}`);
+
+    // Get accessible usernames for hierarchical filtering
+    const accessibleUsernames = await getSubordinateUsernames(user);
+    console.log(`👥 User ${user.username} can access data for:`, accessibleUsernames);
+
+    let data;
+    let filename;
+
+    switch (dataType) {
+      case 'leads':
+        data = await exportLeads(accessibleUsernames, filters, dateRange, columns);
+        filename = `leads_export_${new Date().toISOString().split('T')[0]}.${format}`;
+        break;
+      case 'students':
+        data = await exportStudents(accessibleUsernames, filters, dateRange, columns);
+        filename = `students_export_${new Date().toISOString().split('T')[0]}.${format}`;
+        break;
+      case 'payments':
+        data = await exportPayments(accessibleUsernames, filters, dateRange, columns);
+        filename = `payments_export_${new Date().toISOString().split('T')[0]}.${format}`;
+        break;
+      default:
+        throw new Error('Invalid data type');
+    }
+
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Export job not found'
+        error: 'No data found for export'
       });
     }
 
-    res.json({
-      success: true,
-      export_job: exportJob
-    });
+    console.log(`📈 Exporting ${data.length} ${dataType} records`);
+
+    // Generate export file
+    let exportData;
+    let contentType;
+
+    if (format === 'csv') {
+      exportData = generateCSV(data);
+      contentType = 'text/csv';
+    } else if (format === 'excel' || format === 'xlsx') {
+      exportData = generateExcel(data);
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    } else {
+      throw new Error('Unsupported export format');
+    }
+
+    // Set response headers for file download
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', Buffer.byteLength(exportData));
+
+    res.status(200).send(exportData);
+
   } catch (error) {
-    throw error;
+    console.error('Export error:', error);
+    res.status(error.message.includes('token') ? 401 : 500).json({
+      success: false,
+      error: error.message || 'Export failed'
+    });
   }
 }
 
-// Export leads data
-async function handleExportLeads(req, res) {
+// Export leads data with proper notes handling
+async function exportLeads(accessibleUsernames, filters = {}, dateRange = null, columns = null) {
   try {
-    const user = verifyToken(req);
-    const {
-      format = 'csv',
-      date_range = '30d',
-      status,
-      source,
-      assigned_to,
-      include_communications = false
-    } = req.body;
+    console.log('🔍 Starting leads export with notes...');
+    
+    // Build query with explicit notes field selection
+    let query = supabase
+      .from('leads')
+      .select(`
+        id,
+        fullName,
+        email,
+        phone,
+        course,
+        branch,
+        status,
+        priority,
+        source,
+        assigned_to,
+        assigned_by,
+        notes,
+        created_at,
+        updated_at
+      `);
 
-    // Create export job
-    const exportJob = await createExportJob(user.id, 'leads', format, {
-      date_range,
-      status,
-      source,
-      assigned_to,
-      include_communications
-    });
+    // Apply username-based filtering
+    if (accessibleUsernames && accessibleUsernames.length > 0) {
+      query = query.or(`assigned_to.in.(${accessibleUsernames.join(',')}),assigned_by.in.(${accessibleUsernames.join(',')})`);
+    }
 
-    // Start async export process
-    processLeadsExport(exportJob.id, user.id, {
-      format,
-      date_range,
-      status,
-      source,
-      assigned_to,
-      include_communications: include_communications === true || include_communications === 'true'
-    }).catch(error => {
-      console.error('Leads export process error:', error);
-      updateExportJobStatus(exportJob.id, 'failed', { error: error.message });
-    });
+    // Apply additional filters
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+    if (filters.branch) {
+      query = query.eq('branch', filters.branch);
+    }
+    if (filters.course) {
+      query = query.eq('course', filters.course);
+    }
+    if (filters.priority) {
+      query = query.eq('priority', filters.priority);
+    }
 
-    res.json({
-      success: true,
-      message: 'Leads export started',
-      job_id: exportJob.id,
-      estimated_time: '2-5 minutes'
-    });
+    // Apply date range
+    if (dateRange) {
+      if (dateRange.start) {
+        query = query.gte('created_at', dateRange.start);
+      }
+      if (dateRange.end) {
+        query = query.lte('created_at', dateRange.end);
+      }
+    }
+
+    // Order by creation date
+    query = query.order('created_at', { ascending: false });
+
+    const { data: leads, error } = await query;
+
+    if (error) {
+      console.error('Database query error:', error);
+      throw new Error(`Database query failed: ${error.message}`);
+    }
+
+    if (!leads || leads.length === 0) {
+      console.log('⚠️ No leads found for export');
+      return [];
+    }
+
+    console.log(`📋 Retrieved ${leads.length} leads from database`);
+
+    // Process leads with notes formatting
+    const processedLeads = leads.map(lead => ({
+      ...lead,
+      notes_formatted: formatNotes(lead),
+      created_at: new Date(lead.created_at).toLocaleDateString(),
+      updated_at: new Date(lead.updated_at).toLocaleDateString()
+    }));
+
+    // Apply column filtering if specified
+    if (columns && Array.isArray(columns)) {
+      return processedLeads.map(lead => {
+        const filtered = {};
+        columns.forEach(col => {
+          if (lead.hasOwnProperty(col)) {
+            filtered[col] = lead[col];
+          }
+        });
+        return filtered;
+      });
+    }
+
+    return processedLeads;
+
   } catch (error) {
+    console.error('Error exporting leads:', error);
     throw error;
   }
 }
 
 // Export students data
-async function handleExportStudents(req, res) {
+async function exportStudents(accessibleUsernames, filters = {}, dateRange = null, columns = null) {
   try {
-    const user = verifyToken(req);
-    const {
-      format = 'csv',
-      date_range = '30d',
-      status,
-      course,
-      include_payments = false,
-      include_documents = false
-    } = req.body;
+    let query = supabase
+      .from('students')
+      .select('*');
 
-    // Create export job
-    const exportJob = await createExportJob(user.id, 'students', format, {
-      date_range,
-      status,
-      course,
-      include_payments,
-      include_documents
-    });
+    // Apply username-based filtering
+    if (accessibleUsernames && accessibleUsernames.length > 0) {
+      query = query.or(`assigned_to.in.(${accessibleUsernames.join(',')}),created_by.in.(${accessibleUsernames.join(',')})`);
+    }
 
-    // Start async export process
-    processStudentsExport(exportJob.id, user.id, {
-      format,
-      date_range,
-      status,
-      course,
-      include_payments: include_payments === true || include_payments === 'true',
-      include_documents: include_documents === true || include_documents === 'true'
-    }).catch(error => {
-      console.error('Students export process error:', error);
-      updateExportJobStatus(exportJob.id, 'failed', { error: error.message });
-    });
+    // Apply filters
+    if (filters.course) {
+      query = query.eq('course', filters.course);
+    }
+    if (filters.branch) {
+      query = query.eq('branch', filters.branch);
+    }
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
 
-    res.json({
-      success: true,
-      message: 'Students export started',
-      job_id: exportJob.id,
-      estimated_time: '2-5 minutes'
-    });
+    // Apply date range
+    if (dateRange) {
+      if (dateRange.start) {
+        query = query.gte('created_at', dateRange.start);
+      }
+      if (dateRange.end) {
+        query = query.lte('created_at', dateRange.end);
+      }
+    }
+
+    query = query.order('created_at', { ascending: false });
+
+    const { data: students, error } = await query;
+
+    if (error) {
+      throw new Error(`Database query failed: ${error.message}`);
+    }
+
+    if (!students) return [];
+
+    // Format dates
+    return students.map(student => ({
+      ...student,
+      created_at: new Date(student.created_at).toLocaleDateString(),
+      updated_at: new Date(student.updated_at).toLocaleDateString()
+    }));
+
   } catch (error) {
+    console.error('Error exporting students:', error);
     throw error;
   }
 }
 
 // Export payments data
-async function handleExportPayments(req, res) {
+async function exportPayments(accessibleUsernames, filters = {}, dateRange = null, columns = null) {
   try {
-    const user = verifyToken(req);
-    const {
-      format = 'csv',
-      date_range = '30d',
-      status,
-      payment_method,
-      include_refunds = false
-    } = req.body;
-
-    // Create export job
-    const exportJob = await createExportJob(user.id, 'payments', format, {
-      date_range,
-      status,
-      payment_method,
-      include_refunds
-    });
-
-    // Start async export process
-    processPaymentsExport(exportJob.id, user.id, {
-      format,
-      date_range,
-      status,
-      payment_method,
-      include_refunds: include_refunds === true || include_refunds === 'true'
-    }).catch(error => {
-      console.error('Payments export process error:', error);
-      updateExportJobStatus(exportJob.id, 'failed', { error: error.message });
-    });
-
-    res.json({
-      success: true,
-      message: 'Payments export started',
-      job_id: exportJob.id,
-      estimated_time: '2-5 minutes'
-    });
-  } catch (error) {
-    throw error;
-  }
-}
-
-// Download export file
-async function handleDownloadExport(req, res) {
-  try {
-    const user = verifyToken(req);
-    const { jobId } = req.query;
-
-    if (!jobId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Job ID is required'
-      });
-    }
-
-    const { data: exportJob, error } = await supabase
-      .from('data_exports')
-      .select('*')
-      .eq('id', jobId)
-      .eq('created_by_id', user.id)
-      .single();
-
-    if (error || !exportJob) {
-      return res.status(404).json({
-        success: false,
-        error: 'Export job not found'
-      });
-    }
-
-    if (exportJob.status !== 'completed') {
-      return res.status(400).json({
-        success: false,
-        error: 'Export is not ready for download',
-        status: exportJob.status
-      });
-    }
-
-    if (!exportJob.file_url) {
-      return res.status(400).json({
-        success: false,
-        error: 'Export file not available'
-      });
-    }
-
-    // Update download count
-    await supabase
-      .from('data_exports')
-      .update({
-        download_count: (exportJob.download_count || 0) + 1,
-        last_downloaded_at: new Date().toISOString()
-      })
-      .eq('id', jobId);
-
-    res.json({
-      success: true,
-      download_url: exportJob.file_url,
-      filename: exportJob.filename,
-      file_size: exportJob.file_size,
-      export_type: exportJob.export_type,
-      format: exportJob.format
-    });
-  } catch (error) {
-    throw error;
-  }
-}
-
-// Helper functions
-async function createExportJob(userId, exportType, format, filters) {
-  const { data: job, error } = await supabase
-    .from('data_exports')
-    .insert([{
-      export_type: exportType,
-      format: format,
-      status: 'pending',
-      filters: filters,
-      created_by_id: userId,
-      created_at: new Date().toISOString()
-    }])
-    .select()
-    .single();
-
-  if (error) throw error;
-  return job;
-}
-
-async function updateExportJobStatus(jobId, status, updates = {}) {
-  const updateData = {
-    status,
-    updated_at: new Date().toISOString(),
-    ...updates
-  };
-
-  if (status === 'completed') {
-    updateData.completed_at = new Date().toISOString();
-  } else if (status === 'failed') {
-    updateData.failed_at = new Date().toISOString();
-  }
-
-  const { error } = await supabase
-    .from('data_exports')
-    .update(updateData)
-    .eq('id', jobId);
-
-  if (error) console.error('Failed to update export job status:', error);
-}
-
-async function processLeadsExport(jobId, userId, options) {
-  try {
-    // Update status to processing
-    await updateExportJobStatus(jobId, 'processing');
-
-    // Build query
-    let query = supabase
-      .from('leads')
-      .select(`
-        *,
-        users!leads_assigned_to_fkey(full_name, email)
-      `);
-
-    // Apply filters
-    if (options.status) query = query.eq('status', options.status);
-    if (options.source) query = query.eq('source', options.source);
-    if (options.assigned_to) query = query.eq('assigned_to', options.assigned_to);
-
-    // Date range filter
-    if (options.date_range) {
-      const daysBack = parseInt(options.date_range.replace('d', ''));
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - daysBack);
-      query = query.gte('created_at', startDate.toISOString());
-    }
-
-    const { data: leads, error } = await query;
-    if (error) throw error;
-
-    // Include communications if requested
-    let communicationsData = {};
-    if (options.include_communications) {
-      const leadIds = leads.map(l => l.id);
-      const { data: communications } = await supabase
-        .from('communications')
-        .select('*')
-        .in('lead_id', leadIds);
-
-      communicationsData = (communications || []).reduce((acc, comm) => {
-        if (!acc[comm.lead_id]) acc[comm.lead_id] = [];
-        acc[comm.lead_id].push(comm);
-        return acc;
-      }, {});
-    }
-
-    // Generate file content
-    const fileContent = generateExportContent(leads, options.format, 'leads', {
-      communications: communicationsData,
-      include_communications: options.include_communications
-    });
-
-    // Save file and get URL (mock implementation - integrate with your file storage)
-    const filename = `leads_export_${new Date().toISOString().split('T')[0]}.${options.format}`;
-    const fileUrl = await saveExportFile(filename, fileContent);
-    const fileSize = Buffer.byteLength(fileContent, 'utf8');
-
-    // Update job as completed
-    await updateExportJobStatus(jobId, 'completed', {
-      filename,
-      file_url: fileUrl,
-      file_size: fileSize,
-      record_count: leads.length
-    });
-
-  } catch (error) {
-    await updateExportJobStatus(jobId, 'failed', { error_message: error.message });
-    throw error;
-  }
-}
-
-async function processStudentsExport(jobId, userId, options) {
-  try {
-    await updateExportJobStatus(jobId, 'processing');
-
-    let query = supabase
-      .from('students')
-      .select(`
-        *,
-        users!students_counselor_id_fkey(full_name, email)
-      `);
-
-    // Apply filters
-    if (options.status) query = query.eq('status', options.status);
-    if (options.course) query = query.eq('course', options.course);
-
-    if (options.date_range) {
-      const daysBack = parseInt(options.date_range.replace('d', ''));
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - daysBack);
-      query = query.gte('created_at', startDate.toISOString());
-    }
-
-    const { data: students, error } = await query;
-    if (error) throw error;
-
-    // Include additional data if requested
-    let paymentsData = {};
-    let documentsData = {};
-
-    if (options.include_payments) {
-      const studentIds = students.map(s => s.id);
-      const { data: payments } = await supabase
-        .from('payments')
-        .select('*')
-        .in('student_id', studentIds);
-
-      paymentsData = (payments || []).reduce((acc, payment) => {
-        if (!acc[payment.student_id]) acc[payment.student_id] = [];
-        acc[payment.student_id].push(payment);
-        return acc;
-      }, {});
-    }
-
-    if (options.include_documents) {
-      const studentIds = students.map(s => s.id);
-      const { data: documents } = await supabase
-        .from('documents')
-        .select('*')
-        .in('student_id', studentIds);
-
-      documentsData = (documents || []).reduce((acc, doc) => {
-        if (!acc[doc.student_id]) acc[doc.student_id] = [];
-        acc[doc.student_id].push(doc);
-        return acc;
-      }, {});
-    }
-
-    const fileContent = generateExportContent(students, options.format, 'students', {
-      payments: paymentsData,
-      documents: documentsData,
-      include_payments: options.include_payments,
-      include_documents: options.include_documents
-    });
-
-    const filename = `students_export_${new Date().toISOString().split('T')[0]}.${options.format}`;
-    const fileUrl = await saveExportFile(filename, fileContent);
-    const fileSize = Buffer.byteLength(fileContent, 'utf8');
-
-    await updateExportJobStatus(jobId, 'completed', {
-      filename,
-      file_url: fileUrl,
-      file_size: fileSize,
-      record_count: students.length
-    });
-
-  } catch (error) {
-    await updateExportJobStatus(jobId, 'failed', { error_message: error.message });
-    throw error;
-  }
-}
-
-async function processPaymentsExport(jobId, userId, options) {
-  try {
-    await updateExportJobStatus(jobId, 'processing');
-
     let query = supabase
       .from('payments')
-      .select(`
-        *,
-        students!payments_student_id_fkey(full_name, email, phone)
-      `);
+      .select('*');
+
+    // Apply username-based filtering
+    if (accessibleUsernames && accessibleUsernames.length > 0) {
+      query = query.or(`created_by.in.(${accessibleUsernames.join(',')}),processed_by.in.(${accessibleUsernames.join(',')})`);
+    }
 
     // Apply filters
-    if (options.status) query = query.eq('status', options.status);
-    if (options.payment_method) query = query.eq('payment_method', options.payment_method);
-
-    if (options.date_range) {
-      const daysBack = parseInt(options.date_range.replace('d', ''));
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - daysBack);
-      query = query.gte('created_at', startDate.toISOString());
+    if (filters.status) {
+      query = query.eq('status', filters.status);
     }
+    if (filters.method) {
+      query = query.eq('payment_method', filters.method);
+    }
+
+    // Apply date range
+    if (dateRange) {
+      if (dateRange.start) {
+        query = query.gte('payment_date', dateRange.start);
+      }
+      if (dateRange.end) {
+        query = query.lte('payment_date', dateRange.end);
+      }
+    }
+
+    query = query.order('payment_date', { ascending: false });
 
     const { data: payments, error } = await query;
-    if (error) throw error;
 
-    const fileContent = generateExportContent(payments, options.format, 'payments', {
-      include_refunds: options.include_refunds
-    });
-
-    const filename = `payments_export_${new Date().toISOString().split('T')[0]}.${options.format}`;
-    const fileUrl = await saveExportFile(filename, fileContent);
-    const fileSize = Buffer.byteLength(fileContent, 'utf8');
-
-    await updateExportJobStatus(jobId, 'completed', {
-      filename,
-      file_url: fileUrl,
-      file_size: fileSize,
-      record_count: payments.length
-    });
-
-  } catch (error) {
-    await updateExportJobStatus(jobId, 'failed', { error_message: error.message });
-    throw error;
-  }
-}
-
-function generateExportContent(data, format, type, options = {}) {
-  if (format === 'csv') {
-    return generateCSVContent(data, type, options);
-  } else if (format === 'excel' || format === 'xlsx') {
-    // For Excel, we'll generate CSV for now (can be enhanced with actual Excel library)
-    return generateCSVContent(data, type, options);
-  } else {
-    return JSON.stringify(data, null, 2);
-  }
-}
-
-function generateCSVContent(data, type, options = {}) {
-  if (!data || data.length === 0) {
-    return 'No data available for export';
-  }
-
-  const headers = getExportHeaders(type, options);
-  const rows = data.map(item => formatExportRow(item, type, options));
-
-  return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-}
-
-function getExportHeaders(type, options = {}) {
-  const baseHeaders = {
-    leads: ['ID', 'Name', 'Email', 'Phone', 'Status', 'Source', 'Assigned To', 'Created Date'],
-    students: ['ID', 'Name', 'Email', 'Phone', 'Status', 'Course', 'Counselor', 'Enrollment Date'],
-    payments: ['ID', 'Student Name', 'Amount', 'Status', 'Method', 'Transaction ID', 'Date']
-  };
-
-  let headers = baseHeaders[type] || [];
-
-  // Add conditional headers
-  if (options.include_communications && type === 'leads') {
-    headers.push('Last Communication', 'Communication Count');
-  }
-  if (options.include_payments && type === 'students') {
-    headers.push('Total Payments', 'Outstanding Amount');
-  }
-  if (options.include_documents && type === 'students') {
-    headers.push('Documents Submitted', 'Verified Documents');
-  }
-
-  return headers;
-}
-
-function formatExportRow(item, type, options = {}) {
-  const baseRow = {
-    leads: [
-      item.id,
-      `"${item.full_name || ''}"`,
-      item.email || '',
-      item.phone || '',
-      item.status || '',
-      item.source || '',
-      `"${item.users?.full_name || ''}"`,
-      item.created_at ? new Date(item.created_at).toLocaleDateString() : ''
-    ],
-    students: [
-      item.id,
-      `"${item.full_name || ''}"`,
-      item.email || '',
-      item.phone || '',
-      item.status || '',
-      item.course || '',
-      `"${item.users?.full_name || ''}"`,
-      item.enrollment_date ? new Date(item.enrollment_date).toLocaleDateString() : ''
-    ],
-    payments: [
-      item.id,
-      `"${item.students?.full_name || ''}"`,
-      item.amount || 0,
-      item.status || '',
-      item.payment_method || '',
-      item.transaction_id || '',
-      item.created_at ? new Date(item.created_at).toLocaleDateString() : ''
-    ]
-  };
-
-  let row = baseRow[type] || [];
-
-  // Add conditional data
-  if (options.include_communications && type === 'leads') {
-    const comms = options.communications[item.id] || [];
-    const lastComm = comms.length > 0 ? new Date(comms[0].created_at).toLocaleDateString() : 'None';
-    row.push(lastComm, comms.length);
-  }
-
-  return row;
-}
-
-async function saveExportFile(filename, content) {
-  // Mock implementation - replace with actual file storage (AWS S3, etc.)
-  // For now, return a mock URL
-  return `https://your-storage.com/exports/${filename}`;
-}
-
-// Delete export job
-async function handleDeleteExport(req, res) {
-  try {
-    const user = verifyToken(req);
-    const { jobId } = req.query;
-
-    if (!jobId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Job ID is required'
-      });
+    if (error) {
+      throw new Error(`Database query failed: ${error.message}`);
     }
 
-    const { error } = await supabase
-      .from('data_exports')
-      .delete()
-      .eq('id', jobId)
-      .eq('created_by_id', user.id);
+    if (!payments) return [];
 
-    if (error) throw error;
+    // Format dates
+    return payments.map(payment => ({
+      ...payment,
+      payment_date: new Date(payment.payment_date).toLocaleDateString(),
+      created_at: new Date(payment.created_at).toLocaleDateString(),
+      updated_at: new Date(payment.updated_at).toLocaleDateString()
+    }));
 
-    res.json({
-      success: true,
-      message: 'Export job deleted successfully'
-    });
   } catch (error) {
+    console.error('Error exporting payments:', error);
     throw error;
+  }
+}
+
+// Generate CSV format
+function generateCSV(data) {
+  if (!data || data.length === 0) {
+    return '';
+  }
+
+  const headers = Object.keys(data[0]);
+  const csvHeaders = headers.join(',');
+  
+  const csvRows = data.map(row => {
+    return headers.map(header => {
+      const value = row[header];
+      if (value === null || value === undefined) {
+        return '';
+      }
+      // Handle special formatting for notes
+      if (header === 'notes_formatted') {
+        return value; // Already formatted and escaped in formatNotes
+      }
+      // Escape other values
+      return `"${String(value).replace(/"/g, '""')}"`;
+    }).join(',');
+  });
+
+  return [csvHeaders, ...csvRows].join('\n');
+}
+
+// Generate Excel format (basic implementation)
+function generateExcel(data) {
+  // For now, return CSV format with Excel headers
+  // A full Excel implementation would require additional libraries like xlsx
+  const csv = generateCSV(data);
+  return csv;
+}
+
+// Handle export status check
+async function handleGetExportStatus(req, res) {
+  try {
+    const user = verifyToken(req);
+    
+    // Simple status response
+    res.status(200).json({
+      success: true,
+      status: 'ready',
+      message: 'Export service is available',
+      user: user.username,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Status check error:', error);
+    res.status(401).json({
+      success: false,
+      error: 'Authentication required'
+    });
   }
 }

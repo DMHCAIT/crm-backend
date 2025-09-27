@@ -111,58 +111,80 @@ async function getUserRealName(username) {
   return username || 'User';
 }
 
-// Get all subordinate users (users who report to the current user, directly or indirectly)
+// Get all subordinate users (returns UUIDs for backward compatibility)
 async function getSubordinateUsers(userId) {
   if (!supabase) return [];
   
   try {
-    // Get all users to build the hierarchy
     const { data: allUsers, error } = await supabase
       .from('users')
-      .select('id, email, username, name, reports_to, role');
+      .select('id, email, name, username, reports_to, role');
     
     if (error) {
       console.error('Error fetching users for hierarchy:', error);
       return [];
     }
     
-    // Build a map of user ID to user data
-    const userMap = {};
-    allUsers.forEach(user => {
-      userMap[user.id] = user;
-    });
-    
-    // Find all subordinates recursively and collect all their identifiers
-    const subordinateUsers = [];
+    const subordinates = [];
     const visited = new Set();
     
     function findSubordinates(supervisorId) {
-      if (visited.has(supervisorId)) return; // Prevent infinite loops
+      if (visited.has(supervisorId)) return;
       visited.add(supervisorId);
       
       allUsers.forEach(user => {
-        if (user.reports_to === supervisorId && !subordinateUsers.find(s => s.id === user.id)) {
-          subordinateUsers.push(user);
-          findSubordinates(user.id); // Recursively find their subordinates
+        if (user.reports_to === supervisorId && !subordinates.includes(user.id)) {
+          subordinates.push(user.id);
+          findSubordinates(user.id);
         }
       });
     }
     
     findSubordinates(userId);
-    
-    // Create array of all possible identifiers for subordinates
-    const subordinateIdentifiers = [];
-    subordinateUsers.forEach(user => {
-      subordinateIdentifiers.push(user.id);
-      if (user.email) subordinateIdentifiers.push(user.email);
-      if (user.username) subordinateIdentifiers.push(user.username);
-    });
-    
-    console.log(`🏢 User ${userId} has ${subordinateUsers.length} subordinates with ${subordinateIdentifiers.length} total identifiers`);
-    return subordinateIdentifiers;
+    return subordinates;
     
   } catch (error) {
     console.error('Error getting subordinate users:', error);
+    return [];
+  }
+}
+
+// Get all subordinate usernames (username-only approach)
+async function getSubordinateUsernames(userId) {
+  if (!supabase) return [];
+  
+  try {
+    const { data: allUsers, error } = await supabase
+      .from('users')
+      .select('id, username, reports_to');
+    
+    if (error) {
+      console.error('Error fetching users for hierarchy:', error);
+      return [];
+    }
+    
+    const subordinateUsernames = [];
+    const visited = new Set();
+    
+    function findSubordinates(supervisorId) {
+      if (visited.has(supervisorId)) return;
+      visited.add(supervisorId);
+      
+      allUsers.forEach(user => {
+        if (user.reports_to === supervisorId && user.username) {
+          if (!subordinateUsernames.includes(user.username)) {
+            subordinateUsernames.push(user.username);
+          }
+          findSubordinates(user.id);
+        }
+      });
+    }
+    
+    findSubordinates(userId);
+    return subordinateUsernames;
+    
+  } catch (error) {
+    console.error('Error getting subordinate usernames:', error);
     return [];
   }
 }
@@ -171,17 +193,18 @@ async function getSubordinateUsers(userId) {
 async function canAccessLead(lead, currentUser) {
   if (!currentUser) return false;
   
-  const leadAssignee = lead.assignedTo || lead.assignedcounselor || lead.assigned_to;
+  // Standardized to username-only assignments
+  const leadAssignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
   
-  // User can access their own leads - check id, email, and username
-  if (leadAssignee === currentUser.id || leadAssignee === currentUser.email || leadAssignee === currentUser.username) {
+  // User can access their own leads - check username only
+  if (leadAssignee === currentUser.username) {
     return true;
   }
   
-  // Get subordinates and check if lead belongs to any of them
-  const subordinates = await getSubordinateUsers(currentUser.id);
+  // Get subordinate usernames and check if lead belongs to any of them
+  const subordinateUsernames = await getSubordinateUsernames(currentUser.id);
   
-  return subordinates.includes(leadAssignee);
+  return subordinateUsernames.includes(leadAssignee);
 }
 
 // Calculate pipeline statistics
@@ -309,17 +332,22 @@ module.exports = async (req, res) => {
         const subordinates = await getSubordinateUsers(user.id);
         console.log(`🏢 User ${user.email} supervises ${subordinates.length} subordinates`);
         
-        // Filter leads: user can see their own leads + subordinates' leads
+        // Get subordinate usernames for hierarchical access
+        const subordinateUsernames = await getSubordinateUsernames(user.id);
+        console.log(`🏢 User ${user.username} supervises usernames: [${subordinateUsernames.join(', ')}]`);
+        
+        // Filter leads: user can see their own leads + subordinates' leads (username-only)
         const accessibleLeads = (allLeads || []).filter(lead => {
-          const leadAssignee = lead.assignedTo || lead.assignedcounselor || lead.assigned_to;
+          // Standardized to username-only assignments
+          const leadAssignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
           
-          // User can see their own leads - check id, email, and username
-          if (leadAssignee === user.id || leadAssignee === user.email || leadAssignee === user.username) {
+          // User can see their own leads - check username only
+          if (leadAssignee === user.username) {
             return true;
           }
           
-          // User can see leads assigned to their subordinates
-          if (subordinates.includes(leadAssignee)) {
+          // User can see leads assigned to their subordinates (by username)
+          if (subordinateUsernames.includes(leadAssignee)) {
             return true;
           }
           
@@ -401,9 +429,9 @@ module.exports = async (req, res) => {
             ...lead,
             notes: notesArray,
             // Normalize assignment fields for frontend consistency
-            assignedTo: lead.assignedTo || lead.assignedcounselor || lead.assigned_to || 'Unassigned',
-            assignedCounselor: lead.assignedTo || lead.assignedcounselor || lead.assigned_to || 'Unassigned',
-            assigned_to: lead.assignedTo || lead.assignedcounselor || lead.assigned_to || 'Unassigned'
+            assignedTo: lead.assigned_to || lead.assignedTo || lead.assignedcounselor || 'Unassigned',
+            assignedCounselor: lead.assigned_to || lead.assignedTo || lead.assignedcounselor || 'Unassigned',
+            assigned_to: lead.assigned_to || lead.assignedTo || lead.assignedcounselor || 'Unassigned'
           };
         });
         
@@ -574,9 +602,18 @@ module.exports = async (req, res) => {
             }
           });
 
-          // Sync assignment fields to match actual database schema
+          // Standardize assignments to username-only in assigned_to field
           if (cleanUpdateData.assignedTo) {
+            cleanUpdateData.assigned_to = cleanUpdateData.assignedTo;
             cleanUpdateData.assignedcounselor = cleanUpdateData.assignedTo;
+          }
+          if (cleanUpdateData.assignedcounselor) {
+            cleanUpdateData.assigned_to = cleanUpdateData.assignedcounselor;
+            cleanUpdateData.assignedTo = cleanUpdateData.assignedcounselor;
+          }
+          if (cleanUpdateData.assigned_to) {
+            cleanUpdateData.assignedTo = cleanUpdateData.assigned_to;
+            cleanUpdateData.assignedcounselor = cleanUpdateData.assigned_to;
           }
 
           // Add updated timestamp and user
