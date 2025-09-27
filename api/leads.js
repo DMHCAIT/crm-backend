@@ -341,15 +341,24 @@ module.exports = async (req, res) => {
         }
 
         // Filter leads based on hierarchical access control
-        console.log(`🔍 Filtering ${allLeads?.length || 0} leads for user ${user.id} (${user.email})`);
+        console.log(`🔍 Leads API: Filtering ${allLeads?.length || 0} leads for user ${user.username} (${user.email}) - Role: ${user.role}`);
         
         // Get subordinate users for current user
         const subordinates = await getSubordinateUsers(user.id);
-        console.log(`🏢 User ${user.email} supervises ${subordinates.length} subordinates`);
+        console.log(`🏢 Leads API: User ${user.email} supervises ${subordinates.length} subordinates`);
         
         // Get subordinate usernames for hierarchical access
         const subordinateUsernames = await getSubordinateUsernames(user.id);
-        console.log(`🏢 User ${user.username} supervises usernames: [${subordinateUsernames.join(', ')}]`);
+        console.log(`🏢 Leads API: User ${user.username} supervises usernames: [${subordinateUsernames.join(', ')}]`);
+        
+        // Debug first few leads to check assignment
+        if (allLeads && allLeads.length > 0) {
+          console.log(`🔍 Leads API: First 3 leads assignment check:`);
+          allLeads.slice(0, 3).forEach((lead, index) => {
+            const assignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
+            console.log(`  ${index + 1}. ${lead.fullName} -> assigned to: "${assignee}"`);
+          });
+        }
         
         // Filter leads: user can see their own leads + subordinates' leads (username-only) - CASE-INSENSITIVE
         const accessibleLeads = (allLeads || []).filter(lead => {

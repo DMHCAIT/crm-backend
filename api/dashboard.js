@@ -154,15 +154,21 @@ module.exports = async (req, res) => {
     // Apply hierarchical filtering to leads and other data
     let leadsQuery = supabase.from('leads').select('id, status, assignedTo, assignedcounselor, assigned_to, created_at', { count: 'exact' });
     
-    // Username-only filtering approach
+    // Username-only filtering approach with DEBUGGING
     if (user.role !== 'super_admin') {
       // Get subordinate usernames for hierarchical access
       const subordinateUsernames = await getSubordinateUsernames(user.id);
       const accessibleUsernames = [user.username, ...subordinateUsernames].filter(Boolean);
       
+      console.log(`🔍 Dashboard Stats: User ${user.username} (${user.email}) accessing dashboard`);
+      console.log(`🔍 Dashboard Stats: Accessible usernames: [${accessibleUsernames.join(', ')}]`);
+      
       if (accessibleUsernames.length > 0) {
         leadsQuery = leadsQuery.or(`assigned_to.in.(${accessibleUsernames.join(',')}),assignedTo.in.(${accessibleUsernames.join(',')}),assignedcounselor.in.(${accessibleUsernames.join(',')})`);
+        console.log(`🔍 Dashboard Stats: Applied username filter for leads`);
       }
+    } else {
+      console.log(`🔍 Dashboard Stats: Super admin ${user.username} accessing all leads`);
     }
     
     [leadsResult, studentsResult, communicationsResult, documentsResult] = await Promise.all([
