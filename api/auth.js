@@ -242,7 +242,7 @@ async function handleTokenVerification(req, res) {
             message: 'Token valid'
           });
         } else {
-          console.log(`⚠️ User not found in database: ${decoded.username}`);
+          console.log(`⚠️ Database lookup failed for ${decoded.username}:`, error?.message);
         }
       } catch (dbError) {
         console.log('⚠️ Database lookup failed:', dbError.message);
