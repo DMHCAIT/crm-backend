@@ -119,7 +119,7 @@ async function getSubordinateUsers(userId) {
     // Get all users to build the hierarchy
     const { data: allUsers, error } = await supabase
       .from('users')
-      .select('id, email, name, reports_to, role');
+      .select('id, email, username, name, reports_to, role');
     
     if (error) {
       console.error('Error fetching users for hierarchy:', error);
@@ -132,8 +132,8 @@ async function getSubordinateUsers(userId) {
       userMap[user.id] = user;
     });
     
-    // Find all subordinates recursively
-    const subordinates = [];
+    // Find all subordinates recursively and collect all their identifiers
+    const subordinateUsers = [];
     const visited = new Set();
     
     function findSubordinates(supervisorId) {
@@ -141,8 +141,8 @@ async function getSubordinateUsers(userId) {
       visited.add(supervisorId);
       
       allUsers.forEach(user => {
-        if (user.reports_to === supervisorId && !subordinates.includes(user.id)) {
-          subordinates.push(user.id);
+        if (user.reports_to === supervisorId && !subordinateUsers.find(s => s.id === user.id)) {
+          subordinateUsers.push(user);
           findSubordinates(user.id); // Recursively find their subordinates
         }
       });
@@ -150,8 +150,16 @@ async function getSubordinateUsers(userId) {
     
     findSubordinates(userId);
     
-    console.log(`🏢 User ${userId} has ${subordinates.length} subordinates:`, subordinates);
-    return subordinates;
+    // Create array of all possible identifiers for subordinates
+    const subordinateIdentifiers = [];
+    subordinateUsers.forEach(user => {
+      subordinateIdentifiers.push(user.id);
+      if (user.email) subordinateIdentifiers.push(user.email);
+      if (user.username) subordinateIdentifiers.push(user.username);
+    });
+    
+    console.log(`🏢 User ${userId} has ${subordinateUsers.length} subordinates with ${subordinateIdentifiers.length} total identifiers`);
+    return subordinateIdentifiers;
     
   } catch (error) {
     console.error('Error getting subordinate users:', error);
@@ -160,15 +168,18 @@ async function getSubordinateUsers(userId) {
 }
 
 // Check if user can access a lead based on hierarchy
-async function canAccessLead(lead, currentUserId) {
-  // User can access their own leads
-  if (lead.assignedTo === currentUserId || lead.assignedcounselor === currentUserId || lead.assigned_to === currentUserId) {
+async function canAccessLead(lead, currentUser) {
+  if (!currentUser) return false;
+  
+  const leadAssignee = lead.assignedTo || lead.assignedcounselor || lead.assigned_to;
+  
+  // User can access their own leads - check id, email, and username
+  if (leadAssignee === currentUser.id || leadAssignee === currentUser.email || leadAssignee === currentUser.username) {
     return true;
   }
   
   // Get subordinates and check if lead belongs to any of them
-  const subordinates = await getSubordinateUsers(currentUserId);
-  const leadAssignee = lead.assignedTo || lead.assignedcounselor || lead.assigned_to;
+  const subordinates = await getSubordinateUsers(currentUser.id);
   
   return subordinates.includes(leadAssignee);
 }
@@ -302,8 +313,8 @@ module.exports = async (req, res) => {
         const accessibleLeads = (allLeads || []).filter(lead => {
           const leadAssignee = lead.assignedTo || lead.assignedcounselor || lead.assigned_to;
           
-          // User can see their own leads
-          if (leadAssignee === user.id) {
+          // User can see their own leads - check id, email, and username
+          if (leadAssignee === user.id || leadAssignee === user.email || leadAssignee === user.username) {
             return true;
           }
           
@@ -453,7 +464,7 @@ module.exports = async (req, res) => {
         }
 
         // Check if user has access to add notes to this lead
-        const hasAccess = await canAccessLead(lead, user.id);
+        const hasAccess = await canAccessLead(lead, user);
         if (!hasAccess && user.role !== 'super_admin') {
           return res.status(403).json({
             success: false,
@@ -780,7 +791,7 @@ module.exports = async (req, res) => {
         }
 
         // Check if user has access to this lead
-        const hasAccess = await canAccessLead(existingLead, user.id);
+        const hasAccess = await canAccessLead(existingLead, user);
         if (!hasAccess && user.role !== 'super_admin') {
           return res.status(403).json({
             success: false,
@@ -892,7 +903,7 @@ module.exports = async (req, res) => {
         }
 
         // Check if user has access to delete this lead
-        const hasAccess = await canAccessLead(leadToDelete, user.id);
+        const hasAccess = await canAccessLead(leadToDelete, user);
         if (!hasAccess && user.role !== 'super_admin') {
           return res.status(403).json({
             success: false,
