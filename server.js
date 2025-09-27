@@ -997,6 +997,7 @@ app.get('/api/dashboard', async (req, res) => {
         const token = authHeader.substring(7);
         user = jwt.verify(token, JWT_SECRET);
         console.log(`📊 Dashboard requested by ${user.username || user.email} (${user.role})`);
+        console.log(`🔍 User object:`, JSON.stringify(user, null, 2));
       } catch (tokenError) {
         console.log('⚠️ Token verification failed:', tokenError.message);
         return res.status(401).json({
@@ -1876,31 +1877,34 @@ app.get('/api/assignable-users', async (req, res) => {
       console.log(`📊 Found ${allUsers.length} active users in database`);
       assignableUsers = allUsers;
       
-      // If user is authenticated and not super admin, apply hierarchy filtering
-      if (user && user.role !== 'super_admin' && user.role !== 'admin') {
+      // Apply hierarchy filtering based on user role
+      if (user && user.role) {
         console.log(`🔒 Applying hierarchy filtering for role: ${user.role}`);
         
-        // For now, show all users but prioritize same role and below
-        // TODO: Implement proper hierarchy when reports_to relationships are established
-        assignableUsers = allUsers.filter(u => {
-          // Keep the current user and users with same or lower privilege
-          const privilegeOrder = {
-            'super_admin': 100,
-            'admin': 90,
-            'manager': 80,
-            'senior-counselor': 70,
-            'counselor': 60,
-            'junior-counselor': 50,
-            'user': 40
-          };
-          
-          const currentUserLevel = privilegeOrder[user.role] || 40;
-          const targetUserLevel = privilegeOrder[u.role] || 40;
-          
-          return targetUserLevel <= currentUserLevel;
-        });
+        const privilegeOrder = {
+          'super_admin': 100,
+          'admin': 90,
+          'manager': 80,
+          'senior-counselor': 70,
+          'counselor': 60,
+          'junior-counselor': 50,
+          'user': 40
+        };
         
-        console.log(`📊 After hierarchy filtering: ${assignableUsers.length} users`);
+        const currentUserLevel = privilegeOrder[user.role] || 40;
+        
+        // For super_admin and admin: show all users
+        if (user.role === 'super_admin' || user.role === 'admin') {
+          console.log(`🔑 ${user.role} can see all users`);
+        } else {
+          // For other roles: show only users with lower privilege levels (not equal or higher)
+          assignableUsers = allUsers.filter(u => {
+            const targetUserLevel = privilegeOrder[u.role] || 40;
+            return targetUserLevel < currentUserLevel; // Only users below current user level
+          });
+          
+          console.log(`📊 After hierarchy filtering: ${assignableUsers.length} users (can only assign to lower level users)`);
+        }
       }
       
     } catch (dbError) {
