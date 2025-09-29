@@ -101,7 +101,7 @@ async function processFacebookLead(leadgenId) {
         email: leadData.email,
         phone: leadData.phone_number,
         source: 'facebook_ads',
-        status: 'fresh',
+        status: 'Fresh',
         score: 60,
         notes: `Facebook Lead Ad: ${leadData.course_interest || 'General inquiry'}`
       }])

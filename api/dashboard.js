@@ -181,10 +181,10 @@ module.exports = async (req, res) => {
     // Calculate lead statistics
     const totalLeads = leadsResult.count || 0;
     const activeLeads = leadsResult.data?.filter(lead => 
-      ['hot', 'followup', 'warm', 'fresh'].includes(lead.status)
+      ['Hot', 'Follow Up', 'Warm', 'Fresh'].includes(lead.status)
     ).length || 0;
     const hotLeads = leadsResult.data?.filter(lead => 
-      lead.status === 'hot'
+      lead.status === 'Hot'
     ).length || 0;
 
     // Calculate student statistics
@@ -199,7 +199,7 @@ module.exports = async (req, res) => {
 
     // Calculate conversion rate
     const convertedLeads = leadsResult.data?.filter(lead => 
-      lead.status === 'enrolled'
+      lead.status === 'Enrolled'
     ).length || 0;
     const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0.0';
 

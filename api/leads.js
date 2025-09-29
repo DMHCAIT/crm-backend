@@ -25,7 +25,7 @@ async function getSystemConfig() {
   if (!supabase) {
     // Fallback static configuration
     return {
-      statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
+      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
       priorityOptions: ['low', 'medium', 'high', 'urgent'],
       sourceOptions: ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner', 'Facebook', 'WhatsApp'],
       branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
@@ -52,7 +52,7 @@ async function getSystemConfig() {
     });
 
     return {
-      statusOptions: configMap.status_options || ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
+      statusOptions: configMap.status_options || ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
       priorityOptions: configMap.priority_options || ['low', 'medium', 'high'],
       sourceOptions: configMap.source_options || ['Website', 'Social Media'],
       branchOptions: configMap.branch_options || ['Main Branch'],
@@ -65,7 +65,7 @@ async function getSystemConfig() {
     console.error('Error loading system config:', error);
     // Return fallback configuration
     return {
-      statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
+      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
       priorityOptions: ['low', 'medium', 'high', 'urgent'],
       sourceOptions: ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner'],
       branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
@@ -235,11 +235,11 @@ function calculatePipelineStats(leads) {
   }).length;
 
   const hotLeads = leads.filter(lead => 
-    lead.status === 'hot' || lead.priority === 'high' || lead.priority === 'urgent'
+    lead.status === 'Hot' || lead.priority === 'high' || lead.priority === 'urgent'
   ).length;
 
-  const qualifiedLeads = leads.filter(lead => lead.status === 'warm').length;
-  const convertedLeads = leads.filter(lead => lead.status === 'enrolled').length;
+  const qualifiedLeads = leads.filter(lead => lead.status === 'Warm').length;
+  const convertedLeads = leads.filter(lead => lead.status === 'Enrolled').length;
   
   const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
 

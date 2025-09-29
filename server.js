@@ -383,7 +383,7 @@ app.options('/api/leads-add-note', (req, res) => {
       communicationsCount: lead.communicationscount || 0  // Match actual DB column name (lowercase)
     }));
 
-    const STATUS_OPTIONS = ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'];
+    const STATUS_OPTIONS = ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'];
     const QUALIFICATION_OPTIONS = ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH', 'Others'];
     
     const FELLOWSHIP_COURSES = [
@@ -1055,11 +1055,11 @@ app.get('/api/dashboard', async (req, res) => {
       
       // Calculate statistics
       const totalLeads = leads.length;
-      const activeLeads = leads.filter(l => ['hot', 'followup', 'warm', 'fresh'].includes(l.status)).length;
-      const hotLeads = leads.filter(l => l.status === 'hot').length;
+      const activeLeads = leads.filter(l => ['Hot', 'Follow Up', 'Warm', 'Fresh'].includes(l.status)).length;
+      const hotLeads = leads.filter(l => l.status === 'Hot').length;
       const totalStudents = students.length;
       const activeStudents = students.filter(s => s.status === 'active').length;
-      const convertedLeads = leads.filter(l => l.status === 'enrolled').length;
+      const convertedLeads = leads.filter(l => l.status === 'Enrolled').length;
       const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0.0';
       
       // Calculate today's new leads  
@@ -1149,7 +1149,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
           success: true,
           leads: leads,
           config: {
-            statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
+            statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
             countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
           },
           message: `Emergency leads API: Found ${leads.length} leads with status options and countries`
@@ -1186,7 +1186,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
       }
     ],
     config: {
-      statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
+      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
       countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
     },
     message: 'Emergency leads API with demo data - status options and countries included!'
@@ -1233,7 +1233,7 @@ app.get('/api/leads-working', async (req, res) => {
       }
     ],
     config: {
-      statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
+      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
       countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
     },
     message: 'Working leads API with status options and countries!'
@@ -1275,7 +1275,7 @@ app.get('/api/leads-working', async (req, res) => {
       }
     ],
     config: {
-      statusOptions: ['hot', 'followup', 'warm', 'not interested', 'enrolled', 'fresh', 'junk'],
+      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
       countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Singapore', 'UAE']
     },
     message: 'SIMPLIFIED Leads API - Your status options and countries are here!'
@@ -2452,8 +2452,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
       
       // Calculate real statistics
       const totalLeads = leads.length;
-      const activeLeads = leads.filter(l => ['hot', 'followup', 'warm', 'fresh'].includes(l.status)).length;
-      const hotLeads = leads.filter(l => l.status === 'hot').length;
+      const activeLeads = leads.filter(l => ['Hot', 'Follow Up', 'Warm', 'Fresh'].includes(l.status)).length;
+      const hotLeads = leads.filter(l => l.status === 'Hot').length;
       const totalStudents = students.length;
       const activeStudents = students.filter(s => s.status === 'active').length;
       
