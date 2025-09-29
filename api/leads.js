@@ -31,7 +31,7 @@ async function getSystemConfig() {
       branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
       experienceOptions: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'],
       countries: ['India', 'United States', 'Canada', 'United Kingdom', 'Australia'],
-      qualificationOptions: ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH', 'Others'],
+      qualificationOptions: ['MBBS/ FMG', 'MD/MS/DNB', 'Mch/ DM/ DNB-SS', 'BDS/MDS', 'AYUSH', 'Others'],
       courseOptions: {
         fellowship: ['Fellowship in Emergency Medicine', 'Fellowship in Cardiology', 'Fellowship in Dermatology'],
         pgDiploma: ['PG Diploma in Clinical Research', 'PG Diploma in Hospital Administration']
@@ -58,7 +58,7 @@ async function getSystemConfig() {
       branchOptions: configMap.branch_options || ['Main Branch'],
       experienceOptions: configMap.experience_options || ['Not Specified'],
       countries: configMap.countries || ['India'],
-      qualificationOptions: configMap.qualification_options || ['MBBS'],
+      qualificationOptions: configMap.qualification_options || ['MBBS/ FMG', 'MD/MS/DNB', 'Mch/ DM/ DNB-SS', 'BDS/MDS', 'AYUSH', 'Others'],
       courseOptions: configMap.course_options || { fellowship: [], pgDiploma: [] }
     };
   } catch (error) {
@@ -71,7 +71,7 @@ async function getSystemConfig() {
       branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
       experienceOptions: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'],
       countries: ['India', 'United States', 'Canada', 'United Kingdom'],
-      qualificationOptions: ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH'],
+      qualificationOptions: ['MBBS/ FMG', 'MD/MS/DNB', 'Mch/ DM/ DNB-SS', 'BDS/MDS', 'AYUSH', 'Others'],
       courseOptions: {
         fellowship: ['Fellowship in Emergency Medicine', 'Fellowship in Cardiology', 'Fellowship in Dermatology'],
         pgDiploma: ['PG Diploma in Clinical Research', 'PG Diploma in Hospital Administration']

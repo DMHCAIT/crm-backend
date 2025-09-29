@@ -384,7 +384,7 @@ app.options('/api/leads-add-note', (req, res) => {
     }));
 
     const STATUS_OPTIONS = ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'];
-    const QUALIFICATION_OPTIONS = ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH', 'Others'];
+    const QUALIFICATION_OPTIONS = ['MBBS/ FMG', 'MD/MS/DNB', 'Mch/ DM/ DNB-SS', 'BDS/MDS', 'AYUSH', 'Others'];
     
     const FELLOWSHIP_COURSES = [
       'Fellowship in Emergency Medicine',
