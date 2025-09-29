@@ -33,8 +33,8 @@ async function getSystemConfig() {
       countries: ['India', 'United States', 'Canada', 'United Kingdom', 'Australia'],
       qualificationOptions: ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH', 'Others'],
       courseOptions: {
-        fellowship: ['Emergency Medicine', 'Cardiology', 'Dermatology'],
-        pgDiploma: ['Clinical Research', 'Hospital Administration']
+        fellowship: ['Fellowship in Emergency Medicine', 'Fellowship in Cardiology', 'Fellowship in Dermatology'],
+        pgDiploma: ['PG Diploma in Clinical Research', 'PG Diploma in Hospital Administration']
       }
     };
   }
@@ -73,8 +73,8 @@ async function getSystemConfig() {
       countries: ['India', 'United States', 'Canada', 'United Kingdom'],
       qualificationOptions: ['MBBS', 'MD', 'MS', 'BDS', 'FMGS', 'AYUSH'],
       courseOptions: {
-        fellowship: ['Emergency Medicine', 'Cardiology', 'Dermatology'],
-        pgDiploma: ['Clinical Research', 'Hospital Administration']
+        fellowship: ['Fellowship in Emergency Medicine', 'Fellowship in Cardiology', 'Fellowship in Dermatology'],
+        pgDiploma: ['PG Diploma in Clinical Research', 'PG Diploma in Hospital Administration']
       }
     };
   }
@@ -755,8 +755,8 @@ module.exports = async (req, res) => {
           country: country || 'India',
           branch: branch || 'Main Branch', // New field
           source: source || 'Manual Entry',
-          course: course || 'Emergency Medicine',
-          status: status || 'fresh',
+          course: course || 'Fellowship in Emergency Medicine',
+          status: status || 'Fresh',
           priority: priority || 'medium', // New field
           assigned_to: assignedTo || user.username || 'Unassigned', // PRIMARY assignment field (snake_case)
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
