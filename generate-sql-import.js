@@ -77,9 +77,9 @@ function standardizeCourseName(course, qualification) {
   }
   
   // For database storage, use shorter format without prefixes to save space
-  // Truncate to 18 characters to be extra safe for VARCHAR(20) constraint
-  if (cleanCourse.length > 18) {
-    cleanCourse = cleanCourse.substring(0, 18).trim();
+  // Ultra-conservative truncation for VARCHAR(20) constraint
+  if (cleanCourse.length > 15) {
+    cleanCourse = cleanCourse.substring(0, 15).trim();
   }
   
   return cleanCourse;
@@ -108,13 +108,13 @@ async function generateSQLScript() {
         }
         
         const lead = {
-          full_name: row['Full Name'] ? row['Full Name'].trim().substring(0, 18) : '', // Truncate to 18 chars for VARCHAR(20) safety
+          full_name: row['Full Name'] ? row['Full Name'].trim().substring(0, 15) : '', // Ultra-conservative truncation for VARCHAR(20)
           email: (row['Email '] || row['Email']) ? (row['Email '] || row['Email']).trim().substring(0, 100) : '', // Ensure reasonable length
           phone: cleanPhoneNumber(row['Phone']),
           qualification: standardizeQualification(row['Qualification']),
           course: standardizeCourseName((row['Course '] || row['Course']) ? (row['Course '] || row['Course']).trim() : '', standardizeQualification(row['Qualification'])),
-          country: row['Country'] ? row['Country'].trim().substring(0, 18) : '', // Truncate to 18 chars for VARCHAR(20) safety
-          assigned_to: row['Assigned to'] ? row['Assigned to'].trim().substring(0, 18) : '', // Truncate to 18 chars for VARCHAR(20) safety
+          country: row['Country'] ? row['Country'].trim().substring(0, 15) : '', // Ultra-conservative for VARCHAR(20)
+          assigned_to: row['Assigned to'] ? row['Assigned to'].trim().substring(0, 15) : '', // Ultra-conservative for VARCHAR(20)
           status: standardizeStatus(row['Status']),
           notes: row['Notes'] ? row['Notes'].trim().substring(0, 255) : '', // Truncate notes to 255 chars for database constraints
           source: 'IBMP',  // Shortened to fit VARCHAR(20)
