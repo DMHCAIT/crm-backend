@@ -738,7 +738,9 @@ module.exports = async (req, res) => {
       try {
         // Debug: Log user information during lead creation
         console.log(`👤 Creating lead - User: ${user.username} (${user.email}) - Role: ${user.role}`);
-        console.log(`📝 Assignment intention: ${assignedTo || user.username || 'Unassigned'}`);
+        console.log(`� Full user object from JWT:`, user);
+        console.log(`�📝 Assignment intention: ${assignedTo || user.username || 'Unassigned'}`);
+        console.log(`📝 assignedTo parameter:`, assignedTo);
         
         // Get user's real name for notes - with fallback logic
         const userRealName = await getUserRealName(user.username);
