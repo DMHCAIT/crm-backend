@@ -79,6 +79,9 @@ async function handleUltraSimpleLogin(req, res) {
             const token = jwt.sign({
               username: user.username,
               userId: user.id,
+              id: user.id,
+              email: user.email,
+              name: user.name || user.fullName,
               role: user.role,
               loginTime: Date.now()
             }, JWT_SECRET, { expiresIn: '24h' });
@@ -132,9 +135,11 @@ async function handleUltraSimpleLogin(req, res) {
       
       const token = jwt.sign({
         username: 'admin',
+        userId: adminUser?.id || 'admin-1',
+        id: adminUser?.id || 'admin-1',
+        email: adminUser?.email || 'admin@dmhca.com',
+        name: adminUser?.fullName || adminUser?.name || 'Admin User',
         role: adminUser?.role || 'super_admin',
-        name: adminUser?.fullName || adminUser?.name,
-        userId: adminUser?.id,
         loginTime: Date.now()
       }, JWT_SECRET, { expiresIn: '24h' });
 
@@ -145,9 +150,10 @@ async function handleUltraSimpleLogin(req, res) {
         success: true,
         token: token,
         user: {
-          id: adminUser?.id,
+          id: adminUser?.id || 'admin-1',
           username: 'admin',
           name: adminUser?.fullName || adminUser?.name || 'Admin User',
+          email: adminUser?.email || 'admin@dmhca.com',
           role: adminUser?.role || 'super_admin',
           department: adminUser?.department || 'Administration',
           permissions: adminUser?.permissions || '["read", "write", "admin", "delete", "super_admin"]'
