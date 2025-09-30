@@ -19,6 +19,7 @@ const DEMO_USERS = [
     phone: '+91-9876543210',
     location: 'Delhi',
     join_date: '2024-01-01',
+    company: 'DMHCA',
     reports_to: null // Super admin reports to no one
   },
   {
@@ -35,6 +36,7 @@ const DEMO_USERS = [
     phone: '+91-9876543211',
     location: 'Delhi',
     join_date: '2024-02-01',
+    company: 'DMHCA',
     reports_to: '1' // Reports to admin
   },
   {
@@ -51,6 +53,7 @@ const DEMO_USERS = [
     phone: '+91-9876543212',
     location: 'Hyderabad',
     join_date: '2024-03-01',
+    company: 'IBMP',
     reports_to: '2' // Reports to Priya
   },
   {
@@ -67,6 +70,7 @@ const DEMO_USERS = [
     phone: '+91-9876543213',
     location: 'Kashmir',
     join_date: '2024-04-01',
+    company: 'DMHCA',
     reports_to: '3' // Reports to Rahul
   },
   {
@@ -83,6 +87,7 @@ const DEMO_USERS = [
     phone: '+91-9876543214',
     location: 'Remote',
     join_date: '2024-05-01',
+    company: 'IBMP',
     reports_to: '4' // Reports to Anjali
   }
 ];
