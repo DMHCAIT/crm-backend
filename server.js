@@ -367,7 +367,7 @@ app.options('/api/leads-add-note', (req, res) => {
       course: lead.course || 'Not specified',
       source: lead.source || 'Unknown',
       status: lead.status || 'fresh',
-      priority: lead.priority || 'medium',
+
       experience: lead.experience || 'Not specified',
       location: lead.location || 'Not specified',
       notes: lead.notes || '',

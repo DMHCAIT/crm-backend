@@ -60,7 +60,6 @@ async function getSystemConfig() {
     // Fallback static configuration
     return {
       statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
-      priorityOptions: ['low', 'medium', 'high', 'urgent'],
       sourceOptions: ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner', 'Facebook', 'WhatsApp'],
       branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
       experienceOptions: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'],
@@ -87,7 +86,7 @@ async function getSystemConfig() {
 
     return {
       statusOptions: configMap.status_options || ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
-      priorityOptions: configMap.priority_options || ['low', 'medium', 'high'],
+
       sourceOptions: configMap.source_options || ['Website', 'Social Media'],
       branchOptions: configMap.branch_options || ['Main Branch'],
       experienceOptions: configMap.experience_options || ['Not Specified'],
@@ -100,7 +99,6 @@ async function getSystemConfig() {
     // Return fallback configuration
     return {
       statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
-      priorityOptions: ['low', 'medium', 'high', 'urgent'],
       sourceOptions: ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner'],
       branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
       experienceOptions: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'],
@@ -269,7 +267,7 @@ function calculatePipelineStats(leads) {
   }).length;
 
   const hotLeads = leads.filter(lead => 
-    lead.status === 'Hot' || lead.priority === 'high' || lead.priority === 'urgent'
+    lead.status === 'Hot'
   ).length;
 
   const qualifiedLeads = leads.filter(lead => lead.status === 'Warm').length;
@@ -754,7 +752,7 @@ module.exports = async (req, res) => {
         source, 
         course, 
         status,
-        priority,
+
         assignedTo,
         notes,
         experience,
@@ -797,7 +795,7 @@ module.exports = async (req, res) => {
           source: source || 'Manual Entry',
           course: course || 'Fellowship in Emergency Medicine',
           status: status || 'Fresh',
-          priority: priority || 'medium', // New field
+
           assigned_to: assignedTo || user.username || 'Unassigned', // PRIMARY assignment field (snake_case)
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
           assignedcounselor: assignedTo || user.username || 'Unassigned', // Match actual DB column name (lowercase)
@@ -863,7 +861,7 @@ module.exports = async (req, res) => {
             source: insertedLead.source,
             course: insertedLead.course,
             status: insertedLead.status,
-            priority: insertedLead.priority,
+
             assignedTo: insertedLead.assigned_to,
             experience: insertedLead.experience,
             location: insertedLead.location,

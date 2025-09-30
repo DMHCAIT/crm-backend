@@ -232,7 +232,7 @@ function transformFacebookLead(fbLead, form) {
     status: 'Fresh',
     assignedTo: 'Facebook Leads Team',
     followUp: '',
-    priority: 'high',
+
     notes: `Facebook Lead ID: ${fbLead.id}\nForm: ${form.name}\nCreated: ${fbLead.created_time}\nAll Data: ${JSON.stringify(fieldData, null, 2)}`,
     tags: ['facebook', 'lead-ads', form.name.toLowerCase().replace(/\s+/g, '-')],
     createdAt: fbLead.created_time || new Date().toISOString(),
