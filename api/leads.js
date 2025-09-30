@@ -793,6 +793,7 @@ module.exports = async (req, res) => {
           phone: phone || '',
           country: country || 'India',
           branch: branch || 'Main Branch', // New field
+          qualification: qualification || '', // Qualification field
           source: source || 'Manual Entry',
           course: course || 'Fellowship in Emergency Medicine',
           status: status || 'Fresh',
