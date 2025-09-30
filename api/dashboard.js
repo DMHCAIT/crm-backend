@@ -151,8 +151,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Apply hierarchical filtering to leads and other data - Remove 1000 record limit
-    let leadsQuery = supabase.from('leads').select('id, status, assignedTo, assignedcounselor, assigned_to, created_at', { count: 'exact' }).range(0, 10000);
+    // Apply hierarchical filtering to leads and other data - NO LIMITS, show ALL records
+    let leadsQuery = supabase.from('leads').select('id, status, assignedTo, assignedcounselor, assigned_to, created_at', { count: 'exact' });
+    // REMOVED .range() - Now fetches ALL records in database without any limit
     
     // Username-only filtering approach with DEBUGGING
     if (user.role !== 'super_admin') {
