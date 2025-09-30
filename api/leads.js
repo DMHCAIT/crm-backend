@@ -20,6 +20,40 @@ try {
   console.log('❌ Leads API: Supabase initialization failed:', error.message);
 }
 
+// Email to Username Assignment Normalization
+function normalizeAssignmentField(assignmentValue) {
+  if (!assignmentValue || assignmentValue === 'Unassigned') {
+    return 'Unassigned';
+  }
+  
+  // If it's already a username (no @ symbol), return as is
+  if (!assignmentValue.includes('@')) {
+    return assignmentValue;
+  }
+  
+  // Email to username mapping for your team
+  const emailToUsernameMap = {
+    'loveleen@delhimedical.net': 'Loveleen',
+    'admin@delhimedical.net': 'Admin',
+    'info@delhimedical.net': 'Info', 
+    'support@delhimedical.net': 'Support',
+    'aslam@ibmp.in': 'Aslam',
+    'roshan@ibmp.in': 'Roshan',
+    'nakshatra@ibmp.in': 'Nakshatra',
+    'admin@dmhca.com': 'admin',
+    'system@dmhca.com': 'system'
+  };
+  
+  // Check direct mapping first
+  if (emailToUsernameMap[assignmentValue.toLowerCase()]) {
+    return emailToUsernameMap[assignmentValue.toLowerCase()];
+  }
+  
+  // Extract username from email and clean it up
+  const username = assignmentValue.split('@')[0];
+  return username.charAt(0).toUpperCase() + username.slice(1).toLowerCase();
+}
+
 // Get dynamic configuration from database
 async function getSystemConfig() {
   if (!supabase) {
@@ -325,11 +359,12 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // Get all leads from database with enhanced data
+        // Get all leads from database with enhanced data - Remove default 1000 limit
         const { data: allLeads, error } = await supabase
           .from('leads')
           .select(`*`)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .range(0, 10000); // Explicitly set range to fetch up to 10,000 records
 
         if (error) {
           console.error('❌ Error fetching leads:', error.message);
@@ -455,13 +490,17 @@ module.exports = async (req, res) => {
             if (index < 3) console.log(`  ℹ️ No notes found (null/empty)`);
           }
           
+          // Get the raw assignment value and normalize from email to username
+          const rawAssignment = lead.assigned_to || lead.assignedTo || lead.assignedcounselor || 'Unassigned';
+          const normalizedAssignment = normalizeAssignmentField(rawAssignment);
+          
           return {
             ...lead,
             notes: notesArray,
-            // Normalize assignment fields for frontend consistency
-            assignedTo: lead.assigned_to || lead.assignedTo || lead.assignedcounselor || 'Unassigned',
-            assignedCounselor: lead.assigned_to || lead.assignedTo || lead.assignedcounselor || 'Unassigned',
-            assigned_to: lead.assigned_to || lead.assignedTo || lead.assignedcounselor || 'Unassigned'
+            // Normalize assignment fields from emails to usernames
+            assignedTo: normalizedAssignment,
+            assignedCounselor: normalizedAssignment,
+            assigned_to: normalizedAssignment
           };
         });
         

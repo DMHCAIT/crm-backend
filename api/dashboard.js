@@ -151,8 +151,8 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Apply hierarchical filtering to leads and other data
-    let leadsQuery = supabase.from('leads').select('id, status, assignedTo, assignedcounselor, assigned_to, created_at', { count: 'exact' });
+    // Apply hierarchical filtering to leads and other data - Remove 1000 record limit
+    let leadsQuery = supabase.from('leads').select('id, status, assignedTo, assignedcounselor, assigned_to, created_at', { count: 'exact' }).range(0, 10000);
     
     // Username-only filtering approach with DEBUGGING
     if (user.role !== 'super_admin') {

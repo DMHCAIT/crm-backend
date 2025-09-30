@@ -255,8 +255,9 @@ async function handleTokenVerification(req, res) {
       }
     }
 
-    // Fallback to token data - but use username as name instead of hardcoded "System Administrator"
-    const fallbackName = decoded.name || decoded.fullName || decoded.username;
+    // Fallback to token data - enhanced to avoid showing 'administrator'
+    const fallbackName = decoded.name || decoded.fullName || 
+                         (decoded.username === 'admin' ? 'Santhosh Kumar' : decoded.username);
     console.log(`⚠️ Using fallback user data for ${decoded.username}: name="${fallbackName}"`);
     
     return res.json({

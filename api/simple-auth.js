@@ -67,7 +67,8 @@ const simpleAuthHandler = async (req, res) => {
             userId: adminUser?.id || 'admin-001',
             username: 'admin',
             role: adminUser?.role || 'admin',
-            name: adminUser?.fullName || adminUser?.name
+            name: adminUser?.fullName || adminUser?.name || 'Santhosh Kumar',
+            fullName: adminUser?.fullName || adminUser?.name || 'Santhosh Kumar'
           },
           process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024',
           { expiresIn: '24h' }
@@ -98,7 +99,7 @@ const simpleAuthHandler = async (req, res) => {
             username: 'admin',
             email: adminUser?.email || 'admin@dmhca.com',
             role: adminUser?.role || 'admin',
-            name: adminUser?.fullName || adminUser?.name || 'Admin User',
+            name: adminUser?.fullName || adminUser?.name || 'Santhosh Kumar',
             firstName: (adminUser?.fullName || adminUser?.name || 'Admin User').split(' ')[0],
             lastName: (adminUser?.fullName || adminUser?.name || 'Admin User').split(' ').slice(1).join(' ') || 'User'
           }
