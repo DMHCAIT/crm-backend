@@ -359,12 +359,12 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // Get ALL leads from database with enhanced data - NO LIMITS WHATSOEVER
+        // Get ALL leads from database with enhanced data - OVERRIDE SUPABASE 1000 DEFAULT LIMIT
         const { data: allLeads, error } = await supabase
           .from('leads')
           .select(`*`)
-          .order('created_at', { ascending: false });
-          // REMOVED .range() - Now fetches ALL records in database without any limit
+          .order('created_at', { ascending: false })
+          .limit(50000); // Override Supabase default 1000 limit - fetch up to 50,000 records
 
         if (error) {
           console.error('❌ Error fetching leads:', error.message);
