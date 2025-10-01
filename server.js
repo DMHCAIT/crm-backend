@@ -2944,6 +2944,12 @@ try {
   app.all('/api/leads/*', leadsHandler);
   console.log('✅ Leads API loaded successfully');
 
+  // Simple Leads API handler - FOR BULK OPERATIONS
+  const leadsSimpleHandler = require('./api/leads-simple.js');
+  app.all('/api/leads-simple', leadsSimpleHandler);
+  app.all('/api/leads-simple/*', leadsSimpleHandler);
+  console.log('✅ Leads Simple API loaded successfully');
+
   // Facebook Lead Ads Integration - NEW
   const facebookLeadsHandler = require('./api/facebook-leads.js');
   app.all('/api/facebook-leads', facebookLeadsHandler);
@@ -2996,7 +3002,8 @@ try {
   console.log('️ Permissions API available at /api/permissions');
   console.log('📝 Lead Notes endpoint available at /api/lead-notes/{leadId}');
   console.log('📊 Enhanced Leads endpoint available at /api/leads');
-  console.log('📤 Enhanced Data Export endpoint available at /api/data-export');
+  console.log('� Simple Leads endpoint available at /api/leads-simple');
+  console.log('�📤 Enhanced Data Export endpoint available at /api/data-export');
 
 } catch (error) {
   console.error('❌ CRITICAL ERROR loading API handlers:', error.message);
