@@ -108,7 +108,7 @@ module.exports = async (req, res) => {
       }
 
       try {
-        const { fullName, email, phone, course, source, country, branch, qualification, priority, notes } = req.body;
+        const { fullName, email, phone, course, source, country, branch, qualification, priority, notes, company } = req.body;
         
         // Validate required fields
         if (!fullName || !email) {
@@ -133,6 +133,7 @@ module.exports = async (req, res) => {
           followUp: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           priority: priority || 'medium',
           notes: notes || 'New lead created',
+          company: company || 'DMHCA',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
