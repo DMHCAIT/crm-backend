@@ -2972,7 +2972,11 @@ try {
   app.all('/api/permissions', permissionsHandler);
   app.all('/api/permissions/*', permissionsHandler);
 
-
+  // Users Supabase API handler - USER MANAGEMENT WITH DATABASE
+  const usersSupabaseHandler = require('./api/users-supabase.js');
+  app.all('/api/users-supabase', usersSupabaseHandler);
+  app.all('/api/users-supabase/*', usersSupabaseHandler);
+  console.log('✅ Users Supabase API loaded successfully');
 
   // Students API handler - ADDED FOR DASHBOARD INTEGRATION  
   try {
