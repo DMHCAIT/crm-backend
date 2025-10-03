@@ -796,7 +796,7 @@ module.exports = async (req, res) => {
           source: source || 'Manual Entry',
           course: course || 'Fellowship in Emergency Medicine',
           status: status || 'Fresh',
-          company: company || 'DMHCA', // Company field for DMHCA/IBMP separation
+          company: company || '', // Company field for DMHCA/IBMP separation - no default
 
           assigned_to: assignedTo || user.username || 'Unassigned', // PRIMARY assignment field (snake_case)
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name

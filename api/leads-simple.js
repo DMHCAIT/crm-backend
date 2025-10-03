@@ -133,7 +133,7 @@ module.exports = async (req, res) => {
           followUp: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           priority: priority || 'medium',
           notes: notes || 'New lead created',
-          company: company || 'DMHCA',
+          company: company || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
