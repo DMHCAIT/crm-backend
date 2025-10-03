@@ -83,8 +83,8 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const user = verifyToken(req);
-    console.log(`🔍 Assignable Users API: Request from ${user.username} (${user.email})`);
+    const jwtUser = verifyToken(req);
+    console.log(`🔍 Assignable Users API: Request from ${jwtUser.username} (${jwtUser.email})`);
 
     // GET /api/assignable-users - Get users that current user can assign leads to
     if (req.method === 'GET') {
@@ -106,19 +106,19 @@ module.exports = async (req, res) => {
         }
 
         // Find current user - try multiple matching methods
-        let currentUser = allUsers.find(u => u.username === user.username);
+        let currentUser = allUsers.find(u => u.username === jwtUser.username);
         if (!currentUser) {
           // Try matching by email
-          currentUser = allUsers.find(u => u.email === user.email);
+          currentUser = allUsers.find(u => u.email === jwtUser.email);
         }
         if (!currentUser) {
           // Try case-insensitive username matching
-          currentUser = allUsers.find(u => u.username?.toLowerCase() === user.username?.toLowerCase());
+          currentUser = allUsers.find(u => u.username?.toLowerCase() === jwtUser.username?.toLowerCase());
         }
         
         console.log(`🔍 Current user lookup:`, {
-          jwtUsername: user.username,
-          jwtEmail: user.email,
+          jwtUsername: jwtUser.username,
+          jwtEmail: jwtUser.email,
           foundUser: currentUser ? {
             id: currentUser.id,
             name: currentUser.name,
@@ -134,8 +134,8 @@ module.exports = async (req, res) => {
             success: false,
             error: 'Current user not found in database',
             details: {
-              jwtUsername: user.username,
-              jwtEmail: user.email,
+              jwtUsername: jwtUser.username,
+              jwtEmail: jwtUser.email,
               availableUsers: allUsers.map(u => ({ username: u.username, email: u.email, name: u.name }))
             }
           });
