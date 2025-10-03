@@ -103,7 +103,8 @@ module.exports = async (req, res) => {
         phone,
         location,
         join_date,
-        reports_to
+        reports_to,
+        company
       } = req.body;
 
       // Validate required fields
@@ -166,6 +167,7 @@ module.exports = async (req, res) => {
           location: location || null,
           join_date: join_date || new Date().toISOString().split('T')[0],
           reports_to: reports_to || null,
+          company: company || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -226,7 +228,8 @@ module.exports = async (req, res) => {
         phone,
         location,
         join_date,
-        reports_to
+        reports_to,
+        company
       } = req.body;
 
       try {
@@ -283,6 +286,7 @@ module.exports = async (req, res) => {
         if (location !== undefined) updateData.location = location;
         if (join_date !== undefined) updateData.join_date = join_date;
         if (reports_to !== undefined) updateData.reports_to = reports_to;
+        if (company !== undefined) updateData.company = company;
 
         console.log(`📝 Updating user ${userId}:`, updateData);
 
