@@ -37,12 +37,22 @@ async function getSubordinateUsers(userId, allUsers) {
   const subordinates = [];
   const visited = new Set();
   
+  console.log(`🔍 Finding subordinates for user ID: ${userId}`);
+  console.log(`🔍 Available users with reports_to:`, allUsers.map(u => ({
+    id: u.id,
+    name: u.name,
+    username: u.username,
+    role: u.role,
+    reports_to: u.reports_to
+  })));
+  
   function findSubordinates(supervisorId) {
     if (visited.has(supervisorId)) return;
     visited.add(supervisorId);
     
     allUsers.forEach(user => {
       if (user.reports_to === supervisorId) {
+        console.log(`📋 Found subordinate: ${user.name} (${user.role}) reports to ${supervisorId}`);
         subordinates.push(user);
         findSubordinates(user.id);
       }
@@ -50,6 +60,7 @@ async function getSubordinateUsers(userId, allUsers) {
   }
   
   findSubordinates(userId);
+  console.log(`✅ Total subordinates found: ${subordinates.length}`, subordinates.map(s => ({ name: s.name, role: s.role })));
   return subordinates;
 }
 
@@ -94,12 +105,39 @@ module.exports = async (req, res) => {
           });
         }
 
-        // Find current user
-        const currentUser = allUsers.find(u => u.username === user.username);
+        // Find current user - try multiple matching methods
+        let currentUser = allUsers.find(u => u.username === user.username);
+        if (!currentUser) {
+          // Try matching by email
+          currentUser = allUsers.find(u => u.email === user.email);
+        }
+        if (!currentUser) {
+          // Try case-insensitive username matching
+          currentUser = allUsers.find(u => u.username?.toLowerCase() === user.username?.toLowerCase());
+        }
+        
+        console.log(`🔍 Current user lookup:`, {
+          jwtUsername: user.username,
+          jwtEmail: user.email,
+          foundUser: currentUser ? {
+            id: currentUser.id,
+            name: currentUser.name,
+            username: currentUser.username,
+            email: currentUser.email,
+            role: currentUser.role
+          } : null,
+          totalUsersInDB: allUsers.length
+        });
+        
         if (!currentUser) {
           return res.status(404).json({
             success: false,
-            error: 'Current user not found in database'
+            error: 'Current user not found in database',
+            details: {
+              jwtUsername: user.username,
+              jwtEmail: user.email,
+              availableUsers: allUsers.map(u => ({ username: u.username, email: u.email, name: u.name }))
+            }
           });
         }
 
