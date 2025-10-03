@@ -135,7 +135,44 @@ module.exports = async (req, res) => {
 
         // Super admins can assign to everyone
         if (currentUser.role === 'super_admin') {
+          console.log(`🔑 Super Admin Access: Adding all ${allUsers.length} users to assignable list`);
           allUsers.forEach(u => {
+            if (!assignableUsers.find(au => au.id === u.id)) {
+              assignableUsers.push({
+                id: u.id,
+                name: u.name,
+                username: u.username,
+                email: u.email,
+                role: u.role,
+                department: u.department,
+                display_name: `${u.name} (${u.role}) - ${u.department || 'No Department'}`
+              });
+            }
+          });
+        }
+        
+        // Senior managers can assign to managers, team leaders, and counselors
+        else if (currentUser.role === 'senior_manager') {
+          const assignableRoles = ['manager', 'team_leader', 'counselor'];
+          allUsers.filter(u => assignableRoles.includes(u.role)).forEach(u => {
+            if (!assignableUsers.find(au => au.id === u.id)) {
+              assignableUsers.push({
+                id: u.id,
+                name: u.name,
+                username: u.username,
+                email: u.email,
+                role: u.role,
+                department: u.department,
+                display_name: `${u.name} (${u.role}) - ${u.department || 'No Department'}`
+              });
+            }
+          });
+        }
+        
+        // Managers can assign to team leaders and counselors
+        else if (currentUser.role === 'manager') {
+          const assignableRoles = ['team_leader', 'counselor'];
+          allUsers.filter(u => assignableRoles.includes(u.role)).forEach(u => {
             if (!assignableUsers.find(au => au.id === u.id)) {
               assignableUsers.push({
                 id: u.id,

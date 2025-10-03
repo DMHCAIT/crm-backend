@@ -393,34 +393,65 @@ module.exports = async (req, res) => {
           });
         }
         
-        // Filter leads: user can see their own leads + subordinates' leads (username-only) - CASE-INSENSITIVE
-        const accessibleLeads = (allLeads || []).filter(lead => {
-          // Standardized to username-only assignments
-          const leadAssignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
-          
-          // Skip null/undefined assignments
-          if (!leadAssignee) {
+        // Get all users for role-based filtering (needed for senior_manager and manager roles)
+        const { data: allUsers } = await supabase.from('users').select('username, role');
+        const userRoleMap = {};
+        if (allUsers) {
+          allUsers.forEach(u => {
+            if (u.username) {
+              userRoleMap[u.username.toLowerCase()] = u.role;
+            }
+          });
+        }
+        
+        // Filter leads based on role and hierarchy
+        let accessibleLeads;
+        
+        // Super admins can see ALL leads (including unassigned)
+        if (user.role === 'super_admin') {
+          accessibleLeads = allLeads || [];
+          console.log(`🔑 Super Admin Access: User ${user.username} can see all ${accessibleLeads.length} leads`);
+        } else {
+          // Other roles see leads based on hierarchy
+          accessibleLeads = (allLeads || []).filter(lead => {
+            // Standardized to username-only assignments
+            const leadAssignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
+            
+            // Skip null/undefined assignments for non-super_admin users
+            if (!leadAssignee) {
+              return false;
+            }
+            
+            // User can see their own leads - CASE-INSENSITIVE username comparison
+            if (user.username && leadAssignee.toLowerCase() === user.username.toLowerCase()) {
+              return true;
+            }
+            
+            // User can see leads assigned to their subordinates (by username) - CASE-INSENSITIVE
+            const lowerCaseSubordinates = subordinateUsernames.filter(u => u).map(u => u.toLowerCase());
+            if (lowerCaseSubordinates.includes(leadAssignee.toLowerCase())) {
+              return true;
+            }
+            
+            // Senior managers can see leads assigned to managers, team leaders, and counselors
+            if (user.role === 'senior_manager') {
+              const assignedUserRole = userRoleMap[leadAssignee.toLowerCase()];
+              if (assignedUserRole && ['manager', 'team_leader', 'counselor'].includes(assignedUserRole)) {
+                return true;
+              }
+            }
+            
+            // Managers can see leads assigned to team leaders and counselors  
+            if (user.role === 'manager') {
+              const assignedUserRole = userRoleMap[leadAssignee.toLowerCase()];
+              if (assignedUserRole && ['team_leader', 'counselor'].includes(assignedUserRole)) {
+                return true;
+              }
+            }
+            
             return false;
-          }
-          
-          // User can see their own leads - CASE-INSENSITIVE username comparison
-          if (user.username && leadAssignee.toLowerCase() === user.username.toLowerCase()) {
-            return true;
-          }
-          
-          // User can see leads assigned to their subordinates (by username) - CASE-INSENSITIVE
-          const lowerCaseSubordinates = subordinateUsernames.filter(u => u).map(u => u.toLowerCase());
-          if (lowerCaseSubordinates.includes(leadAssignee.toLowerCase())) {
-            return true;
-          }
-          
-          // Super admins can see all leads
-          if (user.role === 'super_admin') {
-            return true;
-          }
-          
-          return false;
-        });
+          });
+        }
         
         console.log(`✅ User ${user.email} can access ${accessibleLeads.length} out of ${allLeads?.length || 0} leads`);
         const leads = accessibleLeads;
