@@ -345,7 +345,35 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const user = verifyToken(req);
+    const jwtUser = verifyToken(req);
+    
+    // Get complete user details from database to ensure we have user ID for hierarchy
+    let user = jwtUser;
+    if (supabase && jwtUser.username) {
+      try {
+        const { data: fullUserData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('username', jwtUser.username)
+          .single();
+        
+        if (!userError && fullUserData) {
+          user = {
+            ...jwtUser,
+            ...fullUserData,
+            // Preserve JWT fields that might not be in database
+            username: jwtUser.username,
+            email: jwtUser.email || fullUserData.email,
+            role: fullUserData.role || jwtUser.role
+          };
+          console.log(`✅ Enhanced user object for ${user.username} with database details - ID: ${user.id}, Role: ${user.role}`);
+        } else {
+          console.log(`⚠️ Could not find user ${jwtUser.username} in database, using JWT data only`);
+        }
+      } catch (error) {
+        console.log(`⚠️ Error fetching user details: ${error.message}, using JWT data only`);
+      }
+    }
     
     if (req.method === 'GET') {
       if (!supabase) {
@@ -374,14 +402,14 @@ module.exports = async (req, res) => {
         }
 
         // Filter leads based on hierarchical access control
-        console.log(`🔍 Leads API: Filtering ${allLeads?.length || 0} leads for user ${user.username} (${user.email}) - Role: ${user.role}`);
+        console.log(`🔍 Leads API: Filtering ${allLeads?.length || 0} leads for user ${user.username} (${user.email}) - Role: ${user.role} - ID: ${user.id}`);
         
-        // Get subordinate users for current user
-        const subordinates = await getSubordinateUsers(user.id);
+        // Get subordinate users for current user (requires user.id)
+        const subordinates = user.id ? await getSubordinateUsers(user.id) : [];
         console.log(`🏢 Leads API: User ${user.email} supervises ${subordinates.length} subordinates`);
         
         // Get subordinate usernames for hierarchical access
-        const subordinateUsernames = await getSubordinateUsernames(user.id);
+        const subordinateUsernames = user.id ? await getSubordinateUsernames(user.id) : [];
         console.log(`🏢 Leads API: User ${user.username} supervises usernames: [${subordinateUsernames.join(', ')}]`);
         
         // Debug first few leads to check assignment
