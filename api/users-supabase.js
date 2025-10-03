@@ -166,7 +166,7 @@ module.exports = async (req, res) => {
           phone: phone || null,
           location: location || null,
           join_date: join_date || new Date().toISOString().split('T')[0],
-          reports_to: reports_to || null,
+          reports_to: reports_to === '' ? null : (reports_to || null),
           company: company || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -285,7 +285,7 @@ module.exports = async (req, res) => {
         if (phone !== undefined) updateData.phone = phone;
         if (location !== undefined) updateData.location = location;
         if (join_date !== undefined) updateData.join_date = join_date;
-        if (reports_to !== undefined) updateData.reports_to = reports_to;
+        if (reports_to !== undefined) updateData.reports_to = reports_to === '' ? null : reports_to;
         if (company !== undefined) updateData.company = company;
 
         console.log(`📝 Updating user ${userId}:`, updateData);
