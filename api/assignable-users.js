@@ -191,6 +191,7 @@ module.exports = async (req, res) => {
 
         return res.json({
           success: true,
+          users: assignableUsers,
           data: assignableUsers,
           totalCount: assignableUsers.length,
           message: `Found ${assignableUsers.length} assignable users`
