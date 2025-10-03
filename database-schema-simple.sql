@@ -5,7 +5,7 @@
 
 -- STEP 1: ADD COMPANY FIELD TO LEADS TABLE
 -- =========================================
-ALTER TABLE leads ADD COLUMN IF NOT EXISTS company TEXT DEFAULT 'DMHCA';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS company TEXT;
 CREATE INDEX IF NOT EXISTS idx_leads_company ON leads(company);
 UPDATE leads SET company = 'DMHCA' WHERE company IS NULL;
 

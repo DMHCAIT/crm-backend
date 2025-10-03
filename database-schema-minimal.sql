@@ -4,12 +4,10 @@
 -- ============================================
 
 -- CRITICAL: Add company field to both tables
-ALTER TABLE leads ADD COLUMN IF NOT EXISTS company TEXT DEFAULT 'DMHCA';
-ALTER TABLE users ADD COLUMN IF NOT EXISTS company TEXT DEFAULT 'DMHCA';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS company TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company TEXT;
 
--- Update existing records to have company field
-UPDATE leads SET company = 'DMHCA' WHERE company IS NULL;
-UPDATE users SET company = 'DMHCA' WHERE company IS NULL;
+-- Note: No default values - company should be explicitly set for proper DMHCA/IBMP differentiation
 
 -- CRITICAL: Ensure hierarchy field exists (likely already exists)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reports_to TEXT;

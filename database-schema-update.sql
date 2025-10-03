@@ -1,4 +1,8 @@
--- ============================================
+-- ==-- 1. ADD COMPANY FIELD TO LEADS TABLE
+-- ===================================
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS company TEXT;
+CREATE INDEX IF NOT EXISTS idx_leads_company ON leads(company);
+-- Note: No default value for leads - company should be explicitly set=====================================
 -- CRM DATABASE SCHEMA UPDATES
 -- Add Company Fields and Hierarchy Support
 -- ============================================
@@ -19,9 +23,9 @@ END $$;
 
 -- 2. ADD COMPANY FIELD TO USERS TABLE  
 -- ====================================
-ALTER TABLE users ADD COLUMN IF NOT EXISTS company TEXT DEFAULT 'DMHCA';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company TEXT;
 CREATE INDEX IF NOT EXISTS idx_users_company ON users(company);
-UPDATE users SET company = 'DMHCA' WHERE company IS NULL;
+-- Note: No default value for users - company should be explicitly set
 
 -- Add constraint (drop first if exists)
 DO $$ 
