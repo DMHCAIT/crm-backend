@@ -330,7 +330,7 @@ async function handleGetUserActivity(req, res) {
     
     console.log('📊 Super Admin: Getting user activity analytics', { user_id, username, start_date, end_date });
 
-    // Build the query
+    // Build the query with user information lookup
     let query = supabase
       .from('leads')
       .select(`
@@ -394,26 +394,51 @@ async function handleGetUserActivity(req, res) {
 
     if (statsError) throw statsError;
 
-    // Calculate user activity statistics
+    // Get all unique user IDs for username lookup
+    const userIds = new Set();
+    allUpdates.forEach(update => {
+      if (update.updated_by && update.updated_by !== 'Unknown' && update.updated_by !== 'System') {
+        userIds.add(update.updated_by);
+      }
+    });
+
+    // Lookup actual usernames from users table
+    let userIdToUsername = {};
+    if (userIds.size > 0) {
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, username, name, email')
+        .in('id', Array.from(userIds));
+
+      if (!usersError && users) {
+        users.forEach(user => {
+          userIdToUsername[user.id] = user.username || user.name || user.email?.split('@')[0] || 'Unknown';
+        });
+      }
+    }
+
+    // Calculate user activity statistics with resolved usernames
     const userStats = {};
     const dailyStats = {};
 
     allUpdates.forEach(update => {
-      const user = update.updated_by || 'Unknown';
+      const userId = update.updated_by || 'Unknown';
+      const username = userIdToUsername[userId] || userId || 'Unknown';
       const date = update.updated_at.split('T')[0]; // Get date part only
 
       // User stats
-      if (!userStats[user]) {
-        userStats[user] = {
-          username: user,
+      if (!userStats[username]) {
+        userStats[username] = {
+          username: username,
+          userId: userId,
           totalUpdates: 0,
           lastUpdate: null
         };
       }
-      userStats[user].totalUpdates++;
+      userStats[username].totalUpdates++;
       
-      if (!userStats[user].lastUpdate || update.updated_at > userStats[user].lastUpdate) {
-        userStats[user].lastUpdate = update.updated_at;
+      if (!userStats[username].lastUpdate || update.updated_at > userStats[username].lastUpdate) {
+        userStats[username].lastUpdate = update.updated_at;
       }
 
       // Daily stats
@@ -425,7 +450,7 @@ async function handleGetUserActivity(req, res) {
         };
       }
       dailyStats[date].totalUpdates++;
-      dailyStats[date].users.add(user);
+      dailyStats[date].users.add(username);
     });
 
     // Convert sets to arrays for JSON serialization
@@ -434,12 +459,20 @@ async function handleGetUserActivity(req, res) {
       dailyStats[date].users = Array.from(dailyStats[date].users);
     });
 
+    // Enhance lead updates with resolved usernames
+    const enhancedLeadUpdates = leadUpdates?.map(update => ({
+      ...update,
+      updated_by_username: userIdToUsername[update.updated_by] || update.updated_by || 'Unknown',
+      assigned_to_username: userIdToUsername[update.assigned_to] || update.assigned_to || 'Unassigned'
+    })) || [];
+
     const response = {
       success: true,
       data: {
-        leadUpdates: leadUpdates || [],
+        leadUpdates: enhancedLeadUpdates,
         userStats: Object.values(userStats).sort((a, b) => b.totalUpdates - a.totalUpdates),
         dailyStats: Object.values(dailyStats).sort((a, b) => new Date(b.date) - new Date(a.date)),
+        userIdToUsername: userIdToUsername, // Include mapping for frontend use
         summary: {
           totalUpdates: leadUpdates?.length || 0,
           dateRange: {
