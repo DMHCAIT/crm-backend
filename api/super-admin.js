@@ -2,7 +2,7 @@
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'simple-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
 
 // Initialize Supabase for activity tracking
 let supabase;
@@ -124,12 +124,17 @@ function verifyAdminToken(req) {
 
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    if (decoded.role !== 'admin') {
-      return { success: false, message: 'Admin access required' };
+    // Allow both 'admin' and 'super_admin' roles to access super admin features
+    const allowedRoles = ['admin', 'super_admin'];
+    if (!allowedRoles.includes(decoded.role)) {
+      console.log('🚨 Access denied for role:', decoded.role);
+      return { success: false, message: `Super admin access required. Current role: ${decoded.role}` };
     }
 
+    console.log('✅ Super admin access granted for role:', decoded.role);
     return { success: true, user: decoded };
   } catch (error) {
+    console.error('🚨 Token verification failed:', error.message);
     return { success: false, message: 'Invalid token' };
   }
 }
