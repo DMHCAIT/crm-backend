@@ -1,7 +1,24 @@
-// 🚀 SUPER ADMIN API - USER MANAGEMENT SYSTEM
+// 🚀 SUPER ADMIN API - USER MANAGEMENT SYSTEM & ANALYTICS
 const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'simple-secret-key';
+
+// Initialize Supabase for activity tracking
+let supabase;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+    console.log('✅ Super Admin API: Supabase initialized');
+  } else {
+    console.log('❌ Super Admin API: Supabase credentials missing');
+  }
+} catch (error) {
+  console.log('❌ Super Admin API: Supabase initialization failed:', error.message);
+}
 
 // In-memory user storage (replace with database in production)
 let USERS_DATABASE = [
@@ -39,7 +56,7 @@ let USERS_DATABASE = [
 
 module.exports = async (req, res) => {
   // CORS Headers
-  const origin = req.headers.origin;
+  const origin = req.headers.origin;  
   if (origin && (origin.includes('vercel.app') || origin.includes('crmdmhca.com') || origin.includes('localhost'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
@@ -58,10 +75,12 @@ module.exports = async (req, res) => {
 
   // Route handling
   if (req.method === 'GET') {
+    // Check if requesting user activity analytics
+    if (req.query.action === 'user-activity') {
+      return handleGetUserActivity(req, res);
+    }
     return handleGetUsers(req, res);
-  }
-  
-  if (req.method === 'POST') {
+  }  if (req.method === 'POST') {
     return handleCreateUser(req, res);
   }
   
@@ -270,6 +289,155 @@ async function handleDeleteUser(req, res) {
     return res.status(500).json({
       success: false,
       message: 'Failed to delete user'
+    });
+  }
+}
+
+// 📊 Get user activity analytics
+async function handleGetUserActivity(req, res) {
+  try {
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available'
+      });
+    }
+
+    const { user_id, username, start_date, end_date, limit = 100 } = req.query;
+    
+    console.log('📊 Super Admin: Getting user activity analytics', { user_id, username, start_date, end_date });
+
+    // Build the query
+    let query = supabase
+      .from('leads')
+      .select(`
+        id,
+        "fullName",
+        status,
+        updated_at,
+        updated_by,
+        created_at,
+        assigned_to
+      `);
+
+    // Filter by user if specified
+    if (user_id || username) {
+      if (username) {
+        query = query.eq('updated_by', username);
+      } else if (user_id) {
+        // If user_id is provided, we might need to map it to username
+        // For now, we'll use updated_by field which stores username
+        query = query.eq('updated_by', user_id);
+      }
+    }
+
+    // Filter by date range
+    if (start_date) {
+      query = query.gte('updated_at', start_date);
+    }
+    if (end_date) {
+      // Add end of day to include full end date
+      const endDateTime = new Date(end_date);
+      endDateTime.setHours(23, 59, 59, 999);
+      query = query.lte('updated_at', endDateTime.toISOString());
+    }
+
+    // Order by most recent updates first
+    query = query.order('updated_at', { ascending: false });
+
+    if (limit && limit <= 1000) {
+      query = query.limit(parseInt(limit));
+    }
+
+    const { data: leadUpdates, error } = await query;
+
+    if (error) throw error;
+
+    // Also get user statistics
+    let statsQuery = supabase
+      .from('leads')
+      .select('updated_by, updated_at', { count: 'exact' });
+
+    if (start_date) {
+      statsQuery = statsQuery.gte('updated_at', start_date);
+    }
+    if (end_date) {
+      const endDateTime = new Date(end_date);
+      endDateTime.setHours(23, 59, 59, 999);
+      statsQuery = statsQuery.lte('updated_at', endDateTime.toISOString());
+    }
+
+    const { data: allUpdates, error: statsError } = await statsQuery;
+
+    if (statsError) throw statsError;
+
+    // Calculate user activity statistics
+    const userStats = {};
+    const dailyStats = {};
+
+    allUpdates.forEach(update => {
+      const user = update.updated_by || 'Unknown';
+      const date = update.updated_at.split('T')[0]; // Get date part only
+
+      // User stats
+      if (!userStats[user]) {
+        userStats[user] = {
+          username: user,
+          totalUpdates: 0,
+          lastUpdate: null
+        };
+      }
+      userStats[user].totalUpdates++;
+      
+      if (!userStats[user].lastUpdate || update.updated_at > userStats[user].lastUpdate) {
+        userStats[user].lastUpdate = update.updated_at;
+      }
+
+      // Daily stats
+      if (!dailyStats[date]) {
+        dailyStats[date] = {
+          date: date,
+          totalUpdates: 0,
+          users: new Set()
+        };
+      }
+      dailyStats[date].totalUpdates++;
+      dailyStats[date].users.add(user);
+    });
+
+    // Convert sets to arrays for JSON serialization
+    Object.keys(dailyStats).forEach(date => {
+      dailyStats[date].activeUsers = dailyStats[date].users.size;
+      dailyStats[date].users = Array.from(dailyStats[date].users);
+    });
+
+    const response = {
+      success: true,
+      data: {
+        leadUpdates: leadUpdates || [],
+        userStats: Object.values(userStats).sort((a, b) => b.totalUpdates - a.totalUpdates),
+        dailyStats: Object.values(dailyStats).sort((a, b) => new Date(b.date) - new Date(a.date)),
+        summary: {
+          totalUpdates: leadUpdates?.length || 0,
+          dateRange: {
+            start: start_date || 'All time',
+            end: end_date || 'Now'
+          },
+          filteredUser: username || user_id || 'All users'
+        }
+      },
+      message: `Found ${leadUpdates?.length || 0} lead updates`
+    };
+
+    console.log('✅ User activity data retrieved successfully');
+    return res.json(response);
+
+  } catch (error) {
+    console.error('❌ Error getting user activity:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get user activity data',
+      error: error.message
     });
   }
 }
