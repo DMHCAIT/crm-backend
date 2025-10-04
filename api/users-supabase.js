@@ -1,5 +1,6 @@
 // 🚀 SUPABASE-CONNECTED USER MANAGEMENT API
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { createClient } = require('@supabase/supabase-js');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
@@ -251,7 +252,8 @@ module.exports = async (req, res) => {
         location,
         join_date,
         reports_to,
-        company
+        company,
+        password
       } = req.body;
 
       try {
@@ -309,6 +311,23 @@ module.exports = async (req, res) => {
         if (join_date !== undefined) updateData.join_date = join_date;
         if (reports_to !== undefined) updateData.reports_to = reports_to === '' ? null : reports_to;
         if (company !== undefined) updateData.company = company;
+
+        // Hash password if provided
+        if (password && password.trim() !== '') {
+          console.log('🔐 Hashing new password for user:', userId);
+          const saltRounds = 10;
+          try {
+            const hashedPassword = await bcrypt.hash(password.trim(), saltRounds);
+            updateData.password_hash = hashedPassword;
+            console.log('✅ Password hashed successfully');
+          } catch (hashError) {
+            console.error('❌ Error hashing password:', hashError);
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to process password update'
+            });
+          }
+        }
 
         console.log(`📝 Updating user ${userId}:`, updateData);
 
