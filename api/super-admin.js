@@ -368,9 +368,9 @@ async function handleGetUserActivity(req, res) {
     // Order by most recent updates first
     query = query.order('updated_at', { ascending: false });
 
-    if (limit && limit <= 1000) {
-      query = query.limit(parseInt(limit));
-    }
+    // Increase default limit and allow higher limits for super admin
+    const actualLimit = limit ? Math.min(parseInt(limit), 2000) : 1000;
+    query = query.limit(actualLimit);
 
     const { data: leadUpdates, error } = await query;
 
@@ -414,7 +414,23 @@ async function handleGetUserActivity(req, res) {
         users.forEach(user => {
           userIdToUsername[user.id] = user.username || user.name || user.email?.split('@')[0] || 'Unknown';
         });
+        
+        console.log(`✅ Resolved ${users.length} user IDs to usernames`);
+      } else {
+        console.error('❌ Error fetching users for ID resolution:', usersError);
       }
+      
+      // For user IDs that don't have corresponding users, use the ID itself (truncated for readability)
+      Array.from(userIds).forEach(userId => {
+        if (!userIdToUsername[userId]) {
+          // If it looks like a UUID, use first 8 characters + ... for display
+          if (userId.length > 10 && userId.includes('-')) {
+            userIdToUsername[userId] = `User-${userId.substring(0, 8)}...`;
+          } else {
+            userIdToUsername[userId] = userId;
+          }
+        }
+      });
     }
 
     // Calculate user activity statistics with resolved usernames
@@ -474,7 +490,8 @@ async function handleGetUserActivity(req, res) {
         dailyStats: Object.values(dailyStats).sort((a, b) => new Date(b.date) - new Date(a.date)),
         userIdToUsername: userIdToUsername, // Include mapping for frontend use
         summary: {
-          totalUpdates: leadUpdates?.length || 0,
+          totalUpdates: allUpdates?.length || 0, // Use allUpdates count, not just displayed updates
+          totalDisplayed: leadUpdates?.length || 0, // Show how many are displayed
           dateRange: {
             start: start_date || 'All time',
             end: end_date || 'Now'
@@ -482,7 +499,7 @@ async function handleGetUserActivity(req, res) {
           filteredUser: username || user_id || 'All users'
         }
       },
-      message: `Found ${leadUpdates?.length || 0} lead updates`
+      message: `Found ${allUpdates?.length || 0} total updates, displaying ${leadUpdates?.length || 0}`
     };
 
     console.log('✅ User activity data retrieved successfully');
