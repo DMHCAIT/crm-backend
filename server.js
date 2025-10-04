@@ -39,7 +39,7 @@ try {
   console.log('❌ Supabase initialization failed:', error.message);
 }
 
-console.log('🚀 Starting DMHCA CRM Backend Server... [NOTES FIX & COURSES v2.4.0 - AUTH DEBUG]');
+console.log('🚀 Starting DMHCA CRM Backend Server... [SUPER ADMIN ANALYTICS v2.5.0 - USER ACTIVITY TRACKING]');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
 console.log('🌐 CORS configured for: https://www.crmdmhca.com');
