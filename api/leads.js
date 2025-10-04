@@ -335,12 +335,33 @@ async function logLeadActivity(leadId, activityType, description, performedBy, o
 }
 
 module.exports = async (req, res) => {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // Enhanced CORS Headers
+  const origin = req.headers.origin;
+  console.log('🌐 Leads API - Origin:', origin);
+  
+  // Allow specific origins
+  const allowedOrigins = [
+    'https://www.crmdmhca.com',
+    'https://crmdmhca.com', 
+    'https://crm-frontend-dmhca.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  
+  if (origin && allowedOrigins.some(allowed => origin === allowed || origin.includes('vercel.app') || origin.includes('crmdmhca.com'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // Fallback for production
+    res.setHeader('Access-Control-Allow-Origin', 'https://www.crmdmhca.com');
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   if (req.method === 'OPTIONS') {
+    console.log('🔧 Leads API - Handling preflight request');
     return res.status(200).end();
   }
 
