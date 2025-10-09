@@ -919,6 +919,31 @@ try {
   console.log('⚠️ Error stack:', error.stack);
 }
 
+// Dashboard API handler - ADD MISSING DASHBOARD ENDPOINT
+try {
+  console.log('🔄 Loading Dashboard handler...');
+  const dashboardHandler = require('./api/dashboard.js');
+  console.log('📊 Dashboard handler type:', typeof dashboardHandler);
+  app.all('/api/dashboard', dashboardHandler);
+  app.all('/api/dashboard/*', dashboardHandler);
+  console.log('✅ Dashboard API loaded successfully - /api/dashboard endpoint active');
+} catch (error) {
+  console.log('⚠️ Dashboard API not available:', error.message);
+  console.log('⚠️ Error stack:', error.stack);
+}
+
+// Webhook Leads API handler - FOR WEBSITE INTEGRATION
+try {
+  console.log('🔄 Loading Webhook Leads handler...');
+  const webhookLeadsHandler = require('./api/webhook-leads.js');
+  console.log('🔗 Webhook Leads handler type:', typeof webhookLeadsHandler);
+  app.all('/api/webhook-leads', webhookLeadsHandler);
+  console.log('✅ Webhook Leads API loaded successfully - /api/webhook-leads endpoint active');
+} catch (error) {
+  console.log('⚠️ Webhook Leads API not available:', error.message);
+  console.log('⚠️ Error stack:', error.stack);
+}
+
 // ====================================
 // 🚫 ERROR HANDLING
 // ====================================
