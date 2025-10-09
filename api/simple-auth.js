@@ -42,25 +42,27 @@ const simpleAuthHandler = async (req, res) => {
         
         let adminUser = null;
         
+        // TEMPORARY FIX: Skip database lookup to resolve timeout issue
         // Try to get admin user data from database
-        if (supabase) {
-          try {
-            const { data: dbAdmin, error } = await supabase
-              .from('users')
-              .select('*')
-              .eq('username', 'admin')
-              .single();
-            
-            if (!error && dbAdmin) {
-              adminUser = dbAdmin;
-              console.log(`✅ Simple Auth: Found admin in database: ${adminUser.name}`);
-            } else {
-              console.log('⚠️ Simple Auth: Admin not found in database, using fallback');
-            }
-          } catch (dbError) {
-            console.log('⚠️ Simple Auth: Database lookup failed:', dbError.message);
-          }
-        }
+        console.log('⚠️ Simple Auth: Skipping database lookup to fix timeout issue');
+        // if (supabase) {
+        //   try {
+        //     const { data: dbAdmin, error } = await supabase
+        //       .from('users')
+        //       .select('*')
+        //       .eq('username', 'admin')
+        //       .single();
+        //     
+        //     if (!error && dbAdmin) {
+        //       adminUser = dbAdmin;
+        //       console.log(`✅ Simple Auth: Found admin in database: ${adminUser.name}`);
+        //     } else {
+        //       console.log('⚠️ Simple Auth: Admin not found in database, using fallback');
+        //     }
+        //   } catch (dbError) {
+        //     console.log('⚠️ Simple Auth: Database lookup failed:', dbError.message);
+        //   }
+        // }
         
         const token = jwt.sign(
           { 
