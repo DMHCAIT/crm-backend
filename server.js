@@ -958,6 +958,8 @@ function authenticateToken(req, res, next) {
     '/api/auth/register',
     '/api/auth/debug-login',
     '/api/simple-auth/login',
+    '/api/dashboard',
+    '/api/webhook-leads',
     '/webhooks'
   ];
 
