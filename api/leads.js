@@ -820,6 +820,118 @@ module.exports = async (req, res) => {
         }
       }
 
+      // Check if this is a bulk delete operation
+      if (req.body.operation === 'bulk_delete') {
+        const { leadIds, updatedBy } = req.body;
+
+        if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Lead IDs array is required for bulk delete'
+          });
+        }
+
+        try {
+          console.log(`🗑️ Starting bulk delete for ${leadIds.length} leads by ${updatedBy || user.username}`);
+
+          // First, get all leads to check access permissions
+          const { data: leadsToDelete, error: fetchError } = await supabase
+            .from('leads')
+            .select('*')
+            .in('id', leadIds);
+
+          if (fetchError) {
+            console.error('❌ Error fetching leads for deletion:', fetchError);
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch leads for deletion',
+              details: fetchError.message
+            });
+          }
+
+          if (!leadsToDelete || leadsToDelete.length === 0) {
+            return res.status(404).json({
+              success: false,
+              error: 'No leads found for deletion'
+            });
+          }
+
+          // Check access permissions for each lead
+          const unauthorizedLeads = [];
+          for (const lead of leadsToDelete) {
+            const hasAccess = await canAccessLead(lead, user);
+            if (!hasAccess && user.role !== 'super_admin') {
+              unauthorizedLeads.push(lead.id);
+            }
+          }
+
+          if (unauthorizedLeads.length > 0 && user.role !== 'super_admin') {
+            return res.status(403).json({
+              success: false,
+              error: `Access denied: You cannot delete ${unauthorizedLeads.length} lead(s) as they are not assigned to you or your subordinates`,
+              unauthorizedLeads
+            });
+          }
+
+          // Delete related records first (cascade delete)
+          const accessibleLeadIds = leadsToDelete.map(lead => lead.id);
+
+          // Delete lead activities
+          const { error: activitiesDeleteError } = await supabase
+            .from('lead_activities')
+            .delete()
+            .in('lead_id', accessibleLeadIds);
+
+          if (activitiesDeleteError) {
+            console.log('⚠️ Warning: Failed to delete some lead activities:', activitiesDeleteError.message);
+          }
+
+          // Delete the leads
+          const { data: deletedLeads, error: deleteError } = await supabase
+            .from('leads')
+            .delete()
+            .in('id', accessibleLeadIds)
+            .select();
+
+          if (deleteError) {
+            console.error('❌ Bulk delete error:', deleteError);
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to delete leads',
+              details: deleteError.message
+            });
+          }
+
+          // Log deletion activities
+          for (const lead of leadsToDelete) {
+            await logLeadActivity(
+              lead.id,
+              'bulk_delete',
+              `Lead deleted from system`,
+              updatedBy || user.username || 'System'
+            );
+          }
+
+          const deletedCount = deletedLeads ? deletedLeads.length : accessibleLeadIds.length;
+          console.log(`✅ Bulk delete completed: ${deletedCount} leads deleted by ${updatedBy || user.username}`);
+
+          return res.json({
+            success: true,
+            deletedCount,
+            deletedLeads: accessibleLeadIds,
+            message: `${deletedCount} lead(s) deleted successfully`
+          });
+
+        } catch (error) {
+          console.error('❌ Bulk delete operation error:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Bulk delete operation failed',
+            details: error.message
+          });
+        }
+      }
+
       // Extract lead data with all new fields
       const { 
         fullName,
