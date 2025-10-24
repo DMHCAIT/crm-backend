@@ -359,6 +359,10 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  // Performance optimization headers
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // For lead data freshness
+  res.setHeader('Content-Encoding', 'gzip'); // Enable compression hint
 
   if (req.method === 'OPTIONS') {
     console.log('🔧 Leads API - Handling preflight request');
@@ -407,11 +411,18 @@ module.exports = async (req, res) => {
 
       try {
         // Get ALL leads from database with enhanced data - OVERRIDE SUPABASE 1000 DEFAULT LIMIT
+        // Performance optimization: Only select necessary columns for initial load
         const { data: allLeads, error } = await supabase
           .from('leads')
-          .select(`*`)
-          .order('created_at', { ascending: false })
-          .limit(50000); // Override Supabase default 1000 limit - fetch up to 50,000 records
+          .select(`
+            id, fullName, email, phone, country, branch, qualification, 
+            source, course, status, company, estimatedValue, assigned_to, 
+            assignedTo, assignedcounselor, experience, location, score, 
+            created_at, updated_at, followUp, nextfollowup, next_follow_up, 
+            notes, communications_count, updated_by
+          `)
+          .order('updated_at', { ascending: false }) // Order by most recently updated first for better user experience
+          .limit(10000); // Reduce limit for better performance - 10k should be sufficient
 
         if (error) {
           console.error('❌ Error fetching leads:', error.message);
@@ -578,7 +589,9 @@ module.exports = async (req, res) => {
             // Normalize assignment fields from emails to usernames
             assignedTo: normalizedAssignment,
             assignedCounselor: normalizedAssignment,
-            assigned_to: normalizedAssignment
+            assigned_to: normalizedAssignment,
+            // Ensure estimatedValue is numeric and present
+            estimatedValue: lead.estimatedValue !== undefined && lead.estimatedValue !== null ? parseFloat(lead.estimatedValue) || 0 : 0
           };
         });
         
@@ -945,6 +958,7 @@ module.exports = async (req, res) => {
         course, 
         status,
         company,
+        estimatedValue,
 
         assignedTo,
         notes,
@@ -963,6 +977,17 @@ module.exports = async (req, res) => {
           success: false,
           error: 'Name and email are required'
         });
+      }
+
+      // Validate estimatedValue field for warm/hot leads
+      if ((status === 'Warm' || status === 'Hot') && estimatedValue !== undefined) {
+        const numericValue = parseFloat(estimatedValue);
+        if (isNaN(numericValue) || numericValue < 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Estimated value must be a valid positive number for warm/hot leads'
+          });
+        }
       }
 
       try {
@@ -989,6 +1014,7 @@ module.exports = async (req, res) => {
           course: course || 'Fellowship in Emergency Medicine',
           status: status || 'Fresh',
           company: company || '', // Company field for DMHCA/IBMP separation - no default
+          estimatedValue: estimatedValue ? parseFloat(estimatedValue) || 0 : 0, // Ensure numeric value for estimated value field
 
           assigned_to: assignedTo || user.username || 'Unassigned', // PRIMARY assignment field (snake_case)
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
@@ -1112,6 +1138,17 @@ module.exports = async (req, res) => {
         const updateData = req.body;
         console.log(`🔄 Updating lead ${leadId} with data:`, updateData);
         
+        // Validate estimatedValue field for warm/hot leads in updates
+        if (updateData.status && (updateData.status === 'Warm' || updateData.status === 'Hot') && updateData.estimatedValue !== undefined) {
+          const numericValue = parseFloat(updateData.estimatedValue);
+          if (isNaN(numericValue) || numericValue < 0) {
+            return res.status(400).json({
+              success: false,
+              error: 'Estimated value must be a valid positive number for warm/hot leads'
+            });
+          }
+        }
+        
         // Log current assignment before update
         const currentAssignment = existingLead.assigned_to || existingLead.assignedTo || existingLead.assignedcounselor;
         console.log(`📋 Current assignment: "${currentAssignment}"`);
@@ -1133,6 +1170,11 @@ module.exports = async (req, res) => {
           // Remove camelCase version that doesn't exist in database schema
           delete cleanUpdateData.assignedCounselor; // This column doesn't exist in DB
           console.log(`✅ Synchronized assignment fields to: "${cleanUpdateData.assigned_to}"`);
+        }
+
+        // Ensure numeric conversion for estimatedValue in updates
+        if (cleanUpdateData.estimatedValue !== undefined) {
+          cleanUpdateData.estimatedValue = parseFloat(cleanUpdateData.estimatedValue) || 0;
         }
 
         // Add updated timestamp
