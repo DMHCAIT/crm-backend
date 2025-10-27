@@ -416,7 +416,7 @@ module.exports = async (req, res) => {
           .from('leads')
           .select(`
             id, fullName, email, phone, country, branch, qualification, 
-            source, course, status, company, estimatedValue, assigned_to, 
+            source, course, status, company, estimated_value, assigned_to, 
             assignedTo, assignedcounselor, experience, location, score, 
             created_at, updated_at, followUp, nextfollowup, next_follow_up, 
             notes, communications_count, updated_by
@@ -590,8 +590,8 @@ module.exports = async (req, res) => {
             assignedTo: normalizedAssignment,
             assignedCounselor: normalizedAssignment,
             assigned_to: normalizedAssignment,
-            // Ensure estimatedValue is numeric and present
-            estimatedValue: lead.estimatedValue !== undefined && lead.estimatedValue !== null ? parseFloat(lead.estimatedValue) || 0 : 0
+            // Map estimated_value from database to estimatedValue for frontend
+            estimatedValue: lead.estimated_value !== undefined && lead.estimated_value !== null ? parseFloat(lead.estimated_value) || 0 : 0
           };
         });
         
@@ -1014,7 +1014,7 @@ module.exports = async (req, res) => {
           course: course || 'Fellowship in Emergency Medicine',
           status: status || 'Fresh',
           company: company || '', // Company field for DMHCA/IBMP separation - no default
-          estimatedValue: estimatedValue ? parseFloat(estimatedValue) || 0 : 0, // Ensure numeric value for estimated value field
+          estimated_value: estimatedValue ? parseFloat(estimatedValue) || 0 : 0, // Ensure numeric value for estimated value field
 
           assigned_to: assignedTo || user.username || 'Unassigned', // PRIMARY assignment field (snake_case)
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
@@ -1174,7 +1174,8 @@ module.exports = async (req, res) => {
 
         // Ensure numeric conversion for estimatedValue in updates
         if (cleanUpdateData.estimatedValue !== undefined) {
-          cleanUpdateData.estimatedValue = parseFloat(cleanUpdateData.estimatedValue) || 0;
+          cleanUpdateData.estimated_value = parseFloat(cleanUpdateData.estimatedValue) || 0;
+          delete cleanUpdateData.estimatedValue; // Remove camelCase version
         }
 
         // Add updated timestamp
