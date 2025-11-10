@@ -86,21 +86,25 @@ module.exports = async (req, res) => {
 };
 
 async function handleLogin(req, res) {
-  const { email, password } = req.body;
+  const { email, password, username } = req.body;
+  
+  // Accept either email or username (frontend sends it as email for backward compatibility)
+  const loginIdentifier = email || username;
 
-  if (!email || !password) {
+  if (!loginIdentifier || !password) {
     return res.status(400).json({
       success: false,
-      message: 'Email and password are required'
+      message: 'Username/Email and password are required'
     });
   }
 
   try {
     // First, try direct database authentication for admin users
+    // Check both email and username fields
     const { data: dbUser, error: dbError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .or(`email.eq.${loginIdentifier},username.eq.${loginIdentifier}`)
       .single();
 
     if (dbUser && dbUser.password_hash) {
@@ -137,16 +141,27 @@ async function handleLogin(req, res) {
       }
     }
 
-    // If no direct database match, try Supabase auth
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    // If no direct database match, try Supabase auth (requires email format)
+    // If loginIdentifier looks like username, skip Supabase auth
+    let signInData = null;
+    let signInError = null;
+    
+    if (loginIdentifier.includes('@')) {
+      const authResult = await supabase.auth.signInWithPassword({
+        email: loginIdentifier,
+        password
+      });
+      signInData = authResult.data;
+      signInError = authResult.error;
+    } else {
+      // If it's a username, only use database auth
+      signInError = { message: 'Invalid username or password' };
+    }
 
     if (signInError) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid username/email or password'
       });
     }
 
@@ -156,7 +171,7 @@ async function handleLogin(req, res) {
       const { data: profileData, error: profileError } = await supabase
         .from('users')
         .select('*')
-        .eq('email', email)
+        .or(`email.eq.${loginIdentifier},username.eq.${loginIdentifier}`)
         .single();
 
       if (!profileError && profileData) {
