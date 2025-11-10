@@ -24,6 +24,8 @@ const corsOptions = {
   origin: [
     'http://localhost:5173',
     'http://localhost:3000',
+    'https://crmdmhca.com',
+    'https://www.crmdmhca.com',
     'https://crm-frontend-dmhca.vercel.app',
     'https://*.vercel.app'
   ],
