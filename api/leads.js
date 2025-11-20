@@ -416,7 +416,7 @@ module.exports = async (req, res) => {
           .from('leads')
           .select(`
             id, fullName, email, phone, country, branch, qualification, 
-            source, course, status, company, estimated_value, assigned_to, 
+            source, course, status, company, estimatedvalue, assigned_to, 
             assignedTo, assignedcounselor, experience, location, score, 
             created_at, updated_at, followUp, nextfollowup, next_follow_up, 
             notes, communications_count, updated_by
