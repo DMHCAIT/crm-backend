@@ -409,9 +409,14 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // OPTIMIZED: Filter at database level for better performance
-        console.log(`🔍 Leads API: Building query for user ${user.username} (${user.role}) - ID: ${user.id}`);
+        // PAGINATION SUPPORT: Get query parameters
+        const page = parseInt(req.query.page) || 1;
+        const pageSize = parseInt(req.query.pageSize) || 100; // Default 100 leads per page
+        const offset = (page - 1) * pageSize;
         
+        console.log(`🔍 Leads API: Building query for user ${user.username} (${user.role}) - Page ${page}, Size ${pageSize}`);
+        
+        // OPTIMIZED: Filter at database level for better performance
         let query = supabase
           .from('leads')
           .select(`
@@ -422,7 +427,7 @@ module.exports = async (req, res) => {
             notes, communications_count, updated_by
           `, { count: 'exact' })
           .order('updated_at', { ascending: false })
-          .limit(5000); // Reduced from 10k for better performance
+          .range(offset, offset + pageSize - 1); // Pagination
         
         // Filter at database level based on role and hierarchy
         if (user.role !== 'super_admin') {
@@ -464,10 +469,20 @@ module.exports = async (req, res) => {
             const config = await getSystemConfig();
             return res.status(200).json({
               success: true,
+              leads: [],
               data: [],
+              totalCount: 0,
               count: 0,
-              statusOptions: config.statusOptions,
-              pipelineStats: {
+              pagination: {
+                page: 1,
+                pageSize,
+                totalPages: 0,
+                totalRecords: 0,
+                hasNextPage: false,
+                hasPrevPage: false
+              },
+              config: config,
+              stats: {
                 totalLeads: 0,
                 newLeads: 0,
                 hotLeads: 0,
@@ -596,14 +611,29 @@ module.exports = async (req, res) => {
 
         // Calculate pipeline statistics
         const stats = calculatePipelineStats(processedLeads || []);
+        
+        // Pagination metadata
+        const totalPages = Math.ceil((count || 0) / pageSize);
+        const hasNextPage = page < totalPages;
+        const hasPrevPage = page > 1;
 
         return res.json({
           success: true,
           leads: processedLeads || [],
-          totalCount: processedLeads?.length || 0,
+          data: processedLeads || [], // Alternative property name
+          totalCount: count || 0, // Total records in database
+          count: processedLeads?.length || 0, // Records in current page
+          pagination: {
+            page,
+            pageSize,
+            totalPages,
+            totalRecords: count || 0,
+            hasNextPage,
+            hasPrevPage
+          },
           config: config,
           stats: stats,
-          message: `Found ${processedLeads?.length || 0} leads`
+          message: `Found ${processedLeads?.length || 0} leads (page ${page} of ${totalPages})`
         });
       } catch (error) {
         console.error('❌ Database error:', error.message);
