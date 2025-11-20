@@ -362,7 +362,6 @@ module.exports = async (req, res) => {
   
   // Performance optimization headers
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // For lead data freshness
-  res.setHeader('Content-Encoding', 'gzip'); // Enable compression hint
 
   if (req.method === 'OPTIONS') {
     console.log('🔧 Leads API - Handling preflight request');
@@ -410,9 +409,10 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // Get ALL leads from database with enhanced data - OVERRIDE SUPABASE 1000 DEFAULT LIMIT
-        // Performance optimization: Only select necessary columns for initial load
-        const { data: allLeads, error } = await supabase
+        // OPTIMIZED: Filter at database level for better performance
+        console.log(`🔍 Leads API: Building query for user ${user.username} (${user.role}) - ID: ${user.id}`);
+        
+        let query = supabase
           .from('leads')
           .select(`
             id, fullName, email, phone, country, branch, qualification, 
@@ -420,101 +420,84 @@ module.exports = async (req, res) => {
             assignedTo, assignedcounselor, experience, location, score, 
             created_at, updated_at, followUp, nextfollowup, next_follow_up, 
             notes, communications_count, updated_by
-          `)
-          .order('updated_at', { ascending: false }) // Order by most recently updated first for better user experience
-          .limit(10000); // Reduce limit for better performance - 10k should be sufficient
+          `, { count: 'exact' })
+          .order('updated_at', { ascending: false })
+          .limit(5000); // Reduced from 10k for better performance
+        
+        // Filter at database level based on role and hierarchy
+        if (user.role !== 'super_admin') {
+          // Get subordinate usernames for hierarchical access
+          const subordinateUsernames = user.id ? await getSubordinateUsernames(user.id) : [];
+          console.log(`🏢 User ${user.username} supervises: [${subordinateUsernames.join(', ')}]`);
+          
+          // Build list of usernames this user can see (self + subordinates)
+          const accessibleUsernames = [user.username, ...subordinateUsernames].filter(Boolean);
+          
+          // For senior_manager and manager, also get users by role
+          if (user.role === 'senior_manager' || user.role === 'manager') {
+            const roleFilter = user.role === 'senior_manager' 
+              ? ['manager', 'team_leader', 'counselor']
+              : ['team_leader', 'counselor'];
+            
+            const { data: roleBasedUsers } = await supabase
+              .from('users')
+              .select('username')
+              .in('role', roleFilter);
+            
+            if (roleBasedUsers) {
+              roleBasedUsers.forEach(u => {
+                if (u.username && !accessibleUsernames.includes(u.username)) {
+                  accessibleUsernames.push(u.username);
+                }
+              });
+            }
+          }
+          
+          console.log(`🔑 User ${user.username} can access leads assigned to: [${accessibleUsernames.join(', ')}]`);
+          
+          // Apply database filter using .in() - much faster than JavaScript filter
+          if (accessibleUsernames.length > 0) {
+            query = query.in('assigned_to', accessibleUsernames);
+          } else {
+            // If no accessible usernames, return empty result
+            console.log(`⚠️ User ${user.username} has no accessible usernames - returning empty result`);
+            return res.status(200).json({
+              success: true,
+              data: [],
+              count: 0,
+              statusOptions: (await getSystemConfig()).statusOptions,
+              pipelineStats: {
+                totalLeads: 0,
+                newLeads: 0,
+                hotLeads: 0,
+                qualifiedLeads: 0,
+                convertedLeads: 0,
+                conversionRate: 0,
+                avgResponseTime: 0,
+                revenue: 0,
+                avgDealSize: 0,
+                monthlyGrowth: 0
+              }
+            });
+          }
+        } else {
+          console.log(`🔑 Super Admin Access: User ${user.username} can see ALL leads`);
+        }
+        
+        // Execute optimized query
+        const { data: leads, error, count } = await query;
 
         if (error) {
           console.error('❌ Error fetching leads:', error.message);
+          console.error('❌ Get leads error:', error);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch leads',
             details: error.message
           });
         }
-
-        // Filter leads based on hierarchical access control
-        console.log(`🔍 Leads API: Filtering ${allLeads?.length || 0} leads for user ${user.username} (${user.email}) - Role: ${user.role} - ID: ${user.id}`);
         
-        // Get subordinate users for current user (requires user.id)
-        const subordinates = user.id ? await getSubordinateUsers(user.id) : [];
-        console.log(`🏢 Leads API: User ${user.email} supervises ${subordinates.length} subordinates`);
-        
-        // Get subordinate usernames for hierarchical access
-        const subordinateUsernames = user.id ? await getSubordinateUsernames(user.id) : [];
-        console.log(`🏢 Leads API: User ${user.username} supervises usernames: [${subordinateUsernames.join(', ')}]`);
-        
-        // Debug first few leads to check assignment
-        if (allLeads && allLeads.length > 0) {
-          console.log(`🔍 Leads API: First 3 leads assignment check:`);
-          allLeads.slice(0, 3).forEach((lead, index) => {
-            const assignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
-            console.log(`  ${index + 1}. ${lead.fullName} -> assigned to: "${assignee}"`);
-          });
-        }
-        
-        // Get all users for role-based filtering (needed for senior_manager and manager roles)
-        const { data: allUsers } = await supabase.from('users').select('username, role');
-        const userRoleMap = {};
-        if (allUsers) {
-          allUsers.forEach(u => {
-            if (u.username) {
-              userRoleMap[u.username.toLowerCase()] = u.role;
-            }
-          });
-        }
-        
-        // Filter leads based on role and hierarchy
-        let accessibleLeads;
-        
-        // Super admins can see ALL leads (including unassigned)
-        if (user.role === 'super_admin') {
-          accessibleLeads = allLeads || [];
-          console.log(`🔑 Super Admin Access: User ${user.username} can see all ${accessibleLeads.length} leads`);
-        } else {
-          // Other roles see leads based on hierarchy
-          accessibleLeads = (allLeads || []).filter(lead => {
-            // Standardized to username-only assignments
-            const leadAssignee = lead.assigned_to || lead.assignedTo || lead.assignedcounselor;
-            
-            // Skip null/undefined assignments for non-super_admin users
-            if (!leadAssignee) {
-              return false;
-            }
-            
-            // User can see their own leads - CASE-INSENSITIVE username comparison
-            if (user.username && leadAssignee.toLowerCase() === user.username.toLowerCase()) {
-              return true;
-            }
-            
-            // User can see leads assigned to their subordinates (by username) - CASE-INSENSITIVE
-            const lowerCaseSubordinates = subordinateUsernames.filter(u => u).map(u => u.toLowerCase());
-            if (lowerCaseSubordinates.includes(leadAssignee.toLowerCase())) {
-              return true;
-            }
-            
-            // Senior managers can see leads assigned to managers, team leaders, and counselors
-            if (user.role === 'senior_manager') {
-              const assignedUserRole = userRoleMap[leadAssignee.toLowerCase()];
-              if (assignedUserRole && ['manager', 'team_leader', 'counselor'].includes(assignedUserRole)) {
-                return true;
-              }
-            }
-            
-            // Managers can see leads assigned to team leaders and counselors  
-            if (user.role === 'manager') {
-              const assignedUserRole = userRoleMap[leadAssignee.toLowerCase()];
-              if (assignedUserRole && ['team_leader', 'counselor'].includes(assignedUserRole)) {
-                return true;
-              }
-            }
-            
-            return false;
-          });
-        }
-        
-        console.log(`✅ User ${user.email} can access ${accessibleLeads.length} out of ${allLeads?.length || 0} leads`);
-        const leads = accessibleLeads;
+        console.log(`✅ User ${user.username} accessed ${leads?.length || 0} leads (total count: ${count || 0})`);
 
         // Get dynamic configuration
         const config = await getSystemConfig();
