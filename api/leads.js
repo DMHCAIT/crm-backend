@@ -461,11 +461,12 @@ module.exports = async (req, res) => {
           } else {
             // If no accessible usernames, return empty result
             console.log(`⚠️ User ${user.username} has no accessible usernames - returning empty result`);
+            const config = await getSystemConfig();
             return res.status(200).json({
               success: true,
               data: [],
               count: 0,
-              statusOptions: (await getSystemConfig()).statusOptions,
+              statusOptions: config.statusOptions,
               pipelineStats: {
                 totalLeads: 0,
                 newLeads: 0,
@@ -484,8 +485,21 @@ module.exports = async (req, res) => {
           console.log(`🔑 Super Admin Access: User ${user.username} can see ALL leads`);
         }
         
-        // Execute optimized query
+        // Execute optimized query with error handling
+        console.log(`📊 Executing query for ${user.username}...`);
         const { data: leads, error, count } = await query;
+
+        if (error) {
+          console.error('❌ Error fetching leads:', error.message);
+          console.error('❌ Get leads error:', JSON.stringify(error));
+          console.error('❌ Query was for user:', user.username, 'role:', user.role);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch leads',
+            details: error.message,
+            code: error.code
+          });
+        }
 
         if (error) {
           console.error('❌ Error fetching leads:', error.message);
