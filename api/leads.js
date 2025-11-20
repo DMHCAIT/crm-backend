@@ -59,7 +59,7 @@ async function getSystemConfig() {
   if (!supabase) {
     // Fallback static configuration
     return {
-      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
+      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Will Enroll Later', 'Not Answering', 'Not Interested', 'Junk'],
       sourceOptions: ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner', 'Facebook', 'WhatsApp'],
       branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
       experienceOptions: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'],
@@ -85,7 +85,7 @@ async function getSystemConfig() {
     });
 
     return {
-      statusOptions: configMap.status_options || ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
+      statusOptions: configMap.status_options || ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Will Enroll Later', 'Not Answering', 'Not Interested', 'Junk'],
 
       sourceOptions: configMap.source_options || ['Website', 'Social Media'],
       branchOptions: configMap.branch_options || ['Main Branch'],
@@ -98,7 +98,7 @@ async function getSystemConfig() {
     console.error('Error loading system config:', error);
     // Return fallback configuration
     return {
-      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Not Interested', 'Junk'],
+      statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Will Enroll Later', 'Not Answering', 'Not Interested', 'Junk'],
       sourceOptions: ['Website', 'Social Media', 'Referral', 'Email Campaign', 'Cold Call', 'Event', 'Partner'],
       branchOptions: ['Main Branch', 'Delhi Branch', 'Mumbai Branch', 'Bangalore Branch'],
       experienceOptions: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'],
