@@ -424,7 +424,7 @@ module.exports = async (req, res) => {
             source, course, status, company, estimatedvalue, assigned_to, 
             assignedTo, assignedcounselor, experience, location, score, 
             created_at, updated_at, followUp, nextfollowup, next_follow_up, 
-            notes, communications_count, updated_by
+            notes, communicationscount, updated_by
           `, { count: 'exact' })
           .order('updated_at', { ascending: false })
           .range(offset, offset + pageSize - 1); // Pagination
@@ -602,8 +602,8 @@ module.exports = async (req, res) => {
             assignedTo: normalizedAssignment,
             assignedCounselor: normalizedAssignment,
             assigned_to: normalizedAssignment,
-            // Map estimated_value from database to estimatedValue for frontend
-            estimatedValue: lead.estimated_value !== undefined && lead.estimated_value !== null ? parseFloat(lead.estimated_value) || 0 : 0
+            // Map estimatedvalue from database to estimatedValue for frontend (DB column has no underscore)
+            estimatedValue: lead.estimatedvalue !== undefined && lead.estimatedvalue !== null ? parseFloat(lead.estimatedvalue) || 0 : 0
           };
         });
         
@@ -1199,9 +1199,9 @@ module.exports = async (req, res) => {
           console.log(`✅ Synchronized assignment fields to: "${cleanUpdateData.assigned_to}"`);
         }
 
-        // Ensure numeric conversion for estimatedValue in updates
+        // Ensure numeric conversion for estimatedValue in updates (DB column is 'estimatedvalue' - no underscore)
         if (cleanUpdateData.estimatedValue !== undefined) {
-          cleanUpdateData.estimated_value = parseFloat(cleanUpdateData.estimatedValue) || 0;
+          cleanUpdateData.estimatedvalue = parseFloat(cleanUpdateData.estimatedValue) || 0;
           delete cleanUpdateData.estimatedValue; // Remove camelCase version
         }
 
