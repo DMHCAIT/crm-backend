@@ -1270,6 +1270,13 @@ module.exports = async (req, res) => {
 
         const updateData = req.body;
         console.log(`🔄 Updating lead ${leadId} with data:`, updateData);
+        console.log(`📝 Current lead data:`, {
+          id: existingLead.id,
+          fullName: existingLead.fullName,
+          status: existingLead.status,
+          assignedTo: existingLead.assignedTo,
+          updated_at: existingLead.updated_at
+        });
         
         // Validate estimatedValue field for warm/hot leads in updates
         if (updateData.status && (updateData.status === 'Warm' || updateData.status === 'Hot') && updateData.estimatedValue !== undefined) {
@@ -1339,6 +1346,14 @@ module.exports = async (req, res) => {
         }
 
         console.log('✅ Lead updated successfully:', updatedLead.id);
+        console.log('📊 Updated lead details:', {
+          id: updatedLead.id,
+          fullName: updatedLead.fullName,
+          status: updatedLead.status,
+          assignedTo: updatedLead.assignedTo,
+          updated_at: updatedLead.updated_at,
+          updated_by: updatedLead.updated_by
+        });
 
         // Log the update activity
         await logLeadActivity(

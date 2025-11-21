@@ -3024,6 +3024,10 @@ try {
   app.all('/api/lead-activities', leadActivitiesHandler);
   app.all('/api/lead-activities/*', leadActivitiesHandler);
 
+  // Database Test API handler (for debugging connection and save issues)
+  const databaseTestHandler = require('./api/database-test.js');
+  app.all('/api/database-test', databaseTestHandler);
+
   // Enhanced Data Export API handler
   const enhancedDataExportHandler = require('./api/enhanced-data-export.js');
   app.all('/api/data-export', enhancedDataExportHandler);
