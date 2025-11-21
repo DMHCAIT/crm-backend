@@ -90,74 +90,109 @@ module.exports = async (req, res) => {
       } = req.query;
 
       try {
-        let query = supabase
-          .from('lead_activities')
-          .select(`
-            id,
-            lead_id,
-            activity_type,
-            description,
-            old_value,
-            new_value,
-            performed_by,
-            timestamp,
-            created_at,
-            leads:lead_id(fullName, name, email, status)
-          `)
-          .order('timestamp', { ascending: false })
-          .range(offset, offset + limit - 1);
-
-        // Apply filters
-        if (leadId) {
-          query = query.eq('lead_id', leadId);
-        }
-
-        if (activityType) {
-          query = query.eq('activity_type', activityType);
-        }
-
-        if (performedBy) {
-          query = query.eq('performed_by', performedBy);
-        }
-
-        if (startDate) {
-          query = query.gte('timestamp', startDate);
-        }
-
-        if (endDate) {
-          query = query.lte('timestamp', endDate);
-        }
-
-        const { data: activities, error } = await query;
-
-        if (error) {
-          console.error('❌ Error fetching activities:', error.message);
-          return res.status(500).json({
+        // TEMPORARY FIX: Since lead_activities table doesn't exist in production,
+        // generate activity data from leads table until proper migration is done
+        
+        if (!leadId) {
+          return res.status(400).json({
             success: false,
-            error: 'Failed to fetch activities',
-            details: error.message
+            error: 'leadId parameter is required'
           });
         }
 
-        // Get activity statistics
-        const { data: stats, error: statsError } = await supabase
-          .from('lead_activities')
-          .select('activity_type, performed_by', { count: 'exact' });
+        // Get the lead details to generate activities
+        const { data: lead, error: leadError } = await supabase
+          .from('leads')
+          .select(`
+            id, fullName, email, phone, country, status, 
+            created_at, updated_at, updated_by, notes,
+            source, qualification, course, company
+          `)
+          .eq('id', leadId)
+          .single();
 
-        let activityStats = {};
-        if (!statsError && stats) {
-          activityStats = stats.reduce((acc, activity) => {
-            acc[activity.activity_type] = (acc[activity.activity_type] || 0) + 1;
-            return acc;
-          }, {});
+        if (leadError || !lead) {
+          console.error('❌ Error fetching lead:', leadError?.message);
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found'
+          });
         }
+
+        // Generate mock activities from lead data
+        const activities = [];
+        
+        // Lead creation activity
+        activities.push({
+          id: `${leadId}-created`,
+          lead_id: leadId,
+          activity_type: 'lead_created',
+          description: `Lead created: ${lead.fullName} (${lead.email})`,
+          old_value: null,
+          new_value: JSON.stringify({ status: lead.status, source: lead.source }),
+          performed_by: lead.updated_by || 'System',
+          timestamp: lead.created_at,
+          created_at: lead.created_at,
+          leads: {
+            fullName: lead.fullName,
+            email: lead.email,
+            status: lead.status
+          }
+        });
+
+        // If updated, add update activity
+        if (lead.updated_at !== lead.created_at) {
+          activities.push({
+            id: `${leadId}-updated`,
+            lead_id: leadId,
+            activity_type: 'manual_update',
+            description: `Lead information updated`,
+            old_value: null,
+            new_value: JSON.stringify({ status: lead.status }),
+            performed_by: lead.updated_by || 'System',
+            timestamp: lead.updated_at,
+            created_at: lead.updated_at,
+            leads: {
+              fullName: lead.fullName,
+              email: lead.email,
+              status: lead.status
+            }
+          });
+        }
+
+        // If notes exist, add note activity
+        if (lead.notes) {
+          activities.push({
+            id: `${leadId}-notes`,
+            lead_id: leadId,
+            activity_type: 'note_added',
+            description: `Notes added: ${lead.notes.substring(0, 100)}${lead.notes.length > 100 ? '...' : ''}`,
+            old_value: null,
+            new_value: lead.notes,
+            performed_by: lead.updated_by || 'System',
+            timestamp: lead.updated_at,
+            created_at: lead.updated_at,
+            leads: {
+              fullName: lead.fullName,
+              email: lead.email,
+              status: lead.status
+            }
+          });
+        }
+
+        // Sort by timestamp descending
+        activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         return res.json({
           success: true,
-          activities: activities || [],
-          totalCount: activities?.length || 0,
+          activities: activities.slice(offset, offset + parseInt(limit)),
+          totalCount: activities.length,
           activityTypes: ACTIVITY_TYPES,
-          stats: activityStats,
+          stats: {
+            lead_created: 1,
+            manual_update: lead.updated_at !== lead.created_at ? 1 : 0,
+            note_added: lead.notes ? 1 : 0
+          },
           message: `Found ${activities?.length || 0} activities`
         });
 
