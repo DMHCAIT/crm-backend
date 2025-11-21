@@ -425,6 +425,21 @@ module.exports = async (req, res) => {
         const companyFilter = req.query.company || '';
         const dateFilterType = req.query.dateFilter || '';
         
+        // DEBUG: Log all filter parameters
+        console.log('🔍 Backend Filter Debug:', {
+          searchQuery,
+          statusFilter,
+          countryFilter,
+          sourceFilter,
+          assignedToFilter,
+          qualificationFilter,
+          courseFilter,
+          companyFilter,
+          dateFilterType,
+          page,
+          pageSize
+        });
+        
         console.log(`🔍 Leads API: Building query for user ${user.username} (${user.role}) - Page ${page}, Size ${pageSize}`);
         console.log(`🔎 Applied filters: search="${searchQuery}", status=[${statusFilter.join(',')}], country="${countryFilter}", source="${sourceFilter}"`);
         
@@ -460,6 +475,12 @@ module.exports = async (req, res) => {
           query = query.eq('source', sourceFilter);
         }
         
+        // Apply assignedTo filter
+        if (assignedToFilter && assignedToFilter.length > 0 && !assignedToFilter.includes('all')) {
+          // Filter by any of the assigned fields (assigned_to, assignedTo, assignedcounselor)
+          query = query.or(`assigned_to.in.(${assignedToFilter.join(',')}),assignedTo.in.(${assignedToFilter.join(',')}),assignedcounselor.in.(${assignedToFilter.join(',')})`);
+        }
+        
         // Apply qualification filter
         if (qualificationFilter && qualificationFilter !== 'all') {
           query = query.eq('qualification', qualificationFilter);
@@ -482,14 +503,25 @@ module.exports = async (req, res) => {
           
           switch (dateFilterType) {
             case 'today':
+            case 'updated_today':
               startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
               endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000 - 1);
               break;
+            case 'updated_yesterday':
+              const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+              startDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+              endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+              break;
             case 'week':
-              startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            case 'updated_this_week':
+              const weekStart = new Date(now);
+              weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+              weekStart.setHours(0, 0, 0, 0);
+              startDate = weekStart;
               endDate = now;
               break;
             case 'month':
+            case 'updated_this_month':
               startDate = new Date(now.getFullYear(), now.getMonth(), 1);
               endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
               break;
