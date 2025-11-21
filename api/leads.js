@@ -414,7 +414,19 @@ module.exports = async (req, res) => {
         const pageSize = parseInt(req.query.pageSize) || 100; // Default 100 leads per page
         const offset = (page - 1) * pageSize;
         
+        // ADVANCED FILTERING: Extract filter parameters
+        const searchQuery = req.query.search || '';
+        const statusFilter = req.query.status ? req.query.status.split(',') : [];
+        const countryFilter = req.query.country || '';
+        const sourceFilter = req.query.source || '';
+        const assignedToFilter = req.query.assignedTo ? req.query.assignedTo.split(',') : [];
+        const qualificationFilter = req.query.qualification || '';
+        const courseFilter = req.query.course || '';
+        const companyFilter = req.query.company || '';
+        const dateFilterType = req.query.dateFilter || '';
+        
         console.log(`🔍 Leads API: Building query for user ${user.username} (${user.role}) - Page ${page}, Size ${pageSize}`);
+        console.log(`🔎 Applied filters: search="${searchQuery}", status=[${statusFilter.join(',')}], country="${countryFilter}", source="${sourceFilter}"`);
         
         // OPTIMIZED: Filter at database level for better performance
         let query = supabase
@@ -426,8 +438,70 @@ module.exports = async (req, res) => {
             created_at, updated_at, followUp, nextfollowup, next_follow_up, 
             notes, communicationscount, updated_by
           `, { count: 'exact' })
-          .order('updated_at', { ascending: false })
-          .range(offset, offset + pageSize - 1); // Pagination
+          .order('updated_at', { ascending: false });
+          
+        // Apply search filter
+        if (searchQuery) {
+          query = query.or(`fullName.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%,course.ilike.%${searchQuery}%`);
+        }
+        
+        // Apply status filter
+        if (statusFilter.length > 0 && !statusFilter.includes('all')) {
+          query = query.in('status', statusFilter);
+        }
+        
+        // Apply country filter
+        if (countryFilter && countryFilter !== 'all') {
+          query = query.eq('country', countryFilter);
+        }
+        
+        // Apply source filter
+        if (sourceFilter && sourceFilter !== 'all') {
+          query = query.eq('source', sourceFilter);
+        }
+        
+        // Apply qualification filter
+        if (qualificationFilter && qualificationFilter !== 'all') {
+          query = query.eq('qualification', qualificationFilter);
+        }
+        
+        // Apply course filter
+        if (courseFilter && courseFilter !== 'all') {
+          query = query.eq('course', courseFilter);
+        }
+        
+        // Apply company filter
+        if (companyFilter && companyFilter !== 'all') {
+          query = query.eq('company', companyFilter);
+        }
+        
+        // Apply date filter
+        if (dateFilterType) {
+          const now = new Date();
+          let startDate, endDate;
+          
+          switch (dateFilterType) {
+            case 'today':
+              startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+              break;
+            case 'week':
+              startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+              endDate = now;
+              break;
+            case 'month':
+              startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+              endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+              break;
+          }
+          
+          if (startDate && endDate) {
+            query = query.gte('updated_at', startDate.toISOString()).lte('updated_at', endDate.toISOString());
+          }
+        }
+        
+        // Apply pagination AFTER filtering
+        query = query.range(offset, offset + pageSize - 1);
         
         // Filter at database level based on role and hierarchy
         if (user.role !== 'super_admin') {

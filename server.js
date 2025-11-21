@@ -3019,6 +3019,11 @@ try {
   const leadNotesHandler = require('./api/lead-notes.js');
   app.all('/api/lead-notes/*', leadNotesHandler);
 
+  // Lead Activities API handler
+  const leadActivitiesHandler = require('./api/lead-activities.js');
+  app.all('/api/lead-activities', leadActivitiesHandler);
+  app.all('/api/lead-activities/*', leadActivitiesHandler);
+
   // Enhanced Data Export API handler
   const enhancedDataExportHandler = require('./api/enhanced-data-export.js');
   app.all('/api/data-export', enhancedDataExportHandler);
