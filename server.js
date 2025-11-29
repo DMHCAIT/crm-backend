@@ -1154,6 +1154,125 @@ app.options('/api/dashboard', (req, res) => {
   res.status(200).end();
 });
 
+// DASHBOARD SUMMARY ENDPOINT - Optimized consolidated dashboard data
+app.get('/api/dashboard-summary', async (req, res) => {
+  console.log('📊 Dashboard Summary API called - fetching optimized consolidated data');
+  
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  try {
+    // Get user from JWT token
+    let user = null;
+    const authHeader = req.headers.authorization;
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        user = jwt.verify(token, JWT_SECRET);
+        console.log(`📊 Dashboard summary requested by ${user.username || user.email} (${user.role})`);
+      } catch (error) {
+        console.log('❌ Invalid token in dashboard summary request');
+        return res.status(401).json({ success: false, message: 'Invalid authentication token' });
+      }
+    } else {
+      console.log('❌ No authorization token provided for dashboard summary');
+      return res.status(401).json({ success: false, message: 'No authorization token provided' });
+    }
+
+    const { createClient } = require('@supabase/supabase-js');
+    
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database configuration missing'
+      });
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    
+    // Fetch consolidated dashboard data
+    const { data: leads, error } = await supabase
+      .from('leads')
+      .select('id, status, created_at, updated_at, assigned_to')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.log('❌ Database error in dashboard summary:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Database query failed'
+      });
+    }
+
+    // Calculate consolidated statistics
+    const totalLeads = leads.length;
+    const hotLeads = leads.filter(lead => lead.status === 'Hot').length;
+    const warmLeads = leads.filter(lead => lead.status === 'Warm').length;
+    const followUpLeads = leads.filter(lead => lead.status === 'Follow Up').length;
+    const convertedLeads = leads.filter(lead => lead.status === 'Enrolled').length;
+    
+    // Today's stats
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const createdToday = leads.filter(lead => new Date(lead.created_at) >= startOfDay).length;
+    const updatedToday = leads.filter(lead => new Date(lead.updated_at) >= startOfDay).length;
+
+    const dashboardData = {
+      totalLeads,
+      hotLeads,
+      warmLeads,
+      followUpLeads,
+      convertedLeads,
+      createdToday,
+      updatedToday,
+      conversionRate: totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100 * 10) / 10 : 0,
+      leads: leads.slice(0, 100), // Return first 100 for UI display
+      stats: {
+        statusCounts: {
+          'Hot': hotLeads,
+          'Warm': warmLeads,
+          'Follow Up': followUpLeads,
+          'Fresh': leads.filter(lead => lead.status === 'Fresh').length,
+          'Enrolled': convertedLeads,
+          'Not Interested': leads.filter(lead => lead.status === 'Not Interested').length,
+          'Will Enroll Later': leads.filter(lead => lead.status === 'Will Enroll Later').length,
+          'Not Answering': leads.filter(lead => lead.status === 'Not Answering').length,
+          'Junk': leads.filter(lead => lead.status === 'Junk').length
+        }
+      }
+    };
+
+    console.log(`✅ Dashboard summary data calculated: ${totalLeads} total, ${hotLeads} hot, ${warmLeads} warm, ${followUpLeads} follow-up`);
+
+    return res.json({
+      success: true,
+      data: dashboardData,
+      message: 'Dashboard summary fetched successfully'
+    });
+
+  } catch (error) {
+    console.log('❌ Dashboard summary API error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// OPTIONS handler for dashboard-summary endpoint
+app.options('/api/dashboard-summary', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
 // EMERGENCY LEADS API USING WORKING DASHBOARD PATTERN
 app.get('/api/dashboard/leads', async (req, res) => {
   console.log('📊 Emergency Leads API via dashboard route');
