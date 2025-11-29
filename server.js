@@ -3033,6 +3033,136 @@ app.get('/api/debug/env', (req, res) => {
 });
 
 // ====================================
+// 📥 BULK IMPORT ENDPOINTS
+// ====================================
+
+// Bulk create leads endpoint for import functionality
+app.post('/api/leads/bulk-create', async (req, res) => {
+  try {
+    // Verify user authentication
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        message: 'Authorization header with Bearer token is required'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return res.status(401).json({ 
+        error: 'Invalid token',
+        message: 'Token verification failed'
+      });
+    }
+
+    console.log('📥 Bulk leads import requested by user:', decoded.email);
+    
+    const { leads } = req.body;
+    
+    if (!leads || !Array.isArray(leads) || leads.length === 0) {
+      return res.status(400).json({
+        error: 'Invalid data',
+        message: 'Leads array is required and must contain at least one lead'
+      });
+    }
+
+    // Validate each lead has required fields
+    for (let i = 0; i < leads.length; i++) {
+      const lead = leads[i];
+      if (!lead.fullName || !lead.email) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          message: `Lead at index ${i} missing required fields (fullName, email)`
+        });
+      }
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Process each lead individually for better error handling
+    for (let i = 0; i < leads.length; i++) {
+      const lead = leads[i];
+      
+      try {
+        // Check for existing lead with same email
+        const { data: existingLeads } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('email', lead.email)
+          .limit(1);
+
+        if (existingLeads && existingLeads.length > 0) {
+          results.failed++;
+          results.errors.push(`Lead ${i + 1}: Email ${lead.email} already exists`);
+          continue;
+        }
+
+        // Prepare lead data for insertion
+        const leadData = {
+          name: lead.fullName,
+          email: lead.email,
+          phone: lead.phone || '',
+          country: lead.country || 'India',
+          qualification: lead.qualification || 'Not specified',
+          source: lead.source || 'Import',
+          course: lead.course || 'MBBS',
+          status: lead.status || 'new',
+          assigned_to: decoded.id,
+          created_by: decoded.id,
+          follow_up: lead.followUp || null,
+          notes: lead.notes || `Imported by ${decoded.name || decoded.email} on ${new Date().toISOString()}`,
+          company: lead.company || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // Insert lead into database
+        const { error: insertError } = await supabase
+          .from('leads')
+          .insert([leadData]);
+
+        if (insertError) {
+          console.error('❌ Failed to insert lead:', insertError);
+          results.failed++;
+          results.errors.push(`Lead ${i + 1}: Database error - ${insertError.message}`);
+        } else {
+          results.success++;
+          console.log(`✅ Lead imported: ${lead.email}`);
+        }
+
+      } catch (error) {
+        console.error('❌ Error processing lead:', error);
+        results.failed++;
+        results.errors.push(`Lead ${i + 1}: Processing error - ${error.message}`);
+      }
+    }
+
+    console.log('📊 Bulk import completed:', results);
+
+    res.json({
+      success: true,
+      message: 'Bulk import completed',
+      results: results
+    });
+
+  } catch (error) {
+    console.error('❌ Bulk import error:', error);
+    res.status(500).json({
+      error: 'Bulk import failed',
+      message: error.message
+    });
+  }
+});
+
+// ====================================
 // �🔑 AUTHENTICATION ENDPOINTS
 // ====================================
 
