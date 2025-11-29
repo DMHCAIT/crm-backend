@@ -300,13 +300,27 @@ function calculatePipelineStats(leads) {
     totalLeads,
     newLeads,
     hotLeads,
-    qualifiedLeads,
+    warmLeads: qualifiedLeads, // Rename for clarity
+    followUpLeads: leads.filter(lead => lead.status === 'Follow Up').length,
     convertedLeads,
+    qualifiedLeads,
     conversionRate: Math.round(conversionRate * 10) / 10,
     avgResponseTime,
     revenue,
     avgDealSize,
-    monthlyGrowth: Math.round(monthlyGrowth * 10) / 10
+    monthlyGrowth: Math.round(monthlyGrowth * 10) / 10,
+    // Add status counts for frontend
+    statusCounts: {
+      'Hot': leads.filter(lead => lead.status === 'Hot').length,
+      'Warm': leads.filter(lead => lead.status === 'Warm').length,
+      'Follow Up': leads.filter(lead => lead.status === 'Follow Up').length,
+      'Fresh': leads.filter(lead => lead.status === 'Fresh').length,
+      'Enrolled': leads.filter(lead => lead.status === 'Enrolled').length,
+      'Not Interested': leads.filter(lead => lead.status === 'Not Interested').length,
+      'Will Enroll Later': leads.filter(lead => lead.status === 'Will Enroll Later').length,
+      'Not Answering': leads.filter(lead => lead.status === 'Not Answering').length,
+      'Junk': leads.filter(lead => lead.status === 'Junk').length
+    }
   };
 }
 
@@ -425,6 +439,13 @@ module.exports = async (req, res) => {
         const companyFilter = req.query.company || '';
         const dateFilterType = req.query.dateFilter || '';
         
+        // New created date filter parameters
+        const createdDateFilter = req.query.createdDateFilter || '';
+        const createdDateFrom = req.query.createdDateFrom || '';
+        const createdDateTo = req.query.createdDateTo || '';
+        const createdDateFilterType = req.query.createdDateFilterType || 'on';
+        const createdSpecificDate = req.query.createdSpecificDate || '';
+        
         // DEBUG: Log all filter parameters
         console.log('🔍 Backend Filter Debug:', {
           searchQuery,
@@ -436,6 +457,11 @@ module.exports = async (req, res) => {
           courseFilter,
           companyFilter,
           dateFilterType,
+          createdDateFilter,
+          createdDateFrom,
+          createdDateTo,
+          createdDateFilterType,
+          createdSpecificDate,
           page,
           pageSize
         });
@@ -530,6 +556,89 @@ module.exports = async (req, res) => {
           if (startDate && endDate) {
             query = query.gte('updated_at', startDate.toISOString()).lte('updated_at', endDate.toISOString());
           }
+        }
+        
+        // Apply created date filter
+        if (createdDateFilter && createdDateFilter !== 'all') {
+          const now = new Date();
+          let createdStartDate, createdEndDate;
+          
+          switch (createdDateFilter) {
+            case 'today':
+            case 'created_today':
+              createdStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              createdEndDate = new Date(createdStartDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+              break;
+            case 'yesterday':
+            case 'created_yesterday':
+              const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+              createdStartDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+              createdEndDate = new Date(createdStartDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+              break;
+            case 'week':
+            case 'this_week':
+            case 'created_this_week':
+              const weekStart = new Date(now);
+              weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+              weekStart.setHours(0, 0, 0, 0);
+              createdStartDate = weekStart;
+              createdEndDate = now;
+              break;
+            case 'month':
+            case 'this_month':
+            case 'created_this_month':
+              createdStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+              createdEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+              break;
+            case 'last_week':
+            case 'created_last_week':
+              const lastWeekStart = new Date(now);
+              lastWeekStart.setDate(now.getDate() - now.getDay() - 7); // Start of last week
+              lastWeekStart.setHours(0, 0, 0, 0);
+              const lastWeekEnd = new Date(lastWeekStart);
+              lastWeekEnd.setDate(lastWeekStart.getDate() + 6); // End of last week
+              lastWeekEnd.setHours(23, 59, 59, 999);
+              createdStartDate = lastWeekStart;
+              createdEndDate = lastWeekEnd;
+              break;
+            case 'last_month':
+            case 'created_last_month':
+              const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+              const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+              createdStartDate = lastMonth;
+              createdEndDate = lastMonthEnd;
+              break;
+            case 'custom':
+            case 'created_custom':
+              // Handle custom date range with createdDateFrom and createdDateTo
+              if (createdDateFilterType === 'between' && createdDateFrom && createdDateTo) {
+                createdStartDate = new Date(createdDateFrom);
+                createdEndDate = new Date(createdDateTo);
+                createdEndDate.setHours(23, 59, 59, 999); // End of day
+              } else if (createdDateFilterType === 'after' && createdDateFrom) {
+                createdStartDate = new Date(createdDateFrom);
+                createdEndDate = null; // No end date for 'after'
+              } else if (createdDateFilterType === 'before' && createdDateTo) {
+                createdStartDate = null; // No start date for 'before'
+                createdEndDate = new Date(createdDateTo);
+                createdEndDate.setHours(23, 59, 59, 999);
+              } else if (createdDateFilterType === 'on' && createdSpecificDate) {
+                createdStartDate = new Date(createdSpecificDate);
+                createdEndDate = new Date(createdStartDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+              }
+              break;
+          }
+          
+          // Apply the created date filter to the query
+          if (createdStartDate && createdEndDate) {
+            query = query.gte('created_at', createdStartDate.toISOString()).lte('created_at', createdEndDate.toISOString());
+          } else if (createdStartDate && !createdEndDate) {
+            query = query.gte('created_at', createdStartDate.toISOString());
+          } else if (!createdStartDate && createdEndDate) {
+            query = query.lte('created_at', createdEndDate.toISOString());
+          }
+          
+          console.log(`🗓️ Applied created date filter: ${createdDateFilter} (${createdStartDate ? createdStartDate.toISOString() : 'no start'} to ${createdEndDate ? createdEndDate.toISOString() : 'no end'})`);
         }
         
         // Apply pagination AFTER filtering
@@ -634,6 +743,15 @@ module.exports = async (req, res) => {
         
         console.log(`✅ User ${user.username} accessed ${leads?.length || 0} leads (total count: ${count || 0})`);
 
+        // Debug status distribution
+        if (leads && leads.length > 0) {
+          const statusCounts = leads.reduce((acc, lead) => {
+            acc[lead.status || 'undefined'] = (acc[lead.status || 'undefined'] || 0) + 1;
+            return acc;
+          }, {});
+          console.log('📊 Status distribution in database:', statusCounts);
+        }
+
         // Get dynamic configuration
         const config = await getSystemConfig();
 
@@ -715,8 +833,41 @@ module.exports = async (req, res) => {
         
         console.log(`✅ Processed ${processedLeads.length} leads with notes formatting`);
 
-        // Calculate pipeline statistics
-        const stats = calculatePipelineStats(processedLeads || []);
+        // Get ALL leads for accurate stats calculation (not just paginated ones)
+        let allLeadsForStats = [];
+        try {
+          let statsQuery = supabase
+            .from('leads')
+            .select('status, created_at, updated_at');
+
+          // Apply same user access filters for stats
+          if (user.role !== 'super_admin') {
+            const accessibleUserIds = await getUserAccessibleIds(user);
+            if (accessibleUserIds.length === 0) {
+              statsQuery = statsQuery.eq('assigned_to', user.id);
+            } else {
+              statsQuery = statsQuery.in('assigned_to', accessibleUserIds);
+            }
+          }
+
+          const { data: allLeads, error: statsError, count: statsCount } = await statsQuery;
+          
+          if (!statsError && allLeads) {
+            allLeadsForStats = allLeads;
+            const allStatusCounts = allLeads.reduce((acc, lead) => {
+              acc[lead.status || 'undefined'] = (acc[lead.status || 'undefined'] || 0) + 1;
+              return acc;
+            }, {});
+            console.log('📊 FULL DATABASE Status distribution:', allStatusCounts);
+            console.log(`📊 Total leads for stats calculation: ${allLeads.length}`);
+          }
+        } catch (error) {
+          console.error('Error fetching all leads for stats:', error);
+          allLeadsForStats = processedLeads; // Fallback to paginated data
+        }
+
+        // Calculate pipeline statistics using ALL leads data
+        const stats = calculatePipelineStats(allLeadsForStats);
         
         // Pagination metadata
         const totalPages = Math.ceil((count || 0) / pageSize);

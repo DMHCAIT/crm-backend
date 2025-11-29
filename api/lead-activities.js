@@ -162,11 +162,29 @@ module.exports = async (req, res) => {
 
         // If notes exist, add note activity
         if (lead.notes) {
+          let notesDescription = 'Notes added';
+          try {
+            // If notes is a JSON string, parse it and create a summary
+            if (typeof lead.notes === 'string' && (lead.notes.startsWith('[') || lead.notes.startsWith('{'))) {
+              const parsedNotes = JSON.parse(lead.notes);
+              if (Array.isArray(parsedNotes)) {
+                notesDescription = `Notes added: ${parsedNotes.length} note(s)`;
+              } else {
+                notesDescription = `Notes added: ${lead.notes.substring(0, 100)}${lead.notes.length > 100 ? '...' : ''}`;
+              }
+            } else {
+              notesDescription = `Notes added: ${lead.notes.substring(0, 100)}${lead.notes.length > 100 ? '...' : ''}`;
+            }
+          } catch (error) {
+            // If parsing fails, just use substring of the raw notes
+            notesDescription = `Notes added: ${String(lead.notes).substring(0, 100)}${String(lead.notes).length > 100 ? '...' : ''}`;
+          }
+
           activities.push({
             id: `${leadId}-notes`,
             lead_id: leadId,
             activity_type: 'note_added',
-            description: `Notes added: ${lead.notes.substring(0, 100)}${lead.notes.length > 100 ? '...' : ''}`,
+            description: notesDescription,
             old_value: null,
             new_value: lead.notes,
             performed_by: lead.updated_by || 'System',
