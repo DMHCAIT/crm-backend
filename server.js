@@ -3105,22 +3105,31 @@ app.post('/api/leads/bulk-create', async (req, res) => {
           continue;
         }
 
-        // Prepare lead data for insertion
+        // Prepare lead data for insertion - using correct database column names
         const leadData = {
-          name: lead.fullName,
+          fullName: lead.fullName,
           email: lead.email,
           phone: lead.phone || '',
           country: lead.country || 'India',
+          branch: lead.branch || '',
           qualification: lead.qualification || 'Not specified',
-          source: lead.source || 'Import',
-          course: lead.course || 'MBBS',
-          status: lead.status || 'new',
-          assigned_to: decoded.id,
-          created_by: decoded.id,
-          follow_up: lead.followUp || null,
-          notes: lead.notes || `Imported by ${decoded.name || decoded.email} on ${new Date().toISOString()}`,
+          source: lead.source || 'CSV Import',
+          course: lead.course || '',
+          status: lead.status || 'Fresh',
+          assigned_to: decoded.username || decoded.email,
+          assignedTo: decoded.username || decoded.email,
+          assignedcounselor: decoded.username || decoded.email,
+          followUp: lead.followUp || null,
+          nextfollowup: lead.followUp || null,
+          notes: JSON.stringify([{
+            id: Date.now().toString(),
+            content: lead.notes || `Imported via CSV by ${decoded.name || decoded.email}`,
+            author: decoded.name || decoded.email,
+            timestamp: new Date().toISOString(),
+            note_type: 'import'
+          }]),
           company: lead.company || '',
-          created_at: new Date().toISOString(),
+          updated_by: decoded.username || decoded.email,
           updated_at: new Date().toISOString()
         };
 
