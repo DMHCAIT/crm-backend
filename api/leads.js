@@ -1363,7 +1363,7 @@ module.exports = async (req, res) => {
           course: course || 'Fellowship in Emergency Medicine',
           status: status || 'Fresh',
           company: company || '', // Company field for DMHCA/IBMP separation - no default
-          estimated_value: estimatedValue ? parseFloat(estimatedValue) || 0 : 0, // Ensure numeric value for estimated value field
+          estimatedvalue: estimatedValue ? parseFloat(estimatedValue) || 0 : 0, // Ensure numeric value for estimated value field (DB column is 'estimatedvalue' without underscore)
 
           assigned_to: assignedTo || user.username || 'Unassigned', // PRIMARY assignment field (snake_case)
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
