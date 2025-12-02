@@ -439,7 +439,13 @@ module.exports = async (req, res) => {
         const companyFilter = req.query.company || '';
         const dateFilterType = req.query.dateFilter || '';
         
-        // New created date filter parameters
+        // Updated date filter parameters (for custom/advanced filtering)
+        const updatedDateFrom = req.query.dateFrom || '';
+        const updatedDateTo = req.query.dateTo || '';
+        const updatedDateFilterType = req.query.dateFilterType || 'on';
+        const updatedSpecificDate = req.query.specificDate || '';
+        
+        // Created date filter parameters
         const createdDateFilter = req.query.createdDateFilter || '';
         const createdDateFrom = req.query.createdDateFrom || '';
         const createdDateTo = req.query.createdDateTo || '';
@@ -457,6 +463,10 @@ module.exports = async (req, res) => {
           courseFilter,
           companyFilter,
           dateFilterType,
+          updatedDateFrom,
+          updatedDateTo,
+          updatedDateFilterType,
+          updatedSpecificDate,
           createdDateFilter,
           createdDateFrom,
           createdDateTo,
@@ -522,7 +532,7 @@ module.exports = async (req, res) => {
           query = query.eq('company', companyFilter);
         }
         
-        // Apply date filter
+        // Apply date filter (for updated_at)
         if (dateFilterType) {
           const now = new Date();
           let startDate, endDate;
@@ -534,6 +544,7 @@ module.exports = async (req, res) => {
               endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000 - 1);
               break;
             case 'updated_yesterday':
+            case 'yesterday':
               const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
               startDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
               endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000 - 1);
@@ -546,15 +557,69 @@ module.exports = async (req, res) => {
               startDate = weekStart;
               endDate = now;
               break;
+            case 'updated_last_week':
+              const lastWeekStart = new Date(now);
+              lastWeekStart.setDate(now.getDate() - now.getDay() - 7);
+              lastWeekStart.setHours(0, 0, 0, 0);
+              const lastWeekEnd = new Date(lastWeekStart);
+              lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+              lastWeekEnd.setHours(23, 59, 59, 999);
+              startDate = lastWeekStart;
+              endDate = lastWeekEnd;
+              break;
             case 'month':
             case 'updated_this_month':
               startDate = new Date(now.getFullYear(), now.getMonth(), 1);
               endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
               break;
+            case 'custom':
+              // Handle custom date range with updatedDateFrom and updatedDateTo
+              if (updatedDateFrom && updatedDateTo) {
+                startDate = new Date(updatedDateFrom);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(updatedDateTo);
+                endDate.setHours(23, 59, 59, 999);
+              } else if (updatedDateFrom) {
+                startDate = new Date(updatedDateFrom);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = now;
+              } else if (updatedDateTo) {
+                startDate = new Date(0); // Beginning of time
+                endDate = new Date(updatedDateTo);
+                endDate.setHours(23, 59, 59, 999);
+              }
+              break;
+            case 'advanced':
+              // Handle advanced date filter with updatedDateFilterType
+              if (updatedDateFilterType === 'between' && updatedDateFrom && updatedDateTo) {
+                startDate = new Date(updatedDateFrom);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(updatedDateTo);
+                endDate.setHours(23, 59, 59, 999);
+              } else if (updatedDateFilterType === 'after' && updatedDateFrom) {
+                startDate = new Date(updatedDateFrom);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = null; // No end date for 'after'
+              } else if (updatedDateFilterType === 'before' && updatedDateTo) {
+                startDate = null; // No start date for 'before'
+                endDate = new Date(updatedDateTo);
+                endDate.setHours(23, 59, 59, 999);
+              } else if (updatedDateFilterType === 'on' && updatedSpecificDate) {
+                startDate = new Date(updatedSpecificDate);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(updatedSpecificDate);
+                endDate.setHours(23, 59, 59, 999);
+              }
+              break;
           }
           
+          // Apply date range to query
           if (startDate && endDate) {
             query = query.gte('updated_at', startDate.toISOString()).lte('updated_at', endDate.toISOString());
+          } else if (startDate && !endDate) {
+            query = query.gte('updated_at', startDate.toISOString());
+          } else if (!startDate && endDate) {
+            query = query.lte('updated_at', endDate.toISOString());
           }
         }
         
