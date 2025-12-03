@@ -3033,6 +3033,161 @@ app.get('/api/debug/env', (req, res) => {
 });
 
 // ====================================
+// 📊 USER ACTIVITY STATS ENDPOINT
+// ====================================
+
+// Get comprehensive user activity stats (lead ownership, updates, revenue)
+app.get('/api/user-activity-stats', async (req, res) => {
+  try {
+    // Verify user authentication
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Authentication required'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Invalid token'
+      });
+    }
+
+    console.log('📊 User Activity Stats requested by:', decoded.email);
+
+    // Get all users
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, username, name, email, role');
+
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+      return res.status(500).json({ success: false, error: 'Failed to fetch users' });
+    }
+
+    // Get all leads with their assignments
+    const { data: leads, error: leadsError } = await supabase
+      .from('leads')
+      .select('id, assigned_to, assignedTo, assignedcounselor, status, updated_at, estimatedvalue, company');
+
+    if (leadsError) {
+      console.error('Error fetching leads:', leadsError);
+      return res.status(500).json({ success: false, error: 'Failed to fetch leads' });
+    }
+
+    console.log(`📊 Processing ${users?.length || 0} users and ${leads?.length || 0} leads`);
+
+    // Calculate date boundaries
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Create a map of usernames to user info for quick lookup
+    const userMap = new Map();
+    users?.forEach(user => {
+      const username = user.username || user.name || user.email?.split('@')[0];
+      userMap.set(user.id, { ...user, displayName: user.name || username });
+      userMap.set(username, { ...user, displayName: user.name || username });
+      if (user.email) userMap.set(user.email, { ...user, displayName: user.name || username });
+      if (user.name) userMap.set(user.name, { ...user, displayName: user.name });
+    });
+
+    // Calculate stats for each user
+    const userStats = (users || []).map(user => {
+      const username = user.username || user.name || user.email?.split('@')[0];
+      const displayName = user.name || username;
+
+      // Find leads assigned to this user (check multiple assignment fields)
+      const userLeads = (leads || []).filter(lead => {
+        const assignedTo = lead.assigned_to || lead.assignedTo || lead.assignedcounselor || '';
+        return assignedTo === username || 
+               assignedTo === user.name || 
+               assignedTo === user.email ||
+               assignedTo === user.id;
+      });
+
+      // Count leads by status
+      const hotLeads = userLeads.filter(l => l.status === 'Hot').length;
+      const warmLeads = userLeads.filter(l => l.status === 'Warm').length;
+      const enrolledLeads = userLeads.filter(l => l.status === 'Enrolled').length;
+
+      // Calculate updates by time period
+      const updatedToday = userLeads.filter(lead => {
+        const updatedDate = new Date(lead.updated_at);
+        return updatedDate >= todayStart;
+      }).length;
+
+      const updatedThisWeek = userLeads.filter(lead => {
+        const updatedDate = new Date(lead.updated_at);
+        return updatedDate >= weekStart;
+      }).length;
+
+      const updatedThisMonth = userLeads.filter(lead => {
+        const updatedDate = new Date(lead.updated_at);
+        return updatedDate >= monthStart;
+      }).length;
+
+      // Calculate revenue
+      const estimatedRevenue = userLeads
+        .filter(l => (l.status === 'Hot' || l.status === 'Warm') && l.estimatedvalue)
+        .reduce((sum, l) => sum + (parseFloat(l.estimatedvalue) || 0), 0);
+
+      const actualRevenue = userLeads
+        .filter(l => l.status === 'Enrolled' && l.estimatedvalue)
+        .reduce((sum, l) => sum + (parseFloat(l.estimatedvalue) || 0), 0);
+
+      const totalRevenue = actualRevenue + (estimatedRevenue * 0.3);
+
+      return {
+        userId: user.id,
+        username: displayName,
+        role: user.role || 'counselor',
+        totalLeads: userLeads.length,
+        updatedToday,
+        updatedThisWeek,
+        updatedThisMonth,
+        hotLeads,
+        warmLeads,
+        enrolledLeads,
+        totalRevenue,
+        estimatedRevenue
+      };
+    });
+
+    // Sort by total leads (descending)
+    userStats.sort((a, b) => b.totalLeads - a.totalLeads);
+
+    // Filter out users with no leads if there are many users
+    const filteredStats = userStats.filter(s => s.totalLeads > 0 || s.updatedToday > 0);
+
+    console.log(`✅ User activity stats calculated for ${filteredStats.length} active users`);
+
+    res.json({
+      success: true,
+      data: {
+        userStats: filteredStats.length > 0 ? filteredStats : userStats.slice(0, 50)
+      },
+      message: `Stats calculated for ${filteredStats.length} users`
+    });
+
+  } catch (error) {
+    console.error('❌ User activity stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate user activity stats',
+      message: error.message
+    });
+  }
+});
+
+// ====================================
 // 📥 BULK IMPORT ENDPOINTS
 // ====================================
 
