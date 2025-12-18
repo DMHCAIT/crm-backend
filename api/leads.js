@@ -732,73 +732,76 @@ module.exports = async (req, res) => {
         
         if (followUpFilter && followUpFilter !== 'all') {
           const now = new Date();
+          // Database stores times in IST (UTC+5:30), so we need to convert
+          const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+          const istNow = new Date(now.getTime() + istOffset);
           let followUpStartDate, followUpEndDate;
           
           switch (followUpFilter) {
             case 'overdue':
-              // Show follow-ups that are before now
+              // Show follow-ups that are before current IST time
               // Format: "YYYY-MM-DDTHH:MM" (matches database format without timezone)
-              const overdueTime = now.toISOString().slice(0, 16).replace('Z', '');
+              const overdueTime = istNow.toISOString().slice(0, 16).replace('Z', '');
               query = query.lt('followUp', overdueTime);
-              console.log(`🚨 Applied overdue follow-up filter (before ${overdueTime})`);
+              console.log(`🚨 Applied overdue follow-up filter (before ${overdueTime} IST)`);
               break;
               
             case 'today':
-              // Get today's date range in local format (no timezone)
-              const todayDate = now.toISOString().slice(0, 10);  // YYYY-MM-DD
+              // Get today's date range in IST format (no timezone)
+              const todayDate = istNow.toISOString().slice(0, 10);  // YYYY-MM-DD
               followUpStartDate = `${todayDate}T00:00`;
               followUpEndDate = `${todayDate}T23:59`;
               query = query.gte('followUp', followUpStartDate).lte('followUp', followUpEndDate);
-              console.log(`📍 Applied today follow-up filter (${followUpStartDate} to ${followUpEndDate})`);
+              console.log(`📍 Applied today follow-up filter (${followUpStartDate} to ${followUpEndDate} IST)`);
               break;
               
             case 'tomorrow':
-              const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+              const tomorrow = new Date(istNow.getTime() + 24 * 60 * 60 * 1000);
               const tomorrowDate = tomorrow.toISOString().slice(0, 10);
               followUpStartDate = `${tomorrowDate}T00:00`;
               followUpEndDate = `${tomorrowDate}T23:59`;
               query = query.gte('followUp', followUpStartDate).lte('followUp', followUpEndDate);
-              console.log(`📅 Applied tomorrow follow-up filter`);
+              console.log(`📅 Applied tomorrow follow-up filter (${followUpStartDate} to ${followUpEndDate} IST)`);
               break;
               
             case 'this_week':
-              const weekStart = new Date(now);
-              weekStart.setDate(now.getDate() - now.getDay());
+              const weekStart = new Date(istNow);
+              weekStart.setDate(istNow.getDate() - istNow.getDay());
               const weekEnd = new Date(weekStart);
               weekEnd.setDate(weekStart.getDate() + 6);
               const weekStartStr = weekStart.toISOString().slice(0, 10) + 'T00:00';
               const weekEndStr = weekEnd.toISOString().slice(0, 10) + 'T23:59';
               query = query.gte('followUp', weekStartStr).lte('followUp', weekEndStr);
-              console.log(`📆 Applied this week follow-up filter`);
+              console.log(`📆 Applied this week follow-up filter (${weekStartStr} to ${weekEndStr} IST)`);
               break;
               
             case 'next_week':
-              const nextWeekStart = new Date(now);
-              nextWeekStart.setDate(now.getDate() - now.getDay() + 7);
+              const nextWeekStart = new Date(istNow);
+              nextWeekStart.setDate(istNow.getDate() - istNow.getDay() + 7);
               const nextWeekEnd = new Date(nextWeekStart);
               nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
               const nextWeekStartStr = nextWeekStart.toISOString().slice(0, 10) + 'T00:00';
               const nextWeekEndStr = nextWeekEnd.toISOString().slice(0, 10) + 'T23:59';
               query = query.gte('followUp', nextWeekStartStr).lte('followUp', nextWeekEndStr);
-              console.log(`📋 Applied next week follow-up filter`);
+              console.log(`📋 Applied next week follow-up filter (${nextWeekStartStr} to ${nextWeekEndStr} IST)`);
               break;
               
             case 'this_month':
-              followUpStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
-              followUpEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+              followUpStartDate = new Date(istNow.getFullYear(), istNow.getMonth(), 1);
+              followUpEndDate = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 0);
               const thisMonthStart = followUpStartDate.toISOString().slice(0, 10) + 'T00:00';
               const thisMonthEnd = followUpEndDate.toISOString().slice(0, 10) + 'T23:59';
               query = query.gte('followUp', thisMonthStart).lte('followUp', thisMonthEnd);
-              console.log(`🗓️ Applied this month follow-up filter`);
+              console.log(`🗓️ Applied this month follow-up filter (${thisMonthStart} to ${thisMonthEnd} IST)`);
               break;
               
             case 'next_month':
-              followUpStartDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-              followUpEndDate = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+              followUpStartDate = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 1);
+              followUpEndDate = new Date(istNow.getFullYear(), istNow.getMonth() + 2, 0);
               const nextMonthStart = followUpStartDate.toISOString().slice(0, 10) + 'T00:00';
               const nextMonthEnd = followUpEndDate.toISOString().slice(0, 10) + 'T23:59';
               query = query.gte('followUp', nextMonthStart).lte('followUp', nextMonthEnd);
-              console.log(`📊 Applied next month follow-up filter`);
+              console.log(`📊 Applied next month follow-up filter (${nextMonthStart} to ${nextMonthEnd} IST)`);
               break;
               
             case 'no_followup':
@@ -843,10 +846,12 @@ module.exports = async (req, res) => {
         // Apply overdue follow-up checkbox filter (independent of main filter)
         if (showOverdueFollowUp) {
           const now = new Date();
-          // Format without timezone to match database format: "YYYY-MM-DDTHH:MM"
-          const overdueTime = now.toISOString().slice(0, 16).replace('Z', '');
+          // Database stores times in IST (UTC+5:30)
+          const istOffset = 5.5 * 60 * 60 * 1000;
+          const istNow = new Date(now.getTime() + istOffset);
+          const overdueTime = istNow.toISOString().slice(0, 16).replace('Z', '');
           query = query.lt('followUp', overdueTime);
-          console.log(`🚨 Applied overdue follow-up checkbox filter (before ${overdueTime})`);
+          console.log(`🚨 Applied overdue follow-up checkbox filter (before ${overdueTime} IST)`);
         }
         
         // Apply pagination AFTER filtering
