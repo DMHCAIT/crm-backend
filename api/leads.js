@@ -736,109 +736,105 @@ module.exports = async (req, res) => {
           
           switch (followUpFilter) {
             case 'overdue':
-              // Show follow-ups that are before today - check all three possible columns
-              followUpEndDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              followUpEndDate.setHours(0, 0, 0, 0);
-              query = query.or(`followUp.lt.${followUpEndDate.toISOString()},nextfollowup.lt.${followUpEndDate.toISOString()},next_follow_up.lt.${followUpEndDate.toISOString()}`);
-              console.log(`🚨 Applied overdue follow-up filter (before ${followUpEndDate.toISOString()})`);
+              // Show follow-ups that are before now
+              // Format: "YYYY-MM-DDTHH:MM" (matches database format without timezone)
+              const overdueTime = now.toISOString().slice(0, 16).replace('Z', '');
+              query = query.lt('followUp', overdueTime);
+              console.log(`🚨 Applied overdue follow-up filter (before ${overdueTime})`);
               break;
               
             case 'today':
-              followUpStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              followUpStartDate.setHours(0, 0, 0, 0);
-              followUpEndDate = new Date(followUpStartDate.getTime() + 24 * 60 * 60 * 1000 - 1);
-              // Check all three columns with date range
-              query = query.or(`and(followUp.gte.${followUpStartDate.toISOString()},followUp.lte.${followUpEndDate.toISOString()}),and(nextfollowup.gte.${followUpStartDate.toISOString()},nextfollowup.lte.${followUpEndDate.toISOString()}),and(next_follow_up.gte.${followUpStartDate.toISOString()},next_follow_up.lte.${followUpEndDate.toISOString()})`);
-              console.log(`📍 Applied today follow-up filter (${followUpStartDate.toISOString()} to ${followUpEndDate.toISOString()})`);
+              // Get today's date range in local format (no timezone)
+              const todayDate = now.toISOString().slice(0, 10);  // YYYY-MM-DD
+              followUpStartDate = `${todayDate}T00:00`;
+              followUpEndDate = `${todayDate}T23:59`;
+              query = query.gte('followUp', followUpStartDate).lte('followUp', followUpEndDate);
+              console.log(`📍 Applied today follow-up filter (${followUpStartDate} to ${followUpEndDate})`);
               break;
               
             case 'tomorrow':
               const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-              followUpStartDate = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
-              followUpStartDate.setHours(0, 0, 0, 0);
-              followUpEndDate = new Date(followUpStartDate.getTime() + 24 * 60 * 60 * 1000 - 1);
-              query = query.or(`and(followUp.gte.${followUpStartDate.toISOString()},followUp.lte.${followUpEndDate.toISOString()}),and(nextfollowup.gte.${followUpStartDate.toISOString()},nextfollowup.lte.${followUpEndDate.toISOString()}),and(next_follow_up.gte.${followUpStartDate.toISOString()},next_follow_up.lte.${followUpEndDate.toISOString()})`);
+              const tomorrowDate = tomorrow.toISOString().slice(0, 10);
+              followUpStartDate = `${tomorrowDate}T00:00`;
+              followUpEndDate = `${tomorrowDate}T23:59`;
+              query = query.gte('followUp', followUpStartDate).lte('followUp', followUpEndDate);
               console.log(`📅 Applied tomorrow follow-up filter`);
               break;
               
             case 'this_week':
               const weekStart = new Date(now);
               weekStart.setDate(now.getDate() - now.getDay());
-              weekStart.setHours(0, 0, 0, 0);
               const weekEnd = new Date(weekStart);
               weekEnd.setDate(weekStart.getDate() + 6);
-              weekEnd.setHours(23, 59, 59, 999);
-              query = query.or(`and(followUp.gte.${weekStart.toISOString()},followUp.lte.${weekEnd.toISOString()}),and(nextfollowup.gte.${weekStart.toISOString()},nextfollowup.lte.${weekEnd.toISOString()}),and(next_follow_up.gte.${weekStart.toISOString()},next_follow_up.lte.${weekEnd.toISOString()})`);
+              const weekStartStr = weekStart.toISOString().slice(0, 10) + 'T00:00';
+              const weekEndStr = weekEnd.toISOString().slice(0, 10) + 'T23:59';
+              query = query.gte('followUp', weekStartStr).lte('followUp', weekEndStr);
               console.log(`📆 Applied this week follow-up filter`);
               break;
               
             case 'next_week':
               const nextWeekStart = new Date(now);
               nextWeekStart.setDate(now.getDate() - now.getDay() + 7);
-              nextWeekStart.setHours(0, 0, 0, 0);
               const nextWeekEnd = new Date(nextWeekStart);
               nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
-              nextWeekEnd.setHours(23, 59, 59, 999);
-              query = query.or(`and(followUp.gte.${nextWeekStart.toISOString()},followUp.lte.${nextWeekEnd.toISOString()}),and(nextfollowup.gte.${nextWeekStart.toISOString()},nextfollowup.lte.${nextWeekEnd.toISOString()}),and(next_follow_up.gte.${nextWeekStart.toISOString()},next_follow_up.lte.${nextWeekEnd.toISOString()})`);
+              const nextWeekStartStr = nextWeekStart.toISOString().slice(0, 10) + 'T00:00';
+              const nextWeekEndStr = nextWeekEnd.toISOString().slice(0, 10) + 'T23:59';
+              query = query.gte('followUp', nextWeekStartStr).lte('followUp', nextWeekEndStr);
               console.log(`📋 Applied next week follow-up filter`);
               break;
               
             case 'this_month':
               followUpStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
-              followUpEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-              query = query.or(`and(followUp.gte.${followUpStartDate.toISOString()},followUp.lte.${followUpEndDate.toISOString()}),and(nextfollowup.gte.${followUpStartDate.toISOString()},nextfollowup.lte.${followUpEndDate.toISOString()}),and(next_follow_up.gte.${followUpStartDate.toISOString()},next_follow_up.lte.${followUpEndDate.toISOString()})`);
+              followUpEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+              const thisMonthStart = followUpStartDate.toISOString().slice(0, 10) + 'T00:00';
+              const thisMonthEnd = followUpEndDate.toISOString().slice(0, 10) + 'T23:59';
+              query = query.gte('followUp', thisMonthStart).lte('followUp', thisMonthEnd);
               console.log(`🗓️ Applied this month follow-up filter`);
               break;
               
             case 'next_month':
               followUpStartDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-              followUpEndDate = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59);
-              query = query.or(`and(followUp.gte.${followUpStartDate.toISOString()},followUp.lte.${followUpEndDate.toISOString()}),and(nextfollowup.gte.${followUpStartDate.toISOString()},nextfollowup.lte.${followUpEndDate.toISOString()}),and(next_follow_up.gte.${followUpStartDate.toISOString()},next_follow_up.lte.${followUpEndDate.toISOString()})`);
+              followUpEndDate = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+              const nextMonthStart = followUpStartDate.toISOString().slice(0, 10) + 'T00:00';
+              const nextMonthEnd = followUpEndDate.toISOString().slice(0, 10) + 'T23:59';
+              query = query.gte('followUp', nextMonthStart).lte('followUp', nextMonthEnd);
               console.log(`📊 Applied next month follow-up filter`);
               break;
               
             case 'no_followup':
-              // Check all three columns are null
-              query = query.is('followUp', null).is('nextfollowup', null).is('next_follow_up', null);
+              // Only check followUp column for null
+              query = query.is('followUp', null);
               console.log(`❌ Applied no follow-up filter (null values)`);
               break;
               
             case 'custom':
               if (followUpDateFrom && followUpDateTo) {
-                followUpStartDate = new Date(followUpDateFrom);
-                followUpStartDate.setHours(0, 0, 0, 0);
-                followUpEndDate = new Date(followUpDateTo);
-                followUpEndDate.setHours(23, 59, 59, 999);
-                query = query.or(`and(followUp.gte.${followUpStartDate.toISOString()},followUp.lte.${followUpEndDate.toISOString()}),and(nextfollowup.gte.${followUpStartDate.toISOString()},nextfollowup.lte.${followUpEndDate.toISOString()}),and(next_follow_up.gte.${followUpStartDate.toISOString()},next_follow_up.lte.${followUpEndDate.toISOString()})`);
-                console.log(`📊 Applied custom follow-up filter (${followUpStartDate.toISOString()} to ${followUpEndDate.toISOString()})`);
+                const customStart = followUpDateFrom.includes('T') ? followUpDateFrom : followUpDateFrom + 'T00:00';
+                const customEnd = followUpDateTo.includes('T') ? followUpDateTo : followUpDateTo + 'T23:59';
+                query = query.gte('followUp', customStart).lte('followUp', customEnd);
+                console.log(`📊 Applied custom follow-up filter (${customStart} to ${customEnd})`);
               }
               break;
               
             case 'advanced':
               if (followUpDateType === 'between' && followUpDateFrom && followUpDateTo) {
-                followUpStartDate = new Date(followUpDateFrom);
-                followUpStartDate.setHours(0, 0, 0, 0);
-                followUpEndDate = new Date(followUpDateTo);
-                followUpEndDate.setHours(23, 59, 59, 999);
-                query = query.or(`and(followUp.gte.${followUpStartDate.toISOString()},followUp.lte.${followUpEndDate.toISOString()}),and(nextfollowup.gte.${followUpStartDate.toISOString()},nextfollowup.lte.${followUpEndDate.toISOString()}),and(next_follow_up.gte.${followUpStartDate.toISOString()},next_follow_up.lte.${followUpEndDate.toISOString()})`);
-                console.log(`⚙️ Applied advanced follow-up filter: between ${followUpStartDate.toISOString()} and ${followUpEndDate.toISOString()}`);
+                const advStart = followUpDateFrom.includes('T') ? followUpDateFrom : followUpDateFrom + 'T00:00';
+                const advEnd = followUpDateTo.includes('T') ? followUpDateTo : followUpDateTo + 'T23:59';
+                query = query.gte('followUp', advStart).lte('followUp', advEnd);
+                console.log(`⚙️ Applied advanced follow-up filter: between ${advStart} and ${advEnd}`);
               } else if (followUpDateType === 'after' && followUpDateFrom) {
-                followUpStartDate = new Date(followUpDateFrom);
-                followUpStartDate.setHours(0, 0, 0, 0);
-                query = query.or(`followUp.gte.${followUpStartDate.toISOString()},nextfollowup.gte.${followUpStartDate.toISOString()},next_follow_up.gte.${followUpStartDate.toISOString()}`);
-                console.log(`⚙️ Applied advanced follow-up filter: after ${followUpStartDate.toISOString()}`);
+                const afterDate = followUpDateFrom.includes('T') ? followUpDateFrom : followUpDateFrom + 'T00:00';
+                query = query.gte('followUp', afterDate);
+                console.log(`⚙️ Applied advanced follow-up filter: after ${afterDate}`);
               } else if (followUpDateType === 'before' && followUpDateTo) {
-                followUpEndDate = new Date(followUpDateTo);
-                followUpEndDate.setHours(23, 59, 59, 999);
-                query = query.or(`followUp.lte.${followUpEndDate.toISOString()},nextfollowup.lte.${followUpEndDate.toISOString()},next_follow_up.lte.${followUpEndDate.toISOString()}`);
-                console.log(`⚙️ Applied advanced follow-up filter: before ${followUpEndDate.toISOString()}`);
+                const beforeDate = followUpDateTo.includes('T') ? followUpDateTo : followUpDateTo + 'T23:59';
+                query = query.lte('followUp', beforeDate);
+                console.log(`⚙️ Applied advanced follow-up filter: before ${beforeDate}`);
               } else if (followUpDateType === 'on' && followUpSpecificDate) {
-                followUpStartDate = new Date(followUpSpecificDate);
-                followUpStartDate.setHours(0, 0, 0, 0);
-                followUpEndDate = new Date(followUpSpecificDate);
-                followUpEndDate.setHours(23, 59, 59, 999);
-                query = query.or(`and(followUp.gte.${followUpStartDate.toISOString()},followUp.lte.${followUpEndDate.toISOString()}),and(nextfollowup.gte.${followUpStartDate.toISOString()},nextfollowup.lte.${followUpEndDate.toISOString()}),and(next_follow_up.gte.${followUpStartDate.toISOString()},next_follow_up.lte.${followUpEndDate.toISOString()})`);
-                console.log(`⚙️ Applied advanced follow-up filter: on ${followUpStartDate.toISOString()}`);
+                const onDateStart = followUpSpecificDate.includes('T') ? followUpSpecificDate : followUpSpecificDate + 'T00:00';
+                const onDateEnd = followUpSpecificDate.includes('T') ? followUpSpecificDate : followUpSpecificDate + 'T23:59';
+                query = query.gte('followUp', onDateStart).lte('followUp', onDateEnd);
+                console.log(`⚙️ Applied advanced follow-up filter: on ${onDateStart}`);
               }
               break;
           }
@@ -847,10 +843,10 @@ module.exports = async (req, res) => {
         // Apply overdue follow-up checkbox filter (independent of main filter)
         if (showOverdueFollowUp) {
           const now = new Date();
-          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          todayStart.setHours(0, 0, 0, 0);
-          query = query.or(`followUp.lt.${todayStart.toISOString()},nextfollowup.lt.${todayStart.toISOString()},next_follow_up.lt.${todayStart.toISOString()}`);
-          console.log(`🚨 Applied overdue follow-up checkbox filter (before ${todayStart.toISOString()})`);
+          // Format without timezone to match database format: "YYYY-MM-DDTHH:MM"
+          const overdueTime = now.toISOString().slice(0, 16).replace('Z', '');
+          query = query.lt('followUp', overdueTime);
+          console.log(`🚨 Applied overdue follow-up checkbox filter (before ${overdueTime})`);
         }
         
         // Apply pagination AFTER filtering
