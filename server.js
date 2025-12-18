@@ -3450,6 +3450,26 @@ try {
   app.all('/api/data-export', enhancedDataExportHandler);
   app.all('/api/data-export/*', enhancedDataExportHandler);
 
+  // Scheduled Exports API handler - NEW FEATURE
+  try {
+    const scheduledExportsHandler = require('./api/scheduled-exports.js');
+    app.all('/api/scheduled-exports', scheduledExportsHandler);
+    app.all('/api/scheduled-exports/*', scheduledExportsHandler);
+    console.log('✅ Scheduled Exports API loaded successfully');
+  } catch (error) {
+    console.log('⚠️ Scheduled Exports API not available:', error.message);
+  }
+
+  // Documents Upload API handler - NEW FEATURE
+  try {
+    const documentsHandler = require('./api/documents.js');
+    app.all('/api/documents', documentsHandler);
+    app.all('/api/documents/*', documentsHandler);
+    console.log('✅ Documents API loaded successfully');
+  } catch (error) {
+    console.log('⚠️ Documents API not available:', error.message);
+  }
+
   // Enhanced Leads API handler - REMOVED DUPLICATE (already loaded above)
 
   console.log('✅ Essential API handlers loaded successfully');

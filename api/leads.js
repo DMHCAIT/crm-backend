@@ -1273,6 +1273,14 @@ module.exports = async (req, res) => {
             cleanUpdateData.assignedcounselor = cleanUpdateData.assigned_to;
           }
 
+          // Auto-clear follow-up date if status is changed to "Not Interested" or "Junk" (bulk update)
+          if (cleanUpdateData.status && (cleanUpdateData.status === 'Not Interested' || cleanUpdateData.status === 'Junk')) {
+            cleanUpdateData.followUp = null;
+            cleanUpdateData.nextfollowup = null;
+            cleanUpdateData.next_follow_up = null;
+            console.log(`🚫 Bulk update: Status changed to "${cleanUpdateData.status}" - Follow-up dates automatically cleared for ${leadIds.length} leads`);
+          }
+
           // Add updated timestamp and user
           cleanUpdateData.updated_at = new Date().toISOString();
           cleanUpdateData.updated_by = updatedBy || user.username || 'System';
@@ -1499,6 +1507,15 @@ module.exports = async (req, res) => {
         console.log(`👤 User real name resolved: "${userRealName}"`);
         
         // Prepare lead data for database with all new fields
+        const leadStatus = status || 'Fresh';
+        
+        // Auto-clear follow-up date if status is "Not Interested" or "Junk"
+        let followUpDate = followUp || null;
+        if (leadStatus === 'Not Interested' || leadStatus === 'Junk') {
+          followUpDate = null;
+          console.log(`🚫 Status set to "${leadStatus}" - Follow-up date automatically cleared`);
+        }
+        
         const leadData = {
           fullName: leadName, // Use resolved name (fullName or name)
           // 'name' column doesn't exist in database - only 'fullName' exists
@@ -1509,7 +1526,7 @@ module.exports = async (req, res) => {
           qualification: qualification || '', // Qualification field
           source: source || 'Manual Entry',
           course: course || 'Fellowship in Emergency Medicine',
-          status: status || 'Fresh',
+          status: leadStatus,
           company: company || '', // Company field for DMHCA/IBMP separation - no default
           estimatedvalue: estimatedValue ? parseFloat(estimatedValue) || 0 : 0, // Ensure numeric value for estimated value field (DB column is 'estimatedvalue' without underscore)
 
@@ -1532,9 +1549,9 @@ module.exports = async (req, res) => {
           updatedAt: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           // lastContact and last_contact columns don't exist in database schema
-          followUp: followUp || null,  // This column exists in DB as camelCase
-          nextfollowup: followUp || null,  // Match actual DB column (lowercase, no underscore) 
-          next_follow_up: followUp || null,  // Match actual DB column (snake_case)
+          followUp: followUpDate,  // This column exists in DB as camelCase
+          nextfollowup: followUpDate,  // Match actual DB column (lowercase, no underscore) 
+          next_follow_up: followUpDate,  // Match actual DB column (snake_case)
           updated_by: user.username || 'System'
         };
 
@@ -1680,6 +1697,14 @@ module.exports = async (req, res) => {
         if (cleanUpdateData.estimatedValue !== undefined) {
           cleanUpdateData.estimatedvalue = parseFloat(cleanUpdateData.estimatedValue) || 0;
           delete cleanUpdateData.estimatedValue; // Remove camelCase version
+        }
+
+        // Auto-clear follow-up date if status is changed to "Not Interested" or "Junk"
+        if (cleanUpdateData.status && (cleanUpdateData.status === 'Not Interested' || cleanUpdateData.status === 'Junk')) {
+          cleanUpdateData.followUp = null;
+          cleanUpdateData.nextfollowup = null;
+          cleanUpdateData.next_follow_up = null;
+          console.log(`🚫 Status changed to "${cleanUpdateData.status}" - Follow-up date automatically cleared`);
         }
 
         // Add updated timestamp
