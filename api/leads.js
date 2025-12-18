@@ -452,6 +452,14 @@ module.exports = async (req, res) => {
         const createdDateFilterType = req.query.createdDateFilterType || 'on';
         const createdSpecificDate = req.query.createdSpecificDate || '';
         
+        // Follow-up date filter parameters
+        const followUpFilter = req.query.followUpFilter || '';
+        const followUpDateFrom = req.query.followUpDateFrom || '';
+        const followUpDateTo = req.query.followUpDateTo || '';
+        const followUpDateType = req.query.followUpDateType || 'on';
+        const followUpSpecificDate = req.query.followUpSpecificDate || '';
+        const showOverdueFollowUp = req.query.showOverdueFollowUp === 'true';
+        
         // DEBUG: Log all filter parameters
         console.log('🔍 Backend Filter Debug:', {
           searchQuery,
@@ -472,6 +480,12 @@ module.exports = async (req, res) => {
           createdDateTo,
           createdDateFilterType,
           createdSpecificDate,
+          followUpFilter,
+          followUpDateFrom,
+          followUpDateTo,
+          followUpDateType,
+          followUpSpecificDate,
+          showOverdueFollowUp,
           page,
           pageSize
         });
@@ -704,6 +718,137 @@ module.exports = async (req, res) => {
           }
           
           console.log(`🗓️ Applied created date filter: ${createdDateFilter} (${createdStartDate ? createdStartDate.toISOString() : 'no start'} to ${createdEndDate ? createdEndDate.toISOString() : 'no end'})`);
+        }
+        
+        // Apply follow-up date filter
+        console.log('📅 Follow-Up Filter Debug:', {
+          followUpFilter,
+          followUpDateFrom,
+          followUpDateTo,
+          followUpDateType,
+          followUpSpecificDate,
+          showOverdueFollowUp
+        });
+        
+        if (followUpFilter && followUpFilter !== 'all') {
+          const now = new Date();
+          let followUpStartDate, followUpEndDate;
+          
+          switch (followUpFilter) {
+            case 'overdue':
+              // Show follow-ups that are before today
+              followUpEndDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              followUpEndDate.setHours(0, 0, 0, 0);
+              query = query.lt('followUp', followUpEndDate.toISOString()).not('followUp', 'is', null);
+              console.log(`🚨 Applied overdue follow-up filter (before ${followUpEndDate.toISOString()})`);
+              break;
+              
+            case 'today':
+              followUpStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              followUpStartDate.setHours(0, 0, 0, 0);
+              followUpEndDate = new Date(followUpStartDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+              query = query.gte('followUp', followUpStartDate.toISOString()).lte('followUp', followUpEndDate.toISOString());
+              console.log(`📍 Applied today follow-up filter (${followUpStartDate.toISOString()} to ${followUpEndDate.toISOString()})`);
+              break;
+              
+            case 'tomorrow':
+              const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+              followUpStartDate = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
+              followUpStartDate.setHours(0, 0, 0, 0);
+              followUpEndDate = new Date(followUpStartDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+              query = query.gte('followUp', followUpStartDate.toISOString()).lte('followUp', followUpEndDate.toISOString());
+              console.log(`📅 Applied tomorrow follow-up filter`);
+              break;
+              
+            case 'this_week':
+              const weekStart = new Date(now);
+              weekStart.setDate(now.getDate() - now.getDay());
+              weekStart.setHours(0, 0, 0, 0);
+              const weekEnd = new Date(weekStart);
+              weekEnd.setDate(weekStart.getDate() + 6);
+              weekEnd.setHours(23, 59, 59, 999);
+              query = query.gte('followUp', weekStart.toISOString()).lte('followUp', weekEnd.toISOString());
+              console.log(`📆 Applied this week follow-up filter`);
+              break;
+              
+            case 'next_week':
+              const nextWeekStart = new Date(now);
+              nextWeekStart.setDate(now.getDate() - now.getDay() + 7);
+              nextWeekStart.setHours(0, 0, 0, 0);
+              const nextWeekEnd = new Date(nextWeekStart);
+              nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
+              nextWeekEnd.setHours(23, 59, 59, 999);
+              query = query.gte('followUp', nextWeekStart.toISOString()).lte('followUp', nextWeekEnd.toISOString());
+              console.log(`📋 Applied next week follow-up filter`);
+              break;
+              
+            case 'this_month':
+              followUpStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+              followUpEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+              query = query.gte('followUp', followUpStartDate.toISOString()).lte('followUp', followUpEndDate.toISOString());
+              console.log(`🗓️ Applied this month follow-up filter`);
+              break;
+              
+            case 'next_month':
+              followUpStartDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+              followUpEndDate = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59);
+              query = query.gte('followUp', followUpStartDate.toISOString()).lte('followUp', followUpEndDate.toISOString());
+              console.log(`📊 Applied next month follow-up filter`);
+              break;
+              
+            case 'no_followup':
+              query = query.is('followUp', null);
+              console.log(`❌ Applied no follow-up filter (null values)`);
+              break;
+              
+            case 'custom':
+              if (followUpDateFrom && followUpDateTo) {
+                followUpStartDate = new Date(followUpDateFrom);
+                followUpStartDate.setHours(0, 0, 0, 0);
+                followUpEndDate = new Date(followUpDateTo);
+                followUpEndDate.setHours(23, 59, 59, 999);
+                query = query.gte('followUp', followUpStartDate.toISOString()).lte('followUp', followUpEndDate.toISOString());
+                console.log(`📊 Applied custom follow-up filter (${followUpStartDate.toISOString()} to ${followUpEndDate.toISOString()})`);
+              }
+              break;
+              
+            case 'advanced':
+              if (followUpDateType === 'between' && followUpDateFrom && followUpDateTo) {
+                followUpStartDate = new Date(followUpDateFrom);
+                followUpStartDate.setHours(0, 0, 0, 0);
+                followUpEndDate = new Date(followUpDateTo);
+                followUpEndDate.setHours(23, 59, 59, 999);
+                query = query.gte('followUp', followUpStartDate.toISOString()).lte('followUp', followUpEndDate.toISOString());
+                console.log(`⚙️ Applied advanced follow-up filter: between ${followUpStartDate.toISOString()} and ${followUpEndDate.toISOString()}`);
+              } else if (followUpDateType === 'after' && followUpDateFrom) {
+                followUpStartDate = new Date(followUpDateFrom);
+                followUpStartDate.setHours(0, 0, 0, 0);
+                query = query.gte('followUp', followUpStartDate.toISOString());
+                console.log(`⚙️ Applied advanced follow-up filter: after ${followUpStartDate.toISOString()}`);
+              } else if (followUpDateType === 'before' && followUpDateTo) {
+                followUpEndDate = new Date(followUpDateTo);
+                followUpEndDate.setHours(23, 59, 59, 999);
+                query = query.lte('followUp', followUpEndDate.toISOString());
+                console.log(`⚙️ Applied advanced follow-up filter: before ${followUpEndDate.toISOString()}`);
+              } else if (followUpDateType === 'on' && followUpSpecificDate) {
+                followUpStartDate = new Date(followUpSpecificDate);
+                followUpStartDate.setHours(0, 0, 0, 0);
+                followUpEndDate = new Date(followUpSpecificDate);
+                followUpEndDate.setHours(23, 59, 59, 999);
+                query = query.gte('followUp', followUpStartDate.toISOString()).lte('followUp', followUpEndDate.toISOString());
+                console.log(`⚙️ Applied advanced follow-up filter: on ${followUpStartDate.toISOString()}`);
+              }
+              break;
+          }
+        }
+        
+        // Apply overdue follow-up checkbox filter (independent of main filter)
+        if (showOverdueFollowUp) {
+          const now = new Date();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          todayStart.setHours(0, 0, 0, 0);
+          query = query.lt('followUp', todayStart.toISOString()).not('followUp', 'is', null);
+          console.log(`🚨 Applied overdue follow-up checkbox filter (before ${todayStart.toISOString()})`);
         }
         
         // Apply pagination AFTER filtering
