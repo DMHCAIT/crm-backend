@@ -425,15 +425,19 @@ module.exports = async (req, res) => {
       try {
         // PAGINATION SUPPORT: Get query parameters
         const page = parseInt(req.query.page) || 1;
-        // Support very large page sizes for bulk operations (like segmentation)
-        // Maximum safe integer for JavaScript is 2^53 - 1, but we'll use a practical limit
+        // Support large page sizes for bulk operations (like segmentation)
+        // Cap at 50000 to prevent timeouts and memory issues
         let pageSize = parseInt(req.query.pageSize) || 100; // Default 100 leads per page
         
-        // For very large page sizes (e.g., 999999), remove pagination entirely
-        const usePagination = pageSize < 100000; // If requesting more than 100k, don't paginate
+        // Cap the maximum page size to prevent server overload
+        if (pageSize > 50000) {
+          console.log(`⚠️ Page size ${pageSize} exceeds maximum, capping at 50000`);
+          pageSize = 50000;
+        }
+        
         const offset = (page - 1) * pageSize;
         
-        console.log(`📊 Pagination: page=${page}, pageSize=${pageSize}, usePagination=${usePagination}`);
+        console.log(`📊 Pagination: page=${page}, pageSize=${pageSize}, offset=${offset}`);
         
         // ADVANCED FILTERING: Extract filter parameters
         const searchQuery = req.query.search || '';
@@ -508,7 +512,7 @@ module.exports = async (req, res) => {
             source, course, status, company, estimatedvalue, assigned_to, 
             assignedTo, assignedcounselor, experience, location, score, 
             created_at, updated_at, followUp, nextfollowup, next_follow_up, 
-            notes, communicationscount, updated_by, whatsapp, alternatePhone
+            notes, communicationscount, updated_by
           `, { count: 'exact' })
           .order('updated_at', { ascending: false });
           
@@ -861,13 +865,9 @@ module.exports = async (req, res) => {
           console.log(`🚨 Applied overdue follow-up checkbox filter (before ${overdueTime} IST)`);
         }
         
-        // Apply pagination AFTER filtering (only if using pagination)
-        if (usePagination) {
-          query = query.range(offset, offset + pageSize - 1);
-          console.log(`📄 Applied pagination: offset=${offset}, limit=${pageSize}`);
-        } else {
-          console.log(`📄 Skipping pagination - fetching all matching leads`);
-        }
+        // Apply pagination AFTER filtering
+        query = query.range(offset, offset + pageSize - 1);
+        console.log(`📄 Applied pagination: offset=${offset}, limit=${pageSize}`);
         
         // Filter at database level based on role and hierarchy
         if (user.role !== 'super_admin') {
