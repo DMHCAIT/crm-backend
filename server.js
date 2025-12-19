@@ -3470,6 +3470,15 @@ try {
     console.log('⚠️ Documents API not available:', error.message);
   }
 
+  // Cunnekt WhatsApp API handler - NEW FEATURE
+  try {
+    const cunnektWhatsAppHandler = require('./api/cunnekt-whatsapp.js');
+    app.all('/api/cunnekt-whatsapp', cunnektWhatsAppHandler);
+    console.log('✅ Cunnekt WhatsApp API loaded successfully');
+  } catch (error) {
+    console.log('⚠️ Cunnekt WhatsApp API not available:', error.message);
+  }
+
   // Enhanced Leads API handler - REMOVED DUPLICATE (already loaded above)
 
   console.log('✅ Essential API handlers loaded successfully');
@@ -3481,6 +3490,7 @@ try {
   console.log('📊 Enhanced Leads endpoint available at /api/leads');
   console.log('� Simple Leads endpoint available at /api/leads-simple');
   console.log('�📤 Enhanced Data Export endpoint available at /api/data-export');
+  console.log('📱 Cunnekt WhatsApp API available at /api/cunnekt-whatsapp');
 
 } catch (error) {
   console.error('❌ CRITICAL ERROR loading API handlers:', error.message);
