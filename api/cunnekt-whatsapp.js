@@ -64,10 +64,19 @@ module.exports = async (req, res) => {
       case 'test-connection':
         return await testConnection(req, res);
       
+      case 'get-campaigns':
+        return await getCampaigns(req, res);
+      
+      case 'get-responses':
+        return await getResponses(req, res);
+      
+      case 'save-campaign':
+        return await saveCampaign(req, res);
+      
       default:
         res.status(400).json({ 
           success: false, 
-          error: 'Invalid action. Use: send-message, send-bulk, send-template, get-status, webhook, test-connection' 
+          error: 'Invalid action. Use: send-message, send-bulk, send-template, get-status, webhook, test-connection, get-campaigns, get-responses, save-campaign' 
         });
     }
   } catch (error) {
@@ -92,16 +101,26 @@ async function sendMessage(req, res) {
   }
 
   try {
+    console.log('🔵 Cunnekt: Sending single message to:', phone);
+    
     // Clean phone number (remove spaces, dashes, etc)
     const cleanPhone = phone.replace(/\D/g, '');
+    
+    console.log('📱 Cleaned phone:', cleanPhone);
+    console.log('💬 Message:', message.substring(0, 50) + '...');
+    console.log('🔑 API Key:', CUNNEKT_API_KEY ? 'Set' : 'Missing');
+
+    const requestData = {
+      phone: cleanPhone,
+      message: message,
+      type: 'text'
+    };
+    
+    console.log('📤 Sending to Cunnekt:', requestData);
 
     const response = await axios.post(
       `${CUNNEKT_BASE_URL}/messages`,
-      {
-        phone: cleanPhone,
-        message: message,
-        type: 'text'
-      },
+      requestData,
       {
         headers: {
           'Authorization': `Bearer ${CUNNEKT_API_KEY}`,
@@ -109,6 +128,8 @@ async function sendMessage(req, res) {
         }
       }
     );
+    
+    console.log('✅ Cunnekt response:', response.data);
 
     // Log to communications table
     if (supabase && leadId) {
@@ -196,20 +217,27 @@ async function sendBulkMessages(req, res) {
           personalizedMessage = personalizedMessage.replace(/\{qualification\}/g, lead.qualification || 'your qualification');
           personalizedMessage = personalizedMessage.replace(/\{country\}/g, lead.country || '');
 
+          console.log(`📤 [${i + batch.indexOf(lead) + 1}/${leads.length}] Sending to ${cleanPhone}`);
+          
+          const requestData = {
+            phone: cleanPhone,
+            message: personalizedMessage,
+            type: 'text'
+          };
+
           const response = await axios.post(
             `${CUNNEKT_BASE_URL}/messages`,
-            {
-              phone: cleanPhone,
-              message: personalizedMessage,
-              type: 'text'
-            },
+            requestData,
             {
               headers: {
                 'Authorization': `Bearer ${CUNNEKT_API_KEY}`,
                 'Content-Type': 'application/json'
-              }
+              },
+              timeout: 10000
             }
           );
+          
+          console.log(`✅ [${i + batch.indexOf(lead) + 1}/${leads.length}] Sent:`, response.data);
 
           // Log to communications
           if (supabase) {
@@ -238,10 +266,12 @@ async function sendBulkMessages(req, res) {
           });
 
         } catch (error) {
+          console.error(`❌ [${i + batch.indexOf(lead) + 1}/${leads.length}] Failed:`, error.response?.data || error.message);
           results.failed++;
           results.details.push({
             leadId: lead.id,
             name: lead.name,
+            phone: cleanPhone || phone,
             status: 'failed',
             error: error.response?.data?.message || error.message
           });
@@ -494,6 +524,129 @@ async function testConnection(req, res) {
       success: false, 
       error: 'Connection failed',
       details: error.response?.data?.message || error.message
+    });
+  }
+}
+
+// Save campaign to database
+async function saveCampaign(req, res) {
+  try {
+    const { name, template, segmentFilters, leadCount, userId } = req.body;
+
+    if (!name || !template) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Campaign name and template are required' 
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('whatsapp_campaigns')
+      .insert([{
+        name,
+        template,
+        segment_filters: segmentFilters || {},
+        lead_count: leadCount || 0,
+        status: 'draft',
+        created_by: userId,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Campaign saved successfully',
+      campaign: data
+    });
+  } catch (error) {
+    console.error('Save campaign error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+}
+
+// Get all campaigns
+async function getCampaigns(req, res) {
+  try {
+    const { userId, status } = req.query;
+
+    let query = supabase
+      .from('whatsapp_campaigns')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (userId) {
+      query = query.eq('created_by', userId);
+    }
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ 
+      success: true, 
+      campaigns: data || []
+    });
+  } catch (error) {
+    console.error('Get campaigns error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      campaigns: []
+    });
+  }
+}
+
+// Get WhatsApp responses
+async function getResponses(req, res) {
+  try {
+    const { leadId, campaignId, limit = 50 } = req.query;
+
+    let query = supabase
+      .from('communications')
+      .select('*')
+      .eq('type', 'whatsapp')
+      .eq('direction', 'inbound')
+      .order('sent_at', { ascending: false })
+      .limit(parseInt(limit));
+
+    if (leadId) {
+      query = query.eq('lead_id', leadId);
+    }
+
+    if (campaignId) {
+      query = query.eq('campaign_id', campaignId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ 
+      success: true, 
+      responses: data || []
+    });
+  } catch (error) {
+    console.error('Get responses error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      responses: []
     });
   }
 }
