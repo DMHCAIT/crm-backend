@@ -73,10 +73,16 @@ module.exports = async (req, res) => {
       case 'save-campaign':
         return await saveCampaign(req, res);
       
+      case 'delete-campaign':
+        return await deleteCampaign(req, res);
+      
+      case 'update-campaign-status':
+        return await updateCampaignStatus(req, res);
+      
       default:
         res.status(400).json({ 
           success: false, 
-          error: 'Invalid action. Use: send-message, send-bulk, send-template, get-status, webhook, test-connection, get-campaigns, get-responses, save-campaign' 
+          error: 'Invalid action. Use: send-message, send-bulk, send-template, get-status, webhook, test-connection, get-campaigns, get-responses, save-campaign, delete-campaign, update-campaign-status' 
         });
     }
   } catch (error) {
@@ -647,6 +653,96 @@ async function getResponses(req, res) {
       success: false, 
       error: error.message,
       responses: []
+    });
+  }
+}
+
+// Delete campaign
+async function deleteCampaign(req, res) {
+  try {
+    const { campaignId } = req.body;
+
+    if (!campaignId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Campaign ID is required' 
+      });
+    }
+
+    console.log('🗑️ Deleting campaign:', campaignId);
+
+    const { error } = await supabase
+      .from('whatsapp_campaigns')
+      .delete()
+      .eq('id', campaignId);
+
+    if (error) {
+      throw error;
+    }
+
+    console.log('✅ Campaign deleted successfully');
+
+    res.json({ 
+      success: true,
+      message: 'Campaign deleted successfully'
+    });
+  } catch (error) {
+    console.error('❌ Delete campaign error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message
+    });
+  }
+}
+
+// Update campaign status
+async function updateCampaignStatus(req, res) {
+  try {
+    const { campaignId, status, stats } = req.body;
+
+    if (!campaignId || !status) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Campaign ID and status are required' 
+      });
+    }
+
+    console.log('📊 Updating campaign status:', { campaignId, status, stats });
+
+    const updateData = { status };
+    
+    if (status === 'sent') {
+      updateData.sent_at = new Date().toISOString();
+      updateData.completed_at = new Date().toISOString();
+    }
+
+    if (stats) {
+      if (stats.success !== undefined) updateData.total_sent = stats.success;
+      if (stats.failed !== undefined) updateData.total_failed = stats.failed;
+      if (stats.delivered !== undefined) updateData.total_delivered = stats.delivered;
+    }
+
+    const { data, error } = await supabase
+      .from('whatsapp_campaigns')
+      .update(updateData)
+      .eq('id', campaignId)
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    console.log('✅ Campaign status updated:', data);
+
+    res.json({ 
+      success: true,
+      campaign: data[0]
+    });
+  } catch (error) {
+    console.error('❌ Update campaign status error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message
     });
   }
 }
