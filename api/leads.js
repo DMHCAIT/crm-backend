@@ -571,6 +571,7 @@ module.exports = async (req, res) => {
         
         // Apply date filter (for updated_at)
         if (dateFilterType) {
+          console.log('📅 Processing Updated Date Filter:', { dateFilterType, updatedDateFrom, updatedDateTo, updatedDateFilterType, updatedSpecificDate });
           const now = new Date();
           let startDate, endDate;
           
@@ -651,12 +652,18 @@ module.exports = async (req, res) => {
           }
           
           // Apply date range to query
+          console.log('📅 Applying Updated Date Range:', { startDate: startDate?.toISOString(), endDate: endDate?.toISOString() });
           if (startDate && endDate) {
             query = query.gte('updated_at', startDate.toISOString()).lte('updated_at', endDate.toISOString());
+            console.log('✅ Applied updated_at range filter: gte', startDate.toISOString(), 'lte', endDate.toISOString());
           } else if (startDate && !endDate) {
             query = query.gte('updated_at', startDate.toISOString());
+            console.log('✅ Applied updated_at gte filter:', startDate.toISOString());
           } else if (!startDate && endDate) {
             query = query.lte('updated_at', endDate.toISOString());
+            console.log('✅ Applied updated_at lte filter:', endDate.toISOString());
+          } else {
+            console.log('⚠️ No date range calculated for updated_at filter');
           }
         }
         
