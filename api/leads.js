@@ -463,6 +463,17 @@ module.exports = async (req, res) => {
         const createdDateFilterType = req.query.createdDateFilterType || 'on';
         const createdSpecificDate = req.query.createdSpecificDate || '';
         
+        // DEBUG: Log created date filter parameters
+        if (createdDateFilter && createdDateFilter !== 'all') {
+          console.log('🗓️ Created Date Filter Parameters:', {
+            createdDateFilter,
+            createdDateFrom,
+            createdDateTo,
+            createdDateFilterType,
+            createdSpecificDate
+          });
+        }
+        
         // Follow-up date filter parameters
         const followUpFilter = req.query.followUpFilter || '';
         const followUpDateFrom = req.query.followUpDateFrom || '';
@@ -700,6 +711,7 @@ module.exports = async (req, res) => {
               break;
             case 'custom':
             case 'created_custom':
+            case 'created_advanced':
               // Handle custom date range with createdDateFrom and createdDateTo
               if (createdDateFilterType === 'between' && createdDateFrom && createdDateTo) {
                 createdStartDate = new Date(createdDateFrom);
