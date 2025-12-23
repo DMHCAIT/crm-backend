@@ -658,7 +658,12 @@ module.exports = async (req, res) => {
           }
           
           // Apply date range to query
-          console.log('📅 Applying Updated Date Range:', { startDate: startDate?.toISOString(), endDate: endDate?.toISOString() });
+          console.log('📅 Applying Updated Date Range:', { 
+            dateFilterType,
+            startDate: startDate?.toISOString(), 
+            endDate: endDate?.toISOString(),
+            serverTime: new Date().toISOString()
+          });
           if (startDate && endDate) {
             query = query.gte('updated_at', startDate.toISOString()).lte('updated_at', endDate.toISOString());
             console.log('✅ Applied updated_at range filter: gte', startDate.toISOString(), 'lte', endDate.toISOString());
@@ -993,6 +998,15 @@ module.exports = async (req, res) => {
         }
         
         console.log(`✅ User ${user.username} accessed ${leads?.length || 0} leads (total count: ${count || 0})`);
+
+        // Debug: Show sample updated_at values if filtering by updated date
+        if (dateFilterType && leads && leads.length > 0) {
+          console.log(`🔍 DEBUG: Updated Date Filter "${dateFilterType}" returned ${leads.length} leads`);
+          console.log('🔍 Sample updated_at values from first 5 results:');
+          leads.slice(0, 5).forEach((lead, i) => {
+            console.log(`  ${i + 1}. ${lead.fullName || lead.name} - updated_at: ${lead.updated_at}, created_at: ${lead.created_at}`);
+          });
+        }
 
         // Debug status distribution
         if (leads && leads.length > 0) {
