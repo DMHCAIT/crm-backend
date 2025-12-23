@@ -520,7 +520,8 @@ module.exports = async (req, res) => {
           .from('leads')
           .select(`
             id, fullName, email, phone, country, branch, qualification, 
-            source, course, status, company, estimatedvalue, assigned_to, 
+            source, course, status, company, estimatedvalue, estimated_value, 
+            sale_price, currency, assigned_to, 
             assignedTo, assignedcounselor, experience, location, score, 
             created_at, updated_at, followUp, nextfollowup, next_follow_up, 
             notes, communicationscount, updated_by

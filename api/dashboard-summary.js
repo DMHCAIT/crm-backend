@@ -69,7 +69,7 @@ module.exports = async (req, res) => {
       // Get leads summary
       supabase
         .from('leads')
-        .select('id, status, source, created_at, updated_at, assigned_to, estimated_value, actual_revenue, company')
+        .select('id, status, source, created_at, updated_at, assigned_to, estimated_value, sale_price, company')
         .then(result => {
           if (result.error) return { data: [], error: result.error };
           const leads = result.data || [];
@@ -85,13 +85,13 @@ module.exports = async (req, res) => {
           today.setHours(0, 0, 0, 0);
           const todayLeads = leads.filter(l => new Date(l.created_at) >= today).length;
           
-          // Revenue
+          // Revenue - use sale_price for enrolled leads
           const actualRevenue = leads
-            .filter(l => l.actual_revenue)
-            .reduce((sum, l) => sum + (l.actual_revenue || 0), 0);
+            .filter(l => l.status === 'Enrolled' && l.sale_price)
+            .reduce((sum, l) => sum + (l.sale_price || 0), 0);
           
           const potentialRevenue = leads
-            .filter(l => (l.status === 'Hot' || l.status === 'Warm') && l.estimated_value)
+            .filter(l => l.status !== 'Enrolled' && l.estimated_value)
             .reduce((sum, l) => sum + (l.estimated_value || 0), 0);
           
           // By source
@@ -147,7 +147,7 @@ module.exports = async (req, res) => {
       // Get revenue summary
       supabase
         .from('leads')
-        .select('actual_revenue, estimated_value, status, company, created_at')
+        .select('sale_price, estimated_value, status, company, created_at')
         .then(result => {
           if (result.error) return { data: {}, error: result.error };
           const leads = result.data || [];
@@ -157,15 +157,15 @@ module.exports = async (req, res) => {
           thisMonth.setHours(0, 0, 0, 0);
           
           const monthlyRevenue = leads
-            .filter(l => l.actual_revenue && new Date(l.created_at) >= thisMonth)
-            .reduce((sum, l) => sum + (l.actual_revenue || 0), 0);
+            .filter(l => l.status === 'Enrolled' && l.sale_price && new Date(l.created_at) >= thisMonth)
+            .reduce((sum, l) => sum + (l.sale_price || 0), 0);
           
           return {
             data: {
               monthlyRevenue,
-              totalRevenue: leads.reduce((sum, l) => sum + (l.actual_revenue || 0), 0),
+              totalRevenue: leads.filter(l => l.status === 'Enrolled').reduce((sum, l) => sum + (l.sale_price || 0), 0),
               pipeline: leads
-                .filter(l => (l.status === 'Hot' || l.status === 'Warm') && l.estimated_value)
+                .filter(l => l.status !== 'Enrolled' && l.estimated_value)
                 .reduce((sum, l) => sum + (l.estimated_value || 0), 0)
             },
             error: null
