@@ -1064,7 +1064,10 @@ module.exports = async (req, res) => {
             assignedCounselor: normalizedAssignment,
             assigned_to: normalizedAssignment,
             // Map estimatedvalue from database to estimatedValue for frontend (DB column has no underscore)
-            estimatedValue: lead.estimatedvalue !== undefined && lead.estimatedvalue !== null ? parseFloat(lead.estimatedvalue) || 0 : 0
+            estimatedValue: lead.estimatedvalue !== undefined && lead.estimatedvalue !== null ? parseFloat(lead.estimatedvalue) || 0 : 0,
+            estimated_value: lead.estimated_value !== undefined && lead.estimated_value !== null ? parseFloat(lead.estimated_value) || 0 : 0,
+            salePrice: lead.sale_price !== undefined && lead.sale_price !== null ? parseFloat(lead.sale_price) || null : null,
+            sale_price: lead.sale_price !== undefined && lead.sale_price !== null ? parseFloat(lead.sale_price) || null : null
           };
         });
         
@@ -1488,6 +1491,9 @@ module.exports = async (req, res) => {
         status,
         company,
         estimatedValue,
+        estimated_value,
+        salePrice,
+        sale_price,
 
         assignedTo,
         notes,
@@ -1552,7 +1558,9 @@ module.exports = async (req, res) => {
           course: course || 'Fellowship in Emergency Medicine',
           status: leadStatus,
           company: company || '', // Company field for DMHCA/IBMP separation - no default
-          estimatedvalue: estimatedValue ? parseFloat(estimatedValue) || 0 : 0, // Ensure numeric value for estimated value field (DB column is 'estimatedvalue' without underscore)
+          estimatedvalue: estimatedValue || estimated_value ? parseFloat(estimatedValue || estimated_value) || 0 : 0, // Ensure numeric value for estimated value field (DB column is 'estimatedvalue' without underscore)
+          estimated_value: estimatedValue || estimated_value ? parseFloat(estimatedValue || estimated_value) || 0 : 0, // New snake_case column
+          sale_price: salePrice || sale_price ? parseFloat(salePrice || sale_price) || null : null, // Sale price for enrolled leads (only set if provided)
 
           assigned_to: assignedTo || user.username || 'Unassigned', // PRIMARY assignment field (snake_case)
           assignedTo: assignedTo || user.username || 'Unassigned',  // Match actual DB column name
@@ -1718,9 +1726,18 @@ module.exports = async (req, res) => {
         }
 
         // Ensure numeric conversion for estimatedValue in updates (DB column is 'estimatedvalue' - no underscore)
-        if (cleanUpdateData.estimatedValue !== undefined) {
-          cleanUpdateData.estimatedvalue = parseFloat(cleanUpdateData.estimatedValue) || 0;
+        if (cleanUpdateData.estimatedValue !== undefined || cleanUpdateData.estimated_value !== undefined) {
+          const estValue = cleanUpdateData.estimatedValue || cleanUpdateData.estimated_value;
+          cleanUpdateData.estimatedvalue = parseFloat(estValue) || 0;
+          cleanUpdateData.estimated_value = parseFloat(estValue) || 0;
           delete cleanUpdateData.estimatedValue; // Remove camelCase version
+        }
+
+        // Ensure numeric conversion for salePrice in updates (DB column is 'sale_price')
+        if (cleanUpdateData.salePrice !== undefined || cleanUpdateData.sale_price !== undefined) {
+          const salePriceValue = cleanUpdateData.salePrice || cleanUpdateData.sale_price;
+          cleanUpdateData.sale_price = salePriceValue ? parseFloat(salePriceValue) || null : null;
+          delete cleanUpdateData.salePrice; // Remove camelCase version
         }
 
         // Auto-clear follow-up date if status is changed to "Not Interested" or "Junk"
