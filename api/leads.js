@@ -612,19 +612,25 @@ module.exports = async (req, res) => {
               break;
             case 'custom':
               // Handle custom date range with updatedDateFrom and updatedDateTo
+              console.log('📅 Custom date filter requested:', { updatedDateFrom, updatedDateTo });
               if (updatedDateFrom && updatedDateTo) {
                 startDate = new Date(updatedDateFrom);
                 startDate.setHours(0, 0, 0, 0);
                 endDate = new Date(updatedDateTo);
                 endDate.setHours(23, 59, 59, 999);
+                console.log('✅ Custom date range set:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
               } else if (updatedDateFrom) {
                 startDate = new Date(updatedDateFrom);
                 startDate.setHours(0, 0, 0, 0);
                 endDate = now;
+                console.log('✅ Custom date from set:', { startDate: startDate.toISOString(), endDate: 'now' });
               } else if (updatedDateTo) {
                 startDate = new Date(0); // Beginning of time
                 endDate = new Date(updatedDateTo);
                 endDate.setHours(23, 59, 59, 999);
+                console.log('✅ Custom date to set:', { startDate: 'beginning', endDate: endDate.toISOString() });
+              } else {
+                console.log('⚠️ No custom date parameters provided');
               }
               break;
             case 'advanced':
