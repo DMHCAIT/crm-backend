@@ -7,93 +7,7 @@ if (!JWT_SECRET) {
 }
 
 // Hardcoded users for demo purposes
-const DEMO_USERS = [
-  {
-    id: '1',
-    name: 'Santhosh Kumar',
-    username: 'admin',
-    email: 'admin@dmhca.com',
-    role: 'super_admin',
-    status: 'active',
-    created_at: '2025-09-19T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z',
-    department: 'Management',
-    designation: 'System Administrator',
-    phone: '+91-9876543210',
-    location: 'Delhi',
-    join_date: '2024-01-01',
-    company: 'DMHCA',
-    reports_to: null // Super admin reports to no one
-  },
-  {
-    id: '2',
-    name: 'Dr. Priya Sharma',
-    username: 'priya.sharma',
-    email: 'priya@dmhca.com',
-    role: 'senior_manager',
-    status: 'active',
-    created_at: '2025-09-19T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z',
-    department: 'Admissions',
-    designation: 'Senior Admissions Manager',
-    phone: '+91-9876543211',
-    location: 'Delhi',
-    join_date: '2024-02-01',
-    company: 'DMHCA',
-    reports_to: '1' // Reports to admin
-  },
-  {
-    id: '3',
-    name: 'Rahul Kumar',
-    username: 'rahul.kumar',
-    email: 'rahul@dmhca.com',
-    role: 'manager',
-    status: 'active',
-    created_at: '2025-09-19T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z',
-    department: 'Operations',
-    designation: 'Operations Manager',
-    phone: '+91-9876543212',
-    location: 'Hyderabad',
-    join_date: '2024-03-01',
-    company: 'IBMP',
-    reports_to: '2' // Reports to Priya
-  },
-  {
-    id: '4',
-    name: 'Anjali Patel',
-    username: 'anjali.patel',
-    email: 'anjali@dmhca.com',
-    role: 'team_leader',
-    status: 'active',
-    created_at: '2025-09-19T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z',
-    department: 'Counseling',
-    designation: 'Team Lead - Counseling',
-    phone: '+91-9876543213',
-    location: 'Kashmir',
-    join_date: '2024-04-01',
-    company: 'DMHCA',
-    reports_to: '3' // Reports to Rahul
-  },
-  {
-    id: '5',
-    name: 'Suresh Reddy',
-    username: 'suresh.reddy',
-    email: 'suresh@dmhca.com',
-    role: 'counselor',
-    status: 'active',
-    created_at: '2025-09-19T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z',
-    department: 'Counseling',
-    designation: 'Senior Counselor',
-    phone: '+91-9876543214',
-    location: 'Remote',
-    join_date: '2024-05-01',
-    company: 'IBMP',
-    reports_to: '4' // Reports to Anjali
-  }
-];
+// Demo data removed - database-only mode
 
 // Verify JWT token
 function verifyToken(req) {
@@ -153,8 +67,8 @@ module.exports = async (req, res) => {
       // Get all users
       return res.json({
         success: true,
-        users: DEMO_USERS,
-        total: DEMO_USERS.length,
+        users: [],
+        total: [].length,
         message: 'Users retrieved successfully (demo data)'
       });
     }
@@ -182,7 +96,7 @@ module.exports = async (req, res) => {
       }
       
       // Check if username or email already exists
-      const existingUser = DEMO_USERS.find(u => 
+      const existingUser = [].find(u => 
         u.username === username || u.email === email
       );
       
@@ -194,7 +108,7 @@ module.exports = async (req, res) => {
       }
       
       // Validate reports_to if provided
-      if (reports_to && !DEMO_USERS.find(u => u.id === reports_to)) {
+      if (reports_to && ![].find(u => u.id === reports_to)) {
         return res.status(400).json({
           success: false,
           message: 'Supervisor user not found'
@@ -220,7 +134,7 @@ module.exports = async (req, res) => {
       };
       
       // Add to demo users array (simulate database insert)
-      DEMO_USERS.push(newUser);
+      [].push(newUser);
 
       return res.json({
         success: true,
@@ -232,7 +146,7 @@ module.exports = async (req, res) => {
     if (req.method === 'PUT') {
       // Simulate updating a user
       const userId = req.query.id || req.url.split('?id=')[1]?.split('&')[0];
-      const userIndex = DEMO_USERS.findIndex(u => u.id === userId);
+      const userIndex = [].findIndex(u => u.id === userId);
       
       if (userIndex === -1) {
         return res.status(404).json({
@@ -244,8 +158,8 @@ module.exports = async (req, res) => {
       const { reports_to, username, email, ...otherUpdates } = req.body;
       
       // Validate reports_to if provided
-      if (reports_to && reports_to !== DEMO_USERS[userIndex].reports_to) {
-        if (!DEMO_USERS.find(u => u.id === reports_to)) {
+      if (reports_to && reports_to !== [][userIndex].reports_to) {
+        if (![].find(u => u.id === reports_to)) {
           return res.status(400).json({
             success: false,
             message: 'Supervisor user not found'
@@ -262,8 +176,8 @@ module.exports = async (req, res) => {
       }
       
       // Check for duplicate username/email if they're being updated
-      if (username && username !== DEMO_USERS[userIndex].username) {
-        const duplicateUser = DEMO_USERS.find(u => u.username === username && u.id !== userId);
+      if (username && username !== [][userIndex].username) {
+        const duplicateUser = [].find(u => u.username === username && u.id !== userId);
         if (duplicateUser) {
           return res.status(400).json({
             success: false,
@@ -272,8 +186,8 @@ module.exports = async (req, res) => {
         }
       }
       
-      if (email && email !== DEMO_USERS[userIndex].email) {
-        const duplicateUser = DEMO_USERS.find(u => u.email === email && u.id !== userId);
+      if (email && email !== [][userIndex].email) {
+        const duplicateUser = [].find(u => u.email === email && u.id !== userId);
         if (duplicateUser) {
           return res.status(400).json({
             success: false,
@@ -283,16 +197,16 @@ module.exports = async (req, res) => {
       }
 
       const updatedUser = {
-        ...DEMO_USERS[userIndex],
+        ...[][userIndex],
         ...otherUpdates,
-        username: username || DEMO_USERS[userIndex].username,
-        email: email || DEMO_USERS[userIndex].email,
-        reports_to: reports_to !== undefined ? reports_to : DEMO_USERS[userIndex].reports_to,
+        username: username || [][userIndex].username,
+        email: email || [][userIndex].email,
+        reports_to: reports_to !== undefined ? reports_to : [][userIndex].reports_to,
         updated_at: new Date().toISOString()
       };
       
       // Update in the array (simulate database update)
-      DEMO_USERS[userIndex] = updatedUser;
+      [][userIndex] = updatedUser;
 
       return res.json({
         success: true,

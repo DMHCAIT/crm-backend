@@ -18,37 +18,7 @@ try {
   console.error('❌ Communications API: Supabase initialization failed:', error.message);
 }
 
-// Demo communications data - fallback when database not available
-const DEMO_COMMUNICATIONS = [
-  {
-    id: '1',
-    type: 'email',
-    direction: 'outbound',
-    subject: 'Welcome to DMHCA CRM',
-    content: 'Thank you for your interest in our courses...',
-    sender: 'admin@dmhca.com',
-    recipient: 'john.smith@email.com',
-    status: 'sent',
-    created_at: '2025-09-19T10:00:00.000Z',
-    delivered_at: '2025-09-19T10:01:00.000Z',
-    leadName: 'John Smith',
-    leadId: '1'
-  },
-  {
-    id: '2',
-    type: 'whatsapp',
-    direction: 'inbound',
-    subject: 'Course Inquiry',
-    content: 'Hi, I want to know about data science course',
-    sender: 'sarah.j@email.com',
-    recipient: 'admin@dmhca.com',
-    status: 'read',
-    created_at: '2025-09-19T11:30:00.000Z',
-    read_at: '2025-09-19T11:35:00.000Z',
-    leadName: 'Sarah Johnson',
-    leadId: '2'
-  }
-];
+// Demo data removed - database-only mode
 
 // Get subordinate users for hierarchical access control
 async function getSubordinateUsers(userId) {
@@ -136,8 +106,8 @@ module.exports = async (req, res) => {
           console.log('⚠️ No database connection, returning demo data');
           return res.json({
             success: true,
-            communications: DEMO_COMMUNICATIONS,
-            total: DEMO_COMMUNICATIONS.length,
+            communications: [],
+            total: [].length,
             message: 'Communications retrieved successfully (demo data - no database)'
           });
         }
@@ -153,8 +123,8 @@ module.exports = async (req, res) => {
           console.log('⚠️ User not found in database, using demo data');
           return res.json({
             success: true,
-            communications: DEMO_COMMUNICATIONS,
-            total: DEMO_COMMUNICATIONS.length,
+            communications: [],
+            total: [].length,
             message: 'Communications retrieved successfully (demo data - user not found)'
           });
         }
@@ -246,11 +216,10 @@ module.exports = async (req, res) => {
       } catch (error) {
         console.error('❌ Error fetching communications:', error);
         
-        // Fallback to demo data on database error
-        return res.json({
-          success: true,
-          communications: DEMO_COMMUNICATIONS,
-          total: DEMO_COMMUNICATIONS.length,
+        // Database-only mode - no fallback data
+        return res.status(503).json({
+          success: false,
+          error: 'Database connection required',
           message: 'Communications retrieved successfully (demo data - database error)',
           error: error.message
         });
@@ -262,7 +231,7 @@ module.exports = async (req, res) => {
       
       // Simulate creating a new communication
       const newCommunication = {
-        id: String(DEMO_COMMUNICATIONS.length + 1),
+        id: String([].length + 1),
         type: type || 'email',
         direction: 'outbound',
         subject: subject || 'New Message',

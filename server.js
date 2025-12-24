@@ -1,12 +1,14 @@
-// 🚀 FIXED SERVER.JS - Complete Authentication Solution
-// Apply this to your crm-backend repository on Railway
-
+// 🚀 PRODUCTION-READY SERVER.JS - Secure CRM Backend
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
+
+// Import utilities
+const logger = require('./utils/logger');
+const { apiLimiter, authLimiter, heavyLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -31,19 +33,23 @@ try {
   if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
     const { createClient } = require('@supabase/supabase-js');
     supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-    console.log('🗄️ Supabase client initialized successfully');
+    logger.info('Supabase client initialized successfully');
   } else {
-    console.log('❌ Supabase credentials missing - application will not function properly');
+    logger.error('Supabase credentials missing - application will not function properly');
   }
 } catch (error) {
-  console.log('❌ Supabase initialization failed:', error.message);
+  logger.error('Supabase initialization failed', { error: error.message });
 }
 
-console.log('🚀 Starting DMHCA CRM Backend Server... [SUPER ADMIN ANALYTICS v2.5.0 - USER ACTIVITY TRACKING]');
-console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
-console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
-console.log('🌐 CORS configured for: https://www.crmdmhca.com');
-console.log('🔄 CORS Fix deployed:', new Date().toISOString());
+logger.info('Starting DMHCA CRM Backend Server', { 
+  version: '3.0.0',
+  environment: process.env.NODE_ENV || 'development'
+});
+logger.info('Configuration', {
+  jwtConfigured: !!JWT_SECRET,
+  supabaseConfigured: !!(SUPABASE_URL && SUPABASE_SERVICE_KEY),
+  port: PORT
+});
 
 // 🚨 ENHANCED CORS FIX FOR RENDER.COM DEPLOYMENT
 // Explicitly allow frontend domain and handle all CORS scenarios
@@ -117,6 +123,9 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// Apply general rate limiting to all API routes
+app.use('/api/', apiLimiter);
 
 // Explicit OPTIONS handler for all routes
 app.options('*', (req, res) => {
@@ -650,8 +659,8 @@ app.options('/api/leads-add-note', (req, res) => {
   res.status(200).end();
 }); */
 
-// Enhanced Simple Auth API with Database Support
-app.post('/api/simple-auth/login', async (req, res) => {
+// Enhanced Simple Auth API with Database Support - WITH RATE LIMITING
+app.post('/api/simple-auth/login', authLimiter, async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -763,8 +772,8 @@ app.options('/api/simple-auth/login', (req, res) => {
   res.status(200).end();
 });
 
-// 🚨 ENHANCED AUTH: Database authentication with bcrypt support
-app.post('/api/auth/login', async (req, res) => {
+// 🚨 ENHANCED AUTH: Database authentication with bcrypt support - WITH RATE LIMITING
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   console.log('🚀 Enhanced login attempt');
   
   // CORS headers

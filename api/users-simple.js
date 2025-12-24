@@ -7,41 +7,7 @@ if (!JWT_SECRET) {
 }
 
 // Hardcoded users for demo purposes
-const DEMO_USERS = [
-  {
-    id: '1',
-    name: 'Admin User',
-    username: 'admin',
-    email: 'admin@dmhca.com',
-    role: 'admin',
-    status: 'active',
-    created_at: '2025-09-19T00:00:00.000Z',
-    department: 'Management',
-    designation: 'System Administrator'
-  },
-  {
-    id: '2',
-    name: 'John Doe',
-    username: 'john.doe',
-    email: 'john@dmhca.com',
-    role: 'counselor',
-    status: 'active',
-    created_at: '2025-09-19T00:00:00.000Z',
-    department: 'Admissions',
-    designation: 'Senior Counselor'
-  },
-  {
-    id: '3',
-    name: 'Jane Smith',
-    username: 'jane.smith',
-    email: 'jane@dmhca.com',
-    role: 'manager',
-    status: 'active',
-    created_at: '2025-09-19T00:00:00.000Z',
-    department: 'Operations',
-    designation: 'Operations Manager'
-  }
-];
+// Demo data removed - database-only mode
 
 // Verify JWT token
 function verifyToken(req) {
@@ -101,8 +67,8 @@ module.exports = async (req, res) => {
       // Get all users
       return res.json({
         success: true,
-        users: DEMO_USERS,
-        total: DEMO_USERS.length,
+        users: [],
+        total: [].length,
         message: 'Users retrieved successfully (demo data)'
       });
     }
@@ -112,7 +78,7 @@ module.exports = async (req, res) => {
       
       // Simulate creating a new user
       const newUser = {
-        id: String(DEMO_USERS.length + 1),
+        id: String([].length + 1),
         name: name || 'New User',
         username: email?.split('@')[0] || 'newuser',
         email: email || 'newuser@dmhca.com',
@@ -133,7 +99,7 @@ module.exports = async (req, res) => {
     if (req.method === 'PUT') {
       // Simulate updating a user
       const userId = req.url.split('/').pop();
-      const existingUser = DEMO_USERS.find(u => u.id === userId);
+      const existingUser = [].find(u => u.id === userId);
       
       if (!existingUser) {
         return res.status(404).json({

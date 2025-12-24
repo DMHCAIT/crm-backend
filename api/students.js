@@ -18,45 +18,7 @@ try {
   console.error('❌ Students API: Supabase initialization failed:', error.message);
 }
 
-// Demo students data - fallback when database not available
-const DEMO_STUDENTS = [
-  {
-    id: '1',
-    student_id: 'STD001',
-    name: 'Alice Wilson',
-    email: 'alice.wilson@email.com',
-    phone: '+91-9876543220',
-    course: 'Web Development',
-    batch_year: 2025,
-    status: 'active',
-    progress: 65.5,
-    admission_date: '2025-01-15',
-    expected_completion_date: '2025-12-15',
-    total_fees: 50000,
-    fees_paid: 30000,
-    fees_pending: 20000,
-    created_at: '2025-01-15T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z'
-  },
-  {
-    id: '2',
-    student_id: 'STD002',
-    name: 'Bob Martinez',
-    email: 'bob.martinez@email.com',
-    phone: '+91-9876543221',
-    course: 'Data Science',
-    batch_year: 2025,
-    status: 'active',
-    progress: 45.2,
-    admission_date: '2025-02-01',
-    expected_completion_date: '2026-01-31',
-    total_fees: 75000,
-    fees_paid: 45000,
-    fees_pending: 30000,
-    created_at: '2025-02-01T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z'
-  }
-];
+// Demo data removed - database-only mode
 
 // Get subordinate users for hierarchical access control
 async function getSubordinateUsers(userId) {
@@ -144,8 +106,8 @@ module.exports = async (req, res) => {
           console.log('⚠️ No database connection, returning demo data');
           return res.json({
             success: true,
-            students: DEMO_STUDENTS,
-            total: DEMO_STUDENTS.length,
+            students: [],
+            total: [].length,
             message: 'Students retrieved successfully (demo data - no database)'
           });
         }
@@ -161,8 +123,8 @@ module.exports = async (req, res) => {
           console.log('⚠️ User not found in database, using demo data');
           return res.json({
             success: true,
-            students: DEMO_STUDENTS,
-            total: DEMO_STUDENTS.length,
+            students: [],
+            total: [].length,
             message: 'Students retrieved successfully (demo data - user not found)'
           });
         }
@@ -231,11 +193,10 @@ module.exports = async (req, res) => {
       } catch (error) {
         console.error('❌ Error fetching enrolled students:', error);
         
-        // Fallback to demo data on database error
-        return res.json({
-          success: true,
-          students: DEMO_STUDENTS,
-          total: DEMO_STUDENTS.length,
+        // Database-only mode - no fallback data
+        return res.status(503).json({
+          success: false,
+          error: 'Database connection required',
           message: 'Students retrieved successfully (demo data - database error)',
           error: error.message
         });
@@ -247,8 +208,8 @@ module.exports = async (req, res) => {
       
       // Simulate creating a new student
       const newStudent = {
-        id: String(DEMO_STUDENTS.length + 1),
-        student_id: `STD${String(DEMO_STUDENTS.length + 1).padStart(3, '0')}`,
+        id: String([].length + 1),
+        student_id: `STD${String([].length + 1).padStart(3, '0')}`,
         name: name || 'New Student',
         email: email || 'newstudent@email.com',
         phone: phone || '+91-0000000000',
