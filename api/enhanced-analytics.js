@@ -120,6 +120,12 @@ module.exports = async (req, res) => {
       case 'realtime':
         await handleRealtimeAnalytics(req, res);
         break;
+      case 'revenue-forecast':
+        await handleRevenueForecast(req, res);
+        break;
+      case 'pipeline-velocity':
+        await handlePipelineVelocity(req, res);
+        break;
       case 'test':
         res.status(200).json({ 
           success: true, 
@@ -156,7 +162,7 @@ module.exports = async (req, res) => {
             endpointLength: endpoint.length,
             endpointType: typeof endpoint,
             endpointBytes: [...endpoint].map(c => c.charCodeAt(0)),
-            availableEndpoints: ['realtime', 'test', 'analytics/events', 'analytics/dashboard/campaigns', 'analytics/dashboard/stats'],
+            availableEndpoints: ['realtime', 'revenue-forecast', 'pipeline-velocity', 'test', 'analytics/events', 'analytics/dashboard/campaigns', 'analytics/dashboard/stats'],
             fallback: req.url.includes('realtime') ? 'Would trigger realtime fallback' : 'No fallback available'
           }
         });
@@ -770,6 +776,286 @@ function groupEventsByHour(events) {
 function getTopEvents(events) {
   const eventCounts = {};
   events.forEach(event => {
+    eventCounts[event.event_type] = (eventCounts[event.event_type] || 0) + 1;
+  });
+  return Object.entries(eventCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([type, count]) => ({ type, count }));
+}
+
+// =====================================================
+// REVENUE FORECASTING
+// =====================================================
+async function handleRevenueForecast(req, res) {
+  try {
+    const user = verifyToken(req);
+    const userId = user.userId || user.id || user.sub;
+
+    // Get all leads for forecasting
+    const { data: leads, error: leadsError } = await supabase
+      .from('leads')
+      .select('*');
+
+    if (leadsError) {
+      throw leadsError;
+    }
+
+    // Calculate historical conversion rates by source
+    const conversionRates = {};
+    const sourceCounts = {};
+
+    leads.forEach(lead => {
+      if (!sourceCounts[lead.source]) {
+        sourceCounts[lead.source] = { total: 0, converted: 0, totalRevenue: 0 };
+      }
+      sourceCounts[lead.source].total++;
+      
+      if (lead.status === 'Enrolled' || lead.sale_price > 0) {
+        sourceCounts[lead.source].converted++;
+        sourceCounts[lead.source].totalRevenue += (lead.sale_price || lead.estimated_value || 0);
+      }
+    });
+
+    Object.keys(sourceCounts).forEach(source => {
+      const total = sourceCounts[source].total;
+      const converted = sourceCounts[source].converted;
+      conversionRates[source] = total > 0 ? converted / total : 0.15;
+    });
+
+    // Define status multipliers for weighted pipeline
+    const statusMultiplier = {
+      'Hot': 0.7,
+      'Warm': 0.4,
+      'Follow Up': 0.25,
+      'Fresh': 0.10,
+      'Enrolled': 1.0,
+      'Not Interested': 0,
+      'Unassigned': 0.05
+    };
+
+    // Calculate weighted pipeline forecast
+    let pipelineForecast = 0;
+    let enrolledRevenue = 0;
+    let pipelineByStatus = {};
+
+    leads
+      .filter(l => l.status !== 'Not Interested')
+      .forEach(lead => {
+        const sourceRate = conversionRates[lead.source] || 0.15;
+        const statusMult = statusMultiplier[lead.status] || 0.1;
+        const estimatedValue = lead.estimated_value || lead.sale_price || 50000;
+
+        if (lead.status === 'Enrolled' && lead.sale_price > 0) {
+          enrolledRevenue += lead.sale_price;
+        } else {
+          const expectedValue = estimatedValue * sourceRate * statusMult;
+          pipelineForecast += expectedValue;
+
+          if (!pipelineByStatus[lead.status]) {
+            pipelineByStatus[lead.status] = { count: 0, value: 0 };
+          }
+          pipelineByStatus[lead.status].count++;
+          pipelineByStatus[lead.status].value += expectedValue;
+        }
+      });
+
+    // Calculate confidence intervals (using normal distribution approximation)
+    const stdDev = pipelineForecast * 0.3; // Assume 30% standard deviation
+    const confidenceInterval = stdDev * 1.96; // 95% confidence
+
+    // Calculate monthly trends
+    const monthlyData = {};
+    leads.forEach(lead => {
+      const month = new Date(lead.created_at).toISOString().slice(0, 7);
+      if (!monthlyData[month]) {
+        monthlyData[month] = { leads: 0, revenue: 0, conversions: 0 };
+      }
+      monthlyData[month].leads++;
+      if (lead.status === 'Enrolled' && lead.sale_price > 0) {
+        monthlyData[month].revenue += lead.sale_price;
+        monthlyData[month].conversions++;
+      }
+    });
+
+    const monthlyTrends = Object.entries(monthlyData)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-6)
+      .map(([month, data]) => ({
+        month,
+        ...data,
+        conversionRate: data.leads > 0 ? (data.conversions / data.leads * 100).toFixed(2) : 0
+      }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        currentRevenue: Math.round(enrolledRevenue),
+        forecast: {
+          expected: Math.round(pipelineForecast),
+          optimistic: Math.round(pipelineForecast + confidenceInterval),
+          pessimistic: Math.round(pipelineForecast - confidenceInterval),
+          confidence: 95
+        },
+        totalPotential: Math.round(enrolledRevenue + pipelineForecast),
+        conversionRates,
+        pipelineByStatus: Object.entries(pipelineByStatus).map(([status, data]) => ({
+          status,
+          count: data.count,
+          value: Math.round(data.value)
+        })),
+        monthlyTrends,
+        insights: {
+          bestSource: Object.entries(conversionRates)
+            .sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A',
+          bestSourceRate: (Math.max(...Object.values(conversionRates)) * 100).toFixed(2) + '%',
+          totalLeads: leads.length,
+          activeLeads: leads.filter(l => l.status !== 'Not Interested' && l.status !== 'Enrolled').length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Revenue forecast error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+}
+
+// =====================================================
+// PIPELINE VELOCITY TRACKING
+// =====================================================
+async function handlePipelineVelocity(req, res) {
+  try {
+    const user = verifyToken(req);
+    const { days = 90 } = req.query;
+
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - parseInt(days));
+
+    // Get recent leads
+    const { data: leads, error: leadsError } = await supabase
+      .from('leads')
+      .select('*')
+      .gte('created_at', fromDate.toISOString());
+
+    if (leadsError) throw leadsError;
+
+    // Get status change events
+    const { data: statusChanges, error: eventsError } = await supabase
+      .from('analytics_events')
+      .select('*')
+      .eq('event_type', 'status_change')
+      .gte('timestamp', fromDate.toISOString());
+
+    if (eventsError) {
+      console.log('No status change events found, using lead data only');
+    }
+
+    // Calculate velocity metrics
+    const times = {
+      contact: [],
+      qualify: [],
+      convert: [],
+      total: []
+    };
+
+    statusChanges?.forEach(event => {
+      const lead = leads?.find(l => l.id === event.lead_id);
+      if (!lead) return;
+
+      const createdDate = new Date(lead.created_at);
+      const eventDate = new Date(event.timestamp);
+      const hoursDiff = (eventDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+
+      const toStatus = event.metadata?.to_status;
+
+      if (toStatus === 'Follow Up' || toStatus === 'Warm') {
+        times.contact.push(hoursDiff);
+      }
+      if (toStatus === 'Warm' || toStatus === 'Hot') {
+        times.qualify.push(hoursDiff);
+      }
+      if (toStatus === 'Enrolled') {
+        times.convert.push(hoursDiff);
+        times.total.push(hoursDiff);
+      }
+    });
+
+    const avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+    const median = (arr) => {
+      if (!arr.length) return 0;
+      const sorted = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+    };
+
+    // Calculate stage durations
+    const avgTimeToContact = avg(times.contact);
+    const avgTimeToQualify = avg(times.qualify);
+    const avgTimeToConvert = avg(times.convert);
+    const totalPipelineTime = avg(times.total);
+
+    // Calculate conversion velocity (leads converted per day)
+    const daysInPeriod = parseInt(days);
+    const conversionsCount = times.convert.length;
+    const conversionVelocity = conversionsCount / daysInPeriod;
+
+    // Pipeline health score
+    const healthScore = totalPipelineTime < 168 ? 'Healthy' : 
+                       totalPipelineTime < 336 ? 'Moderate' : 'Needs Attention';
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        velocity: {
+          avgTimeToContact: Math.round(avgTimeToContact),
+          avgTimeToQualify: Math.round(avgTimeToQualify),
+          avgTimeToConvert: Math.round(avgTimeToConvert),
+          totalPipelineTime: Math.round(totalPipelineTime),
+          medianPipelineTime: Math.round(median(times.total)),
+          unit: 'hours'
+        },
+        conversionMetrics: {
+          conversionsInPeriod: conversionsCount,
+          daysAnalyzed: daysInPeriod,
+          conversionVelocity: conversionVelocity.toFixed(2),
+          velocityUnit: 'conversions per day'
+        },
+        pipelineHealth: {
+          status: healthScore,
+          recommendation: healthScore === 'Needs Attention' 
+            ? 'Focus on reducing time in pipeline stages'
+            : 'Pipeline is performing well'
+        },
+        stageMetrics: {
+          contact: {
+            count: times.contact.length,
+            avgHours: Math.round(avgTimeToContact),
+            avgDays: (avgTimeToContact / 24).toFixed(1)
+          },
+          qualify: {
+            count: times.qualify.length,
+            avgHours: Math.round(avgTimeToQualify),
+            avgDays: (avgTimeToQualify / 24).toFixed(1)
+          },
+          convert: {
+            count: times.convert.length,
+            avgHours: Math.round(avgTimeToConvert),
+            avgDays: (avgTimeToConvert / 24).toFixed(1)
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Pipeline velocity error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+}
     eventCounts[event.event_type] = (eventCounts[event.event_type] || 0) + 1;
   });
   return Object.entries(eventCounts)

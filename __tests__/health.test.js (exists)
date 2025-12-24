@@ -1,0 +1,5 @@
+const { test, expect } = require('vitest');
+
+test('health check', () => {
+	expect(true).toBe(true);
+});

@@ -3479,6 +3479,36 @@ try {
     console.log('⚠️ Cunnekt WhatsApp API not available:', error.message);
   }
 
+  // Analytics Tracking API handler - ADVANCED ANALYTICS
+  try {
+    const analyticsTrackingHandler = require('./api/analytics-tracking.js');
+    app.all('/api/analytics-tracking', analyticsTrackingHandler);
+    app.all('/api/analytics-tracking/*', analyticsTrackingHandler);
+    console.log('✅ Analytics Tracking API loaded successfully');
+  } catch (error) {
+    console.log('⚠️ Analytics Tracking API not available:', error.message);
+  }
+
+  // Lead Scoring API handler - ADVANCED ANALYTICS
+  try {
+    const leadScoringHandler = require('./api/lead-scoring.js');
+    app.all('/api/lead-scoring', leadScoringHandler);
+    app.all('/api/lead-scoring/*', leadScoringHandler);
+    console.log('✅ Lead Scoring API loaded successfully');
+  } catch (error) {
+    console.log('⚠️ Lead Scoring API not available:', error.message);
+  }
+
+  // Revenue Forecast API handler - ADVANCED ANALYTICS
+  try {
+    const revenueForecastHandler = require('./api/revenue-forecast.js');
+    app.all('/api/revenue-forecast', revenueForecastHandler);
+    app.all('/api/revenue-forecast/*', revenueForecastHandler);
+    console.log('✅ Revenue Forecast API loaded successfully');
+  } catch (error) {
+    console.log('⚠️ Revenue Forecast API not available:', error.message);
+  }
+
   // Enhanced Leads API handler - REMOVED DUPLICATE (already loaded above)
 
   console.log('✅ Essential API handlers loaded successfully');
@@ -3491,6 +3521,9 @@ try {
   console.log('� Simple Leads endpoint available at /api/leads-simple');
   console.log('�📤 Enhanced Data Export endpoint available at /api/data-export');
   console.log('📱 Cunnekt WhatsApp API available at /api/cunnekt-whatsapp');
+  console.log('📈 Analytics Tracking API available at /api/analytics-tracking');
+  console.log('🎯 Lead Scoring API available at /api/lead-scoring');
+  console.log('💰 Revenue Forecast API available at /api/revenue-forecast');
 
 } catch (error) {
   console.error('❌ CRITICAL ERROR loading API handlers:', error.message);
