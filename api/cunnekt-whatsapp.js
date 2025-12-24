@@ -17,7 +17,10 @@ try {
 
 // Cunnekt API Configuration
 const CUNNEKT_BASE_URL = 'https://app2.cunnekt.com/v1';
-const CUNNEKT_API_KEY = process.env.CUNNEKT_API_KEY || '4d776c1d10d186e225f1985095d201eb9cc41ad4';
+const CUNNEKT_API_KEY = process.env.CUNNEKT_API_KEY;
+if (!CUNNEKT_API_KEY) {
+  console.error('CRITICAL: CUNNEKT_API_KEY environment variable is not set');
+}
 
 module.exports = async (req, res) => {
   // CORS headers

@@ -3,7 +3,10 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { generateUserPermissions } = require('../config/permissions');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'simple-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 // Initialize Supabase client
 let supabase = null;

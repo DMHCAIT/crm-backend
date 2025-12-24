@@ -1,7 +1,10 @@
 // 🚀 STUDENTS API - DATABASE-CONNECTED WITH HIERARCHICAL ACCESS
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 // Initialize Supabase client
 let supabase = null;

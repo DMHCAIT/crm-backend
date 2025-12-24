@@ -960,7 +960,6 @@ function authenticateToken(req, res, next) {
     '/api/auth/login',
     '/api/auth/simple-login',
     '/api/auth/register',
-    '/api/auth/debug-login',
     '/api/simple-auth/login',
     '/api/dashboard',
     '/api/webhook-leads',
@@ -2440,85 +2439,6 @@ app.options('/api/users/:userId/leads', (req, res) => {
   res.status(200).end();
 });
 
-// Debug API to check user data
-app.get('/api/debug/user/:userId', async (req, res) => {
-  console.log('🔍 Debug user API called');
-  
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  try {
-    const { userId } = req.params;
-    
-    if (!supabase) {
-      return res.status(503).json({
-        success: false,
-        error: 'Database not available'
-      });
-    }
-    
-    // Get user data from database
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    
-    if (error) {
-      console.error('❌ Debug query error:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Database query failed'
-      });
-    }
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
-    
-    // Get supervisor info if reports_to is set
-    let supervisor = null;
-    if (user.reports_to) {
-      const { data: supervisorData } = await supabase
-        .from('users')
-        .select('id, name, username, email, role')
-        .eq('id', user.reports_to)
-        .single();
-      supervisor = supervisorData;
-    }
-    
-    // Remove password hash for security
-    const { password_hash, ...safeUser } = user;
-    
-    console.log(`🔍 Debug user data for ${user.email}:`, {
-      id: user.id,
-      name: user.name,
-      reports_to: user.reports_to,
-      supervisor: supervisor?.name || 'None'
-    });
-    
-    return res.json({
-      success: true,
-      user: safeUser,
-      supervisor,
-      message: `Debug data for user ${user.name}`
-    });
-    
-  } catch (error) {
-    console.error('❌ Error in debug API:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Debug API failed',
-      details: error.message
-    });
-  }
-});
-
 // OLD ANALYTICS ENDPOINT REMOVED - NOW HANDLED BY ENHANCED ANALYTICS API
 // All analytics requests now go through /api/analytics/* routes handled by enhanced-analytics.js
 
@@ -2939,59 +2859,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Debug endpoint for production diagnosis
-app.get('/api/debug/connection', async (req, res) => {
-  console.log('🔍 Debug connection check requested');
-  
-  try {
-    const connectionStatus = {
-      supabase_client: !!supabase,
-      supabase_url: !!SUPABASE_URL,
-      supabase_key: !!SUPABASE_SERVICE_KEY,
-      environment: process.env.NODE_ENV || 'development',
-      timestamp: new Date().toISOString()
-    };
-    
-    if (supabase) {
-      // Test a simple query to verify connection
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('count')
-          .limit(1);
-          
-        connectionStatus.database_test = {
-          success: !error,
-          error: error?.message || null,
-          canQuery: !!data
-        };
-      } catch (testError) {
-        connectionStatus.database_test = {
-          success: false,
-          error: testError.message,
-          canQuery: false
-        };
-      }
-    }
-    
-    res.json({
-      success: true,
-      connection: connectionStatus
-    });
-  } catch (error) {
-    console.error('Debug connection check failed:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      connection: {
-        supabase_client: !!supabase,
-        supabase_url: !!SUPABASE_URL,
-        supabase_key: !!SUPABASE_SERVICE_KEY
-      }
-    });
-  }
-});
-
 // Add /api/health endpoint for frontend compatibility
 app.get('/api/health', (req, res) => {
   res.json({
@@ -3006,31 +2873,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ====================================
-// � DIAGNOSTIC ENDPOINTS
-// ====================================
 
-// Environment Variables Debug Endpoint
-app.get('/api/debug/env', (req, res) => {
-  console.log('🔍 Environment variables check requested');
-  
-  const envCheck = {
-    SUPABASE_URL: process.env.SUPABASE_URL ? '✅ Set (' + process.env.SUPABASE_URL.substring(0, 30) + '...)' : '❌ Missing',
-    SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY ? '✅ Set (' + process.env.SUPABASE_SERVICE_KEY.substring(0, 30) + '...)' : '❌ Missing',
-    JWT_SECRET: process.env.JWT_SECRET ? '✅ Set' : '❌ Missing',
-    NODE_ENV: process.env.NODE_ENV || 'not set',
-    PORT: process.env.PORT || 'not set',
-    timestamp: new Date().toISOString()
-  };
-  
-  console.log('Environment check result:', envCheck);
-  
-  res.json({
-    success: true,
-    environment: envCheck,
-    message: 'Environment variables diagnostic'
-  });
-});
 
 // ====================================
 // 📊 USER ACTIVITY STATS ENDPOINT
@@ -3327,56 +3170,8 @@ app.post('/api/leads/bulk-create', async (req, res) => {
 });
 
 // ====================================
-// �🔑 AUTHENTICATION ENDPOINTS
+// 🔑 AUTHENTICATION ENDPOINTS
 // ====================================
-
-// Debug Login Endpoint (for immediate testing)
-app.post('/api/auth/debug-login', async (req, res) => {
-  try {
-    console.log('🧪 Debug login requested');
-    const { email, password } = req.body;
-
-    // Hardcoded super admin for emergency access
-    if (email === 'superadmin@crm.dmhca' && password === 'SuperAdmin@2025') {
-      const superAdminUser = {
-        id: 'admin-dmhca-001',
-        email: 'santhosh@dmhca.edu',
-        name: 'Santhosh DMHCA',
-        role: 'super_admin',
-        permissions: ['read', 'write', 'admin', 'super_admin'],
-        department: 'IT Administration',
-        isActive: true,
-        createdAt: new Date().toISOString()
-      };
-
-      const token = jwt.sign(superAdminUser, 
-        process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024', 
-        { expiresIn: '24h' }
-      );
-
-      return res.json({
-        success: true,
-        token: token,
-        user: superAdminUser,
-        expiresIn: '24h',
-        message: 'Debug authentication successful'
-      });
-    }
-
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid debug credentials'
-    });
-
-  } catch (error) {
-    console.error('❌ Debug login error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message,
-      code: 'DEBUG_LOGIN_FAILED'
-    });
-  }
-});
 
 // Import and setup API handlers - EMERGENCY LEADS API FIX
 try {

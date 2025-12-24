@@ -1,7 +1,10 @@
 // 🚀 SIMPLIFIED USER MANAGEMENT - NO DATABASE DEPENDENCY
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 // Hardcoded users for demo purposes
 const DEMO_USERS = [

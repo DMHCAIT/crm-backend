@@ -8,7 +8,10 @@ const {
   FEATURE_DESCRIPTIONS 
 } = require('../config/permissions');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 module.exports = async (req, res) => {
   // CORS Headers

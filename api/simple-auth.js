@@ -1,5 +1,13 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { supabase } = require('../config/supabaseClient');
+
+// JWT Secret - MUST be set in environment variables
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('CRITICAL: JWT_SECRET environment variable is not set');
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 // Simple authentication endpoint
 const simpleAuthHandler = async (req, res) => {
@@ -36,83 +44,94 @@ const simpleAuthHandler = async (req, res) => {
         });
       }
 
-      // Simple hardcoded authentication
-      if (username === 'admin' && password === 'admin123') {
-        console.log('✅ Simple Auth - looking up admin user in database');
-        
-        let adminUser = null;
-        
-        // TEMPORARY FIX: Skip database lookup to resolve timeout issue
-        // Try to get admin user data from database
-        console.log('⚠️ Simple Auth: Skipping database lookup to fix timeout issue');
-        // if (supabase) {
-        //   try {
-        //     const { data: dbAdmin, error } = await supabase
-        //       .from('users')
-        //       .select('*')
-        //       .eq('username', 'admin')
-        //       .single();
-        //     
-        //     if (!error && dbAdmin) {
-        //       adminUser = dbAdmin;
-        //       console.log(`✅ Simple Auth: Found admin in database: ${adminUser.name}`);
-        //     } else {
-        //       console.log('⚠️ Simple Auth: Admin not found in database, using fallback');
-        //     }
-        //   } catch (dbError) {
-        //     console.log('⚠️ Simple Auth: Database lookup failed:', dbError.message);
-        //   }
-        // }
-        
-        const token = jwt.sign(
-          { 
-            userId: adminUser?.id || 'admin-001',
-            username: 'admin',
-            role: adminUser?.role || 'admin',
-            name: adminUser?.fullName || adminUser?.name || 'Santhosh Kumar',
-            fullName: adminUser?.fullName || adminUser?.name || 'Santhosh Kumar'
-          },
-          process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024',
-          { expiresIn: '24h' }
-        );
-
-        console.log('✅ Simple Auth Success for admin');
-
-        // Set CORS headers for successful response
-        const origin = req.headers.origin;
-        const allowedOrigins = [
-          'https://crm-frontend-final-git-master-dmhca.vercel.app',
-          'https://www.crmdmhca.com',
-          'http://localhost:5173',
-          'http://localhost:3000'
-        ];
-
-        if (allowedOrigins.includes(origin)) {
-          res.header('Access-Control-Allow-Origin', origin);
-        }
-        res.header('Access-Control-Allow-Credentials', 'true');
-
-        return res.status(200).json({
-          success: true,
-          message: 'Login successful',
-          token: token,
-          user: {
-            id: adminUser?.id || 'admin-001',
-            username: 'admin',
-            email: adminUser?.email || 'admin@dmhca.com',
-            role: adminUser?.role || 'admin',
-            name: adminUser?.fullName || adminUser?.name || 'Santhosh Kumar',
-            firstName: (adminUser?.fullName || adminUser?.name || 'Admin User').split(' ')[0],
-            lastName: (adminUser?.fullName || adminUser?.name || 'Admin User').split(' ').slice(1).join(' ') || 'User'
-          }
+      // Check database connection
+      if (!supabase) {
+        console.error('❌ Simple Auth: Database connection not available');
+        return res.status(500).json({
+          success: false,
+          message: 'Database connection not available'
         });
       }
 
-      // Invalid credentials
-      console.log('❌ Simple Auth Failed: Invalid credentials');
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid username or password'
+      // Look up user by email or username
+      console.log('🔍 Simple Auth - looking up user in database');
+      const { data: users, error: lookupError } = await supabase
+        .from('users')
+        .select('*')
+        .or(`email.eq.${username},username.eq.${username}`)
+        .limit(1);
+
+      if (lookupError) {
+        console.error('❌ Database lookup error:', lookupError);
+        return res.status(500).json({
+          success: false,
+          message: 'Database error occurred'
+        });
+      }
+
+      if (!users || users.length === 0) {
+        console.log('❌ Simple Auth Failed: User not found');
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid username or password'
+        });
+      }
+
+      const user = users[0];
+
+      // Verify password using bcrypt
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      
+      if (!isPasswordValid) {
+        console.log('❌ Simple Auth Failed: Invalid password');
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid username or password'
+        });
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { 
+          userId: user.id,
+          username: user.username || user.email,
+          role: user.role,
+          name: user.fullName || user.name,
+          fullName: user.fullName || user.name
+        },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      console.log('✅ Simple Auth Success for user:', user.email);
+
+      // Set CORS headers for successful response
+      const origin = req.headers.origin;
+      const allowedOrigins = [
+        'https://crm-frontend-final-git-master-dmhca.vercel.app',
+        'https://www.crmdmhca.com',
+        'http://localhost:5173',
+        'http://localhost:3000'
+      ];
+
+      if (allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+      }
+      res.header('Access-Control-Allow-Credentials', 'true');
+
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        token: token,
+        user: {
+          id: user.id,
+          username: user.username || user.email,
+          email: user.email,
+          role: user.role,
+          name: user.fullName || user.name,
+          firstName: (user.fullName || user.name || '').split(' ')[0] || 'User',
+          lastName: (user.fullName || user.name || '').split(' ').slice(1).join(' ') || ''
+        }
       });
 
     } catch (error) {
