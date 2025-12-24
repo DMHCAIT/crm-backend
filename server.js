@@ -8,7 +8,8 @@ require('dotenv').config();
 
 // Import utilities
 const logger = require('./utils/logger');
-const { apiLimiter, authLimiter, heavyLimiter } = require('./middleware/rateLimiter');
+// RATE LIMITING DISABLED - Uncomment to re-enable
+// const { apiLimiter, authLimiter, heavyLimiter } = require('./middleware/rateLimiter');
 const { validate, schemas, sanitize } = require('./middleware/validator');
 const { asyncHandler, notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
@@ -126,8 +127,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Apply general rate limiting to all API routes
-app.use('/api/', apiLimiter);
+// Apply general rate limiting to all API routes - DISABLED
+// app.use('/api/', apiLimiter);
 
 // Apply sanitization to all requests
 app.use(sanitize);
@@ -664,8 +665,8 @@ app.options('/api/leads-add-note', (req, res) => {
   res.status(200).end();
 }); */
 
-// Enhanced Simple Auth API with Database Support - WITH RATE LIMITING
-app.post('/api/simple-auth/login', authLimiter, async (req, res) => {
+// Enhanced Simple Auth API with Database Support - RATE LIMITING DISABLED
+app.post('/api/simple-auth/login', async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -777,8 +778,8 @@ app.options('/api/simple-auth/login', (req, res) => {
   res.status(200).end();
 });
 
-// 🚨 ENHANCED AUTH: Database authentication with bcrypt support - WITH RATE LIMITING
-app.post('/api/auth/login', authLimiter, async (req, res) => {
+// 🚨 ENHANCED AUTH: Database authentication with bcrypt support - RATE LIMITING DISABLED
+app.post('/api/auth/login', async (req, res) => {
   console.log('🚀 Enhanced login attempt');
   
   // CORS headers
