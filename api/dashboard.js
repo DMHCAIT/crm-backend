@@ -2,6 +2,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
+const cacheService = require('../services/cacheService');
+const { measureQuery, QueryPatterns } = require('../utils/queryOptimizer');
 
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -140,8 +142,19 @@ module.exports = async (req, res) => {
     const user = verifyToken(req);
     logger.info(`📊 Dashboard data requested by user ${user.email} (${user.role})`);
 
+    // Try to get from cache first
+    const cacheKey = cacheService.generateKey('dashboard', 'stats', user.userId);
+    const cachedData = await cacheService.get(cacheKey);
+    
+    if (cachedData) {
+      logger.info('Serving dashboard from cache');
+      return res.status(200).json(cachedData);
+    }
+
     // Get subordinate users for hierarchical filtering
-    const subordinates = await getSubordinateUsers(user.id);
+    const subordinates = await measureQuery('getSubordinateUsers', () => 
+      getSubordinateUsers(user.id)
+    );
     const accessibleUserIds = [user.id, ...subordinates];
     
     logger.info(`🏢 User ${user.email} can access data for ${accessibleUserIds.length} users (self + ${subordinates.length} subordinates)`);
@@ -274,6 +287,9 @@ module.exports = async (req, res) => {
         isUserSpecificData: user.role !== 'super_admin'
       }
     };
+
+    // Cache the dashboard stats for 5 minutes
+    await cacheService.set(cacheKey, { success: true, data: stats }, 300);
 
     res.json({
       success: true,
