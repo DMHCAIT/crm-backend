@@ -20,14 +20,7 @@ try {
   logger.error('❌ Students Simple API: Supabase initialization failed:', error.message);
 }
 
-// Demo students data
-const DEMO_STUDENTS = [
-  {
-    id: '1',
-    student_id: 'STD001',
-    name: 'Alice Wilson',
-    email: 'alice.wilson@email.com',
-    phone: '+91-9876543220',
+// Removed DEMO_STUDENTS - Database-only mode
     course: 'Web Development',
     batch_year: 2025,
     status: 'active',
@@ -143,8 +136,12 @@ module.exports = async (req, res) => {
       // Get enrolled students from leads database with hierarchical access control
       try {
         if (!supabase) {
-          logger.info('⚠️ No database connection, returning demo data');
-          return res.json(DEMO_STUDENTS);
+          logger.error('❌ No database connection configured');
+          return res.status(503).json({ 
+            success: false,
+            error: 'Database not configured',
+            message: 'SUPABASE_URL and SUPABASE_SERVICE_KEY must be set'
+          });
         }
 
         // Get user ID for hierarchical filtering
@@ -155,8 +152,12 @@ module.exports = async (req, res) => {
           .single();
 
         if (!currentUserData) {
-          logger.info('⚠️ User not found in database, using demo data');
-          return res.json(DEMO_STUDENTS);
+          logger.error('❌ User not found in database:', user.username);
+          return res.status(404).json({ 
+            success: false,
+            error: 'User not found',
+            message: 'Please contact administrator to set up your account'
+          });
         }
 
         let enrolledLeads = [];
@@ -211,7 +212,12 @@ module.exports = async (req, res) => {
 
       } catch (error) {
         logger.error('❌ Error fetching enrolled students:', error);
-        return res.json(DEMO_STUDENTS); // Fallback to demo data
+        return res.status(500).json({ 
+          success: false,
+          error: 'Failed to fetch students', 
+          message: error.message,
+          hint: 'Check if SUPABASE_URL and SUPABASE_SERVICE_KEY are configured'
+        });
       }
     }
 
@@ -220,8 +226,8 @@ module.exports = async (req, res) => {
       
       // Simulate creating a new student
       const newStudent = {
-        id: String(DEMO_STUDENTS.length + 1),
-        student_id: `STD${String(DEMO_STUDENTS.length + 1).padStart(3, '0')}`,
+        id: `student_${Date.now()}`,
+        student_id: `STD${String(Date.now()).slice(-6)}`,
         name: name || 'New Student',
         email: email || 'newstudent@email.com',
         phone: phone || '+91-0000000000',
