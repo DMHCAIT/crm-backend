@@ -5,6 +5,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 let supabase;
@@ -14,10 +16,10 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Analytics Events API: Supabase initialized');
+    logger.info('✅ Analytics Events API: Supabase initialized');
   }
 } catch (error) {
-  console.log('❌ Analytics Events API: Supabase initialization failed:', error.message);
+  logger.info('❌ Analytics Events API: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -39,7 +41,7 @@ function verifyToken(req) {
 // Track event helper function
 async function trackEvent(eventData) {
   if (!supabase) {
-    console.error('❌ Cannot track event: Supabase not initialized');
+    logger.error('❌ Cannot track event: Supabase not initialized');
     return null;
   }
 
@@ -61,13 +63,13 @@ async function trackEvent(eventData) {
       .select();
 
     if (error) {
-      console.error('❌ Error tracking event:', error);
+      logger.error('❌ Error tracking event:', error);
       return null;
     }
 
     return data && data.length > 0 ? data[0] : null;
   } catch (error) {
-    console.error('❌ Exception tracking event:', error);
+    logger.error('❌ Exception tracking event:', error);
     return null;
   }
 }
@@ -371,7 +373,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Analytics Events API Error:', error);
+    logger.error('❌ Analytics Events API Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'

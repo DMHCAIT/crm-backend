@@ -5,6 +5,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 let supabase;
@@ -14,10 +16,10 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Lead Scoring API: Supabase initialized');
+    logger.info('✅ Lead Scoring API: Supabase initialized');
   }
 } catch (error) {
-  console.log('❌ Lead Scoring API: Supabase initialization failed:', error.message);
+  logger.info('❌ Lead Scoring API: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -430,7 +432,7 @@ module.exports = async (req, res) => {
         });
 
       if (saveError) {
-        console.error('Error saving lead score:', saveError);
+        logger.error('Error saving lead score:', saveError);
       }
 
       return res.status(200).json({
@@ -498,7 +500,7 @@ module.exports = async (req, res) => {
 
           processed++;
         } catch (error) {
-          console.error(`Error processing lead ${lead.id}:`, error);
+          logger.error(`Error processing lead ${lead.id}:`, error);
           failed++;
         }
       }
@@ -587,7 +589,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Lead Scoring API Error:', error);
+    logger.error('❌ Lead Scoring API Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'

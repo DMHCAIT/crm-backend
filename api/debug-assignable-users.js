@@ -1,6 +1,8 @@
 // 🔍 DEBUG ASSIGNABLE USERS - Simple Test Endpoint
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,12 +17,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Debug Assignable Users: Supabase initialized');
+    logger.info('✅ Debug Assignable Users: Supabase initialized');
   } else {
-    console.log('❌ Debug Assignable Users: Supabase credentials missing');
+    logger.info('❌ Debug Assignable Users: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ Debug Assignable Users: Supabase initialization failed:', error.message);
+  logger.info('❌ Debug Assignable Users: Supabase initialization failed:', error.message);
 }
 
 // Verify JWT token
@@ -55,7 +57,7 @@ module.exports = async (req, res) => {
 
   try {
     const user = verifyToken(req);
-    console.log(`🔍 Debug API: Request from ${user.username} (${user.email})`);
+    logger.info(`🔍 Debug API: Request from ${user.username} (${user.email})`);
 
     if (req.method === 'GET') {
       try {
@@ -67,7 +69,7 @@ module.exports = async (req, res) => {
           .order('name');
 
         if (error) {
-          console.error('❌ Error fetching users:', error.message);
+          logger.error('❌ Error fetching users:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch users',
@@ -126,7 +128,7 @@ module.exports = async (req, res) => {
         return res.json(debugInfo);
 
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -141,7 +143,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Authentication error:', error.message);
+    logger.error('❌ Authentication error:', error.message);
     return res.status(401).json({
       success: false,
       error: 'Authentication failed',

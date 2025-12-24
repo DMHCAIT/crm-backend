@@ -2,6 +2,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -13,7 +15,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Communications module: Supabase initialization failed:', error.message);
+  logger.info('Communications module: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -103,7 +105,7 @@ module.exports = async (req, res) => {
         res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('Communications API error:', error);
+    logger.error('Communications API error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

@@ -9,6 +9,8 @@ require('dotenv').config();
 // Import utilities
 const logger = require('./utils/logger');
 const { apiLimiter, authLimiter, heavyLimiter } = require('./middleware/rateLimiter');
+const { validate, schemas, sanitize } = require('./middleware/validator');
+const { asyncHandler, notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -126,6 +128,9 @@ app.use(cors(corsOptions));
 
 // Apply general rate limiting to all API routes
 app.use('/api/', apiLimiter);
+
+// Apply sanitization to all requests
+app.use(sanitize);
 
 // Explicit OPTIONS handler for all routes
 app.options('*', (req, res) => {
@@ -3413,24 +3418,42 @@ process.on('uncaughtException', (error) => {
   }
 });
 
+// ====================================
+// ERROR HANDLERS (Must be last)
+// ====================================
+
+// 404 handler
+app.use(notFoundHandler);
+
+// Global error handler
+app.use(errorHandler);
+
+// ====================================
+// PROCESS ERROR HANDLERS
+// ====================================
+
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('🚨 Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit on unhandled rejections in production
+  logger.error('Unhandled Rejection', { reason, promise });
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception', { error: error.message, stack: error.stack });
+  process.exit(1);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('🛑 Shutting down server gracefully...');
+  logger.info('Received SIGTERM, shutting down gracefully');
   server.close(() => {
-    console.log('✅ Server closed');
+    logger.info('Server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('🛑 Received SIGINT, shutting down gracefully...');
+  logger.info('Received SIGINT, shutting down gracefully');
   server.close(() => {
-    console.log('✅ Server closed');
+    logger.info('Server closed');
     process.exit(0);
   });
 });

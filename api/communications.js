@@ -1,5 +1,7 @@
 // 🚀 COMMUNICATIONS API - DATABASE-CONNECTED WITH HIERARCHICAL ACCESS
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -12,10 +14,10 @@ try {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
     const { createClient } = require('@supabase/supabase-js');
     supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-    console.log('✅ Communications API: Supabase client initialized');
+    logger.info('✅ Communications API: Supabase client initialized');
   }
 } catch (error) {
-  console.error('❌ Communications API: Supabase initialization failed:', error.message);
+  logger.error('❌ Communications API: Supabase initialization failed:', error.message);
 }
 
 // Demo data removed - database-only mode
@@ -23,7 +25,7 @@ try {
 // Get subordinate users for hierarchical access control
 async function getSubordinateUsers(userId) {
   if (!supabase) {
-    console.log('⚠️ No database connection, skipping hierarchical filtering');
+    logger.info('⚠️ No database connection, skipping hierarchical filtering');
     return [userId];
   }
 
@@ -57,7 +59,7 @@ async function getSubordinateUsers(userId) {
 
     return subordinates;
   } catch (error) {
-    console.error('❌ Error getting subordinate users:', error);
+    logger.error('❌ Error getting subordinate users:', error);
     return [userId];
   }
 }
@@ -96,14 +98,14 @@ module.exports = async (req, res) => {
   try {
     // Verify authentication for all requests
     const user = verifyToken(req);
-    console.log('🔍 Communications API request from:', user.username);
+    logger.info('🔍 Communications API request from:', user.username);
 
     // Handle different HTTP methods
     if (req.method === 'GET') {
       // Get real communications from leads database with hierarchical access control
       try {
         if (!supabase) {
-          console.log('⚠️ No database connection, returning demo data');
+          logger.info('⚠️ No database connection, returning demo data');
           return res.json({
             success: true,
             communications: [],
@@ -120,7 +122,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (!currentUserData) {
-          console.log('⚠️ User not found in database, using demo data');
+          logger.info('⚠️ User not found in database, using demo data');
           return res.json({
             success: true,
             communications: [],
@@ -204,7 +206,7 @@ module.exports = async (req, res) => {
         // Sort by timestamp (most recent first)
         communications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-        console.log(`✅ Communications API: Found ${communications.length} communications from ${accessibleLeads.length} leads for user ${user.username}`);
+        logger.info(`✅ Communications API: Found ${communications.length} communications from ${accessibleLeads.length} leads for user ${user.username}`);
 
         return res.json({
           success: true,
@@ -214,7 +216,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Error fetching communications:', error);
+        logger.error('❌ Error fetching communications:', error);
         
         // Database-only mode - no fallback data
         return res.status(503).json({
@@ -256,7 +258,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.log('❌ Communications API error:', error.message);
+    logger.info('❌ Communications API error:', error.message);
     return res.status(401).json({
       success: false,
       message: error.message

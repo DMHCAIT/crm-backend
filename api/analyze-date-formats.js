@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabase = createClient(
@@ -18,11 +20,11 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log('🔍 Analyzing date format issues...');
+    logger.info('🔍 Analyzing date format issues...');
 
     const now = new Date();
-    console.log(`\n📅 Server time: ${now.toISOString()}`);
-    console.log(`📅 Server local: ${now.toString()}`);
+    logger.info(`\n📅 Server time: ${now.toISOString()}`);
+    logger.info(`📅 Server local: ${now.toString()}`);
 
     // Get sample of dates
     const { data: samples, error } = await supabase
@@ -76,27 +78,27 @@ module.exports = async (req, res) => {
       invalid: formatAnalysis.invalid.length
     };
 
-    console.log('\n📊 Date Format Distribution:');
-    console.log(`   Date only (2025-09-03): ${summary.dateOnly}`);
-    console.log(`   DateTime (2025-12-18T15:28): ${summary.dateTime}`);
-    console.log(`   DateTime+Z (2025-12-18T15:28:00Z): ${summary.dateTimeZ}`);
-    console.log(`   DateTime Full (2025-12-18T15:28:00.000Z): ${summary.dateTimeFull}`);
-    console.log(`   Invalid: ${summary.invalid}`);
+    logger.info('\n📊 Date Format Distribution:');
+    logger.info(`   Date only (2025-09-03): ${summary.dateOnly}`);
+    logger.info(`   DateTime (2025-12-18T15:28): ${summary.dateTime}`);
+    logger.info(`   DateTime+Z (2025-12-18T15:28:00Z): ${summary.dateTimeZ}`);
+    logger.info(`   DateTime Full (2025-12-18T15:28:00.000Z): ${summary.dateTimeFull}`);
+    logger.info(`   Invalid: ${summary.invalid}`);
 
-    console.log('\n🔍 Problem Analysis:');
+    logger.info('\n🔍 Problem Analysis:');
     if (formatAnalysis.dateOnly.length > 0) {
       const sample = formatAnalysis.dateOnly[0];
-      console.log(`\n   Date-only example: "${sample.followUp}"`);
-      console.log(`   Parsed to: "${sample.parsedDate}"`);
-      console.log(`   ⚠️ Date-only is treated as midnight UTC`);
-      console.log(`   ⚠️ This causes timezone comparison issues`);
+      logger.info(`\n   Date-only example: "${sample.followUp}"`);
+      logger.info(`   Parsed to: "${sample.parsedDate}"`);
+      logger.info(`   ⚠️ Date-only is treated as midnight UTC`);
+      logger.info(`   ⚠️ This causes timezone comparison issues`);
     }
 
     if (formatAnalysis.dateTime.length > 0) {
       const sample = formatAnalysis.dateTime[0];
-      console.log(`\n   DateTime example: "${sample.followUp}"`);
-      console.log(`   Parsed to: "${sample.parsedDate}"`);
-      console.log(`   ⚠️ DateTime without timezone might use local or UTC`);
+      logger.info(`\n   DateTime example: "${sample.followUp}"`);
+      logger.info(`   Parsed to: "${sample.parsedDate}"`);
+      logger.info(`   ⚠️ DateTime without timezone might use local or UTC`);
     }
 
     // Test how database compares these dates
@@ -104,25 +106,25 @@ module.exports = async (req, res) => {
     const testDate2 = "2025-12-18T15:28";  // DateTime
     const testDate3 = now.toISOString();  // Full ISO
 
-    console.log('\n🧪 Database Comparison Test:');
+    logger.info('\n🧪 Database Comparison Test:');
     
     const { data: test1, count: count1 } = await supabase
       .from('leads')
       .select('id', { count: 'exact', head: true })
       .lt('followUp', testDate1);
-    console.log(`   followUp < "${testDate1}": ${count1} leads`);
+    logger.info(`   followUp < "${testDate1}": ${count1} leads`);
 
     const { data: test2, count: count2 } = await supabase
       .from('leads')
       .select('id', { count: 'exact', head: true })
       .lt('followUp', testDate2);
-    console.log(`   followUp < "${testDate2}": ${count2} leads`);
+    logger.info(`   followUp < "${testDate2}": ${count2} leads`);
 
     const { data: test3, count: count3 } = await supabase
       .from('leads')
       .select('id', { count: 'exact', head: true })
       .lt('followUp', testDate3);
-    console.log(`   followUp < "${testDate3}": ${count3} leads`);
+    logger.info(`   followUp < "${testDate3}": ${count3} leads`);
 
     const result = {
       serverTime: now.toISOString(),
@@ -145,7 +147,7 @@ module.exports = async (req, res) => {
     return res.json({ success: true, ...result });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    logger.error('❌ Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message

@@ -1,6 +1,8 @@
 // Integrations API - Status and testing
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -12,7 +14,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Integrations module: Supabase initialization failed:', error.message);
+  logger.info('Integrations module: Supabase initialization failed:', error.message);
 }
 
 module.exports = async (req, res) => {
@@ -70,7 +72,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
 
   } catch (error) {
-    console.error('Integrations API error:', error);
+    logger.error('Integrations API error:', error);
     return res.status(500).json({
       error: 'Internal server error',
       details: error.message

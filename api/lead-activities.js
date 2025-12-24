@@ -1,6 +1,8 @@
 // 🚀 LEAD ACTIVITIES API - ACTIVITY TRACKING AND AUDIT TRAIL
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,12 +17,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Lead Activities API: Supabase initialized');
+    logger.info('✅ Lead Activities API: Supabase initialized');
   } else {
-    console.log('❌ Lead Activities API: Supabase credentials missing');
+    logger.info('❌ Lead Activities API: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ Lead Activities API: Supabase initialization failed:', error.message);
+  logger.info('❌ Lead Activities API: Supabase initialization failed:', error.message);
 }
 
 // Activity types
@@ -115,7 +117,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (leadError || !lead) {
-          console.error('❌ Error fetching lead:', leadError?.message);
+          logger.error('❌ Error fetching lead:', leadError?.message);
           return res.status(404).json({
             success: false,
             error: 'Lead not found'
@@ -218,7 +220,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -286,7 +288,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.error('❌ Error creating activity:', error.message);
+          logger.error('❌ Error creating activity:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to create activity',
@@ -294,7 +296,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Created activity for lead ${leadId}: ${activityType} by ${user.username}`);
+        logger.info(`✅ Created activity for lead ${leadId}: ${activityType} by ${user.username}`);
 
         return res.json({
           success: true,
@@ -312,7 +314,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error creating activity:', error.message);
+        logger.error('❌ Database error creating activity:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -355,7 +357,7 @@ module.exports = async (req, res) => {
           .eq('id', activityId);
 
         if (error) {
-          console.error('❌ Error deleting activity:', error.message);
+          logger.error('❌ Error deleting activity:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to delete activity',
@@ -363,7 +365,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Deleted activity ${activityId} by ${user.username}`);
+        logger.info(`✅ Deleted activity ${activityId} by ${user.username}`);
 
         // Log the deletion activity
         if (existingActivity) {
@@ -377,7 +379,7 @@ module.exports = async (req, res) => {
                 performed_by: user.username || 'Admin'
               });
           } catch (logError) {
-            console.error('Error logging activity deletion:', logError);
+            logger.error('Error logging activity deletion:', logError);
           }
         }
 
@@ -387,7 +389,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error deleting activity:', error.message);
+        logger.error('❌ Database error deleting activity:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -456,7 +458,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Error fetching activity stats:', error.message);
+        logger.error('❌ Error fetching activity stats:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Failed to fetch activity statistics',
@@ -471,7 +473,7 @@ module.exports = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Authentication error:', error.message);
+    logger.error('❌ Authentication error:', error.message);
     return res.status(401).json({
       success: false,
       message: error.message

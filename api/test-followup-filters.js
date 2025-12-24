@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabase = createClient(
@@ -18,15 +20,15 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log('🔍 Testing follow-up date filters...');
+    logger.info('🔍 Testing follow-up date filters...');
 
     // Get current date/time for testing
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
     
-    console.log(`📅 Current time: ${now.toISOString()}`);
-    console.log(`📅 Today range: ${todayStart} to ${todayEnd}`);
+    logger.info(`📅 Current time: ${now.toISOString()}`);
+    logger.info(`📅 Today range: ${todayStart} to ${todayEnd}`);
 
     // Test 1: Get all leads with follow-up dates
     const { data: allLeads, error: allError } = await supabase
@@ -37,7 +39,7 @@ module.exports = async (req, res) => {
 
     if (allError) throw allError;
 
-    console.log(`\n📊 Found ${allLeads.length} leads with follow-up dates`);
+    logger.info(`\n📊 Found ${allLeads.length} leads with follow-up dates`);
 
     // Categorize leads
     const categories = {
@@ -85,14 +87,14 @@ module.exports = async (req, res) => {
       }
     });
 
-    console.log('\n📊 Categories:');
-    console.log(`  🔴 Overdue: ${categories.overdue.length}`);
-    console.log(`  🟢 Today: ${categories.today.length}`);
-    console.log(`  🟡 Upcoming (next 7 days): ${categories.upcoming.length}`);
-    console.log(`  ⚪ Far future: ${categories.farFuture.length}`);
+    logger.info('\n📊 Categories:');
+    logger.info(`  🔴 Overdue: ${categories.overdue.length}`);
+    logger.info(`  🟢 Today: ${categories.today.length}`);
+    logger.info(`  🟡 Upcoming (next 7 days): ${categories.upcoming.length}`);
+    logger.info(`  ⚪ Far future: ${categories.farFuture.length}`);
 
     // Test 2: Test the overdue filter query (using the same logic as leads.js)
-    console.log('\n🧪 Testing overdue filter query...');
+    logger.info('\n🧪 Testing overdue filter query...');
     const { data: overdueTest, error: overdueError } = await supabase
       .from('leads')
       .select('id, fullName, followUp, status')
@@ -100,26 +102,26 @@ module.exports = async (req, res) => {
       .not('followUp', 'is', null);
 
     if (overdueError) {
-      console.log('❌ Overdue query error:', overdueError.message);
+      logger.info('❌ Overdue query error:', overdueError.message);
     } else {
-      console.log(`✅ Overdue query returned: ${overdueTest.length} leads`);
-      console.log(`   Expected: ${categories.overdue.length} leads`);
-      console.log(`   Match: ${overdueTest.length === categories.overdue.length ? '✅' : '❌'}`);
+      logger.info(`✅ Overdue query returned: ${overdueTest.length} leads`);
+      logger.info(`   Expected: ${categories.overdue.length} leads`);
+      logger.info(`   Match: ${overdueTest.length === categories.overdue.length ? '✅' : '❌'}`);
     }
 
     // Test 3: Test the today filter query
-    console.log('\n🧪 Testing today filter query...');
+    logger.info('\n🧪 Testing today filter query...');
     const { data: todayTest, error: todayError } = await supabase
       .from('leads')
       .select('id, fullName, followUp, status')
       .or(`and(followUp.gte.${todayStart},followUp.lte.${todayEnd}),and(nextfollowup.gte.${todayStart},nextfollowup.lte.${todayEnd}),and(next_follow_up.gte.${todayStart},next_follow_up.lte.${todayEnd})`);
 
     if (todayError) {
-      console.log('❌ Today query error:', todayError.message);
+      logger.info('❌ Today query error:', todayError.message);
     } else {
-      console.log(`✅ Today query returned: ${todayTest.length} leads`);
-      console.log(`   Expected: ${categories.today.length} leads`);
-      console.log(`   Match: ${todayTest.length === categories.today.length ? '✅' : '❌'}`);
+      logger.info(`✅ Today query returned: ${todayTest.length} leads`);
+      logger.info(`   Expected: ${categories.today.length} leads`);
+      logger.info(`   Match: ${todayTest.length === categories.today.length ? '✅' : '❌'}`);
     }
 
     // Show samples
@@ -152,11 +154,11 @@ module.exports = async (req, res) => {
       }
     };
 
-    console.log('\n✅ Filter test complete');
+    logger.info('\n✅ Filter test complete');
     return res.json({ success: true, ...result });
 
   } catch (error) {
-    console.error('❌ Error testing filters:', error);
+    logger.error('❌ Error testing filters:', error);
     return res.status(500).json({
       success: false,
       error: error.message

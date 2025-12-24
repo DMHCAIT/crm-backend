@@ -2,6 +2,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { generateUserPermissions } = require('../config/permissions');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -14,10 +16,10 @@ try {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
     const { createClient } = require('@supabase/supabase-js');
     supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-    console.log('✅ Auth: Supabase client initialized');
+    logger.info('✅ Auth: Supabase client initialized');
   }
 } catch (error) {
-  console.error('❌ Auth: Supabase initialization failed:', error.message);
+  logger.error('❌ Auth: Supabase initialization failed:', error.message);
 }
 
 module.exports = async (req, res) => {
@@ -50,7 +52,7 @@ module.exports = async (req, res) => {
 async function handleUltraSimpleLogin(req, res) {
   const { username, password } = req.body;
 
-  console.log('🚀 Login attempt:', username);
+  logger.info('🚀 Login attempt:', username);
 
   // Simple validation
   if (!username || !password) {
@@ -77,7 +79,7 @@ async function handleUltraSimpleLogin(req, res) {
         if (user.password_hash) {
           const isValid = await bcrypt.compare(password, user.password_hash);
           if (isValid) {
-            console.log('✅ Database login successful for:', username);
+            logger.info('✅ Database login successful for:', username);
             
             const token = jwt.sign({
               username: user.username,
@@ -114,7 +116,7 @@ async function handleUltraSimpleLogin(req, res) {
 
     // Fallback to hardcoded admin if database fails
     if (username === 'admin' && password === 'admin123') {
-      console.log('✅ Fallback admin login - checking database for admin user data');
+      logger.info('✅ Fallback admin login - checking database for admin user data');
       
       let adminUser = null;
       
@@ -129,10 +131,10 @@ async function handleUltraSimpleLogin(req, res) {
           
           if (!error && dbAdmin) {
             adminUser = dbAdmin;
-            console.log(`✅ Found admin in database: ${adminUser.name}`);
+            logger.info(`✅ Found admin in database: ${adminUser.name}`);
           }
         } catch (dbError) {
-          console.log('⚠️ Could not fetch admin from database:', dbError.message);
+          logger.info('⚠️ Could not fetch admin from database:', dbError.message);
         }
       }
       
@@ -166,14 +168,14 @@ async function handleUltraSimpleLogin(req, res) {
       });
     }
 
-    console.log('❌ Invalid credentials for:', username);
+    logger.info('❌ Invalid credentials for:', username);
     return res.status(401).json({
       success: false,
       message: 'Invalid username or password'
     });
 
   } catch (error) {
-    console.error('❌ Login error:', error);
+    logger.error('❌ Login error:', error);
     return res.status(500).json({
       success: false,
       message: 'Login failed',
@@ -187,7 +189,7 @@ async function handleUltraSimpleLogin(req, res) {
 // Supports: Login, Role-based permissions, JWT tokens, Password verification
 // ✅ FIXED: Database users now use bcrypt verification (v2.0)
 async function handleTokenVerification(req, res) {
-  console.log('🔍 Token verification requested');
+  logger.info('🔍 Token verification requested');
   
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -202,7 +204,7 @@ async function handleTokenVerification(req, res) {
     // Verify the JWT token
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    console.log('✅ Token verified for user:', decoded.username);
+    logger.info('✅ Token verified for user:', decoded.username);
 
     // Try to get fresh user data from database - First by userId, then by username
     if (supabase) {
@@ -211,7 +213,7 @@ async function handleTokenVerification(req, res) {
         
         // Try lookup by userId first
         if (decoded.userId) {
-          console.log(`🔍 Looking up user by ID: ${decoded.userId}`);
+          logger.info(`🔍 Looking up user by ID: ${decoded.userId}`);
           const result = await supabase
             .from('users')
             .select('*')
@@ -224,7 +226,7 @@ async function handleTokenVerification(req, res) {
         
         // If userId lookup failed, try username lookup
         if (!user && decoded.username) {
-          console.log(`🔍 Looking up user by username: ${decoded.username}`);
+          logger.info(`🔍 Looking up user by username: ${decoded.username}`);
           const result = await supabase
             .from('users')
             .select('*')
@@ -236,7 +238,7 @@ async function handleTokenVerification(req, res) {
         }
 
         if (!error && user) {
-          console.log(`✅ Found user in database: ${user.name} (${user.username})`);
+          logger.info(`✅ Found user in database: ${user.name} (${user.username})`);
           return res.json({
             success: true,
             user: {
@@ -251,17 +253,17 @@ async function handleTokenVerification(req, res) {
             message: 'Token valid'
           });
         } else {
-          console.log(`⚠️ Database lookup failed for ${decoded.username}:`, error?.message);
+          logger.info(`⚠️ Database lookup failed for ${decoded.username}:`, error?.message);
         }
       } catch (dbError) {
-        console.log('⚠️ Database lookup failed:', dbError.message);
+        logger.info('⚠️ Database lookup failed:', dbError.message);
       }
     }
 
     // Fallback to token data - enhanced to avoid showing 'administrator'
     const fallbackName = decoded.name || decoded.fullName || 
                          (decoded.username === 'admin' ? 'Santhosh Kumar' : decoded.username);
-    console.log(`⚠️ Using fallback user data for ${decoded.username}: name="${fallbackName}"`);
+    logger.info(`⚠️ Using fallback user data for ${decoded.username}: name="${fallbackName}"`);
     
     return res.json({
       success: true,
@@ -276,7 +278,7 @@ async function handleTokenVerification(req, res) {
     });
 
   } catch (error) {
-    console.log('❌ Token verification failed:', error.message);
+    logger.info('❌ Token verification failed:', error.message);
     return res.status(401).json({
       success: false,
       message: 'Invalid token'

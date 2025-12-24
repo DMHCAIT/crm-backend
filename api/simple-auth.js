@@ -1,11 +1,13 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { supabase } = require('../config/supabaseClient');
+const logger = require('../utils/logger');
+
 
 // JWT Secret - MUST be set in environment variables
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error('CRITICAL: JWT_SECRET environment variable is not set');
+  logger.error('CRITICAL: JWT_SECRET environment variable is not set');
   throw new Error('JWT_SECRET environment variable is required');
 }
 
@@ -35,7 +37,7 @@ const simpleAuthHandler = async (req, res) => {
     try {
       const { username, password } = req.body;
 
-      console.log('🔐 Simple Auth Login attempt:', { username: username || 'undefined' });
+      logger.info('🔐 Simple Auth Login attempt:', { username: username || 'undefined' });
 
       if (!username || !password) {
         return res.status(400).json({
@@ -46,7 +48,7 @@ const simpleAuthHandler = async (req, res) => {
 
       // Check database connection
       if (!supabase) {
-        console.error('❌ Simple Auth: Database connection not available');
+        logger.error('❌ Simple Auth: Database connection not available');
         return res.status(500).json({
           success: false,
           message: 'Database connection not available'
@@ -54,7 +56,7 @@ const simpleAuthHandler = async (req, res) => {
       }
 
       // Look up user by email or username
-      console.log('🔍 Simple Auth - looking up user in database');
+      logger.info('🔍 Simple Auth - looking up user in database');
       const { data: users, error: lookupError } = await supabase
         .from('users')
         .select('*')
@@ -62,7 +64,7 @@ const simpleAuthHandler = async (req, res) => {
         .limit(1);
 
       if (lookupError) {
-        console.error('❌ Database lookup error:', lookupError);
+        logger.error('❌ Database lookup error:', lookupError);
         return res.status(500).json({
           success: false,
           message: 'Database error occurred'
@@ -70,7 +72,7 @@ const simpleAuthHandler = async (req, res) => {
       }
 
       if (!users || users.length === 0) {
-        console.log('❌ Simple Auth Failed: User not found');
+        logger.info('❌ Simple Auth Failed: User not found');
         return res.status(401).json({
           success: false,
           message: 'Invalid username or password'
@@ -83,7 +85,7 @@ const simpleAuthHandler = async (req, res) => {
       const isPasswordValid = await bcrypt.compare(password, user.password);
       
       if (!isPasswordValid) {
-        console.log('❌ Simple Auth Failed: Invalid password');
+        logger.info('❌ Simple Auth Failed: Invalid password');
         return res.status(401).json({
           success: false,
           message: 'Invalid username or password'
@@ -103,7 +105,7 @@ const simpleAuthHandler = async (req, res) => {
         { expiresIn: '24h' }
       );
 
-      console.log('✅ Simple Auth Success for user:', user.email);
+      logger.info('✅ Simple Auth Success for user:', user.email);
 
       // Set CORS headers for successful response
       const origin = req.headers.origin;
@@ -135,7 +137,7 @@ const simpleAuthHandler = async (req, res) => {
       });
 
     } catch (error) {
-      console.error('❌ Simple Auth Error:', error);
+      logger.error('❌ Simple Auth Error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',

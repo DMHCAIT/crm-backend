@@ -1,6 +1,8 @@
 // 🚀 SUPER ADMIN API - USER MANAGEMENT SYSTEM & ANALYTICS
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,12 +17,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Super Admin API: Supabase initialized');
+    logger.info('✅ Super Admin API: Supabase initialized');
   } else {
-    console.log('❌ Super Admin API: Supabase credentials missing');
+    logger.info('❌ Super Admin API: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ Super Admin API: Supabase initialization failed:', error.message);
+  logger.info('❌ Super Admin API: Supabase initialization failed:', error.message);
 }
 
 // In-memory user storage (replace with database in production)
@@ -60,7 +62,7 @@ let USERS_DATABASE = [
 module.exports = async (req, res) => {
   // Enhanced CORS Headers
   const origin = req.headers.origin;
-  console.log('🌐 Super Admin API - Origin:', origin);
+  logger.info('🌐 Super Admin API - Origin:', origin);
   
   // Allow specific origins
   const allowedOrigins = [
@@ -84,7 +86,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   if (req.method === 'OPTIONS') {
-    console.log('🔧 Super Admin API - Handling preflight request');
+    logger.info('🔧 Super Admin API - Handling preflight request');
     return res.status(200).end();
   }
 
@@ -130,14 +132,14 @@ function verifyAdminToken(req) {
     // Allow both 'admin' and 'super_admin' roles to access super admin features
     const allowedRoles = ['admin', 'super_admin'];
     if (!allowedRoles.includes(decoded.role)) {
-      console.log('🚨 Access denied for role:', decoded.role);
+      logger.info('🚨 Access denied for role:', decoded.role);
       return { success: false, message: `Super admin access required. Current role: ${decoded.role}` };
     }
 
-    console.log('✅ Super admin access granted for role:', decoded.role);
+    logger.info('✅ Super admin access granted for role:', decoded.role);
     return { success: true, user: decoded };
   } catch (error) {
-    console.error('🚨 Token verification failed:', error.message);
+    logger.error('🚨 Token verification failed:', error.message);
     return { success: false, message: 'Invalid token' };
   }
 }
@@ -145,7 +147,7 @@ function verifyAdminToken(req) {
 // 📋 Get all users
 async function handleGetUsers(req, res) {
   try {
-    console.log('🔍 Super Admin: Getting all users');
+    logger.info('🔍 Super Admin: Getting all users');
     
     const safeUsers = USERS_DATABASE.map(user => ({
       id: user.id,
@@ -163,7 +165,7 @@ async function handleGetUsers(req, res) {
       message: `Found ${safeUsers.length} users`
     });
   } catch (error) {
-    console.error('❌ Error getting users:', error);
+    logger.error('❌ Error getting users:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get users'
@@ -176,7 +178,7 @@ async function handleCreateUser(req, res) {
   try {
     const { username, password, role, email, fullName } = req.body;
 
-    console.log('➕ Super Admin: Creating new user:', username);
+    logger.info('➕ Super Admin: Creating new user:', username);
 
     // Validation
     if (!username || !password || !role) {
@@ -208,7 +210,7 @@ async function handleCreateUser(req, res) {
 
     USERS_DATABASE.push(newUser);
 
-    console.log('✅ User created successfully:', username);
+    logger.info('✅ User created successfully:', username);
 
     return res.json({
       success: true,
@@ -223,7 +225,7 @@ async function handleCreateUser(req, res) {
       message: 'User created successfully'
     });
   } catch (error) {
-    console.error('❌ Error creating user:', error);
+    logger.error('❌ Error creating user:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to create user'
@@ -237,7 +239,7 @@ async function handleUpdateUser(req, res) {
     const userId = req.query.id || req.body.id;
     const { username, password, role, email, fullName, status } = req.body;
 
-    console.log('✏️ Super Admin: Updating user:', userId);
+    logger.info('✏️ Super Admin: Updating user:', userId);
 
     const userIndex = USERS_DATABASE.findIndex(u => u.id == userId);
     if (userIndex === -1) {
@@ -256,7 +258,7 @@ async function handleUpdateUser(req, res) {
     if (fullName) user.fullName = fullName;
     if (status) user.status = status;
 
-    console.log('✅ User updated successfully:', userId);
+    logger.info('✅ User updated successfully:', userId);
 
     return res.json({
       success: true,
@@ -271,7 +273,7 @@ async function handleUpdateUser(req, res) {
       message: 'User updated successfully'
     });
   } catch (error) {
-    console.error('❌ Error updating user:', error);
+    logger.error('❌ Error updating user:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to update user'
@@ -284,7 +286,7 @@ async function handleDeleteUser(req, res) {
   try {
     const userId = req.query.id;
 
-    console.log('🗑️ Super Admin: Deleting user:', userId);
+    logger.info('🗑️ Super Admin: Deleting user:', userId);
 
     const userIndex = USERS_DATABASE.findIndex(u => u.id == userId);
     if (userIndex === -1) {
@@ -304,14 +306,14 @@ async function handleDeleteUser(req, res) {
 
     USERS_DATABASE.splice(userIndex, 1);
 
-    console.log('✅ User deleted successfully:', userId);
+    logger.info('✅ User deleted successfully:', userId);
 
     return res.json({
       success: true,
       message: 'User deleted successfully'
     });
   } catch (error) {
-    console.error('❌ Error deleting user:', error);
+    logger.error('❌ Error deleting user:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to delete user'
@@ -331,7 +333,7 @@ async function handleGetUserActivity(req, res) {
 
     const { user_id, username, start_date, end_date, limit = 100 } = req.query;
     
-    console.log('📊 Super Admin: Getting user activity analytics', { user_id, username, start_date, end_date });
+    logger.info('📊 Super Admin: Getting user activity analytics', { user_id, username, start_date, end_date });
 
     // Build the query with user information lookup
     let query = supabase
@@ -418,9 +420,9 @@ async function handleGetUserActivity(req, res) {
           userIdToUsername[user.id] = user.username || user.name || user.email?.split('@')[0] || 'Unknown';
         });
         
-        console.log(`✅ Resolved ${users.length} user IDs to usernames`);
+        logger.info(`✅ Resolved ${users.length} user IDs to usernames`);
       } else {
-        console.error('❌ Error fetching users for ID resolution:', usersError);
+        logger.error('❌ Error fetching users for ID resolution:', usersError);
       }
       
       // For user IDs that don't have corresponding users, use the ID itself (truncated for readability)
@@ -505,11 +507,11 @@ async function handleGetUserActivity(req, res) {
       message: `Found ${allUpdates?.length || 0} total updates, displaying ${leadUpdates?.length || 0}`
     };
 
-    console.log('✅ User activity data retrieved successfully');
+    logger.info('✅ User activity data retrieved successfully');
     return res.json(response);
 
   } catch (error) {
-    console.error('❌ Error getting user activity:', error);
+    logger.error('❌ Error getting user activity:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get user activity data',

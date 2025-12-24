@@ -2,6 +2,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -16,12 +18,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ User Management API: Supabase initialized');
+    logger.info('✅ User Management API: Supabase initialized');
   } else {
-    console.log('❌ User Management API: Supabase credentials missing');
+    logger.info('❌ User Management API: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ User Management API: Supabase initialization failed:', error.message);
+  logger.info('❌ User Management API: Supabase initialization failed:', error.message);
 }
 
 // Verify JWT token
@@ -39,7 +41,7 @@ function verifyToken(req) {
 module.exports = async (req, res) => {
   // Enhanced CORS Headers
   const origin = req.headers.origin;
-  console.log('🌐 Users API - Origin:', origin);
+  logger.info('🌐 Users API - Origin:', origin);
   
   // Allow specific origins
   const allowedOrigins = [
@@ -63,7 +65,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   if (req.method === 'OPTIONS') {
-    console.log('🔧 Users API - Handling preflight request');
+    logger.info('🔧 Users API - Handling preflight request');
     return res.status(200).end();
   }
 
@@ -78,7 +80,7 @@ module.exports = async (req, res) => {
 
   try {
     const user = verifyToken(req);
-    console.log(`🔍 User Management API: Request from ${user.username} (${user.email})`);
+    logger.info(`🔍 User Management API: Request from ${user.username} (${user.email})`);
 
     // GET /api/users-supabase - Get all users
     if (req.method === 'GET') {
@@ -89,7 +91,7 @@ module.exports = async (req, res) => {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('❌ Error fetching users:', error.message);
+          logger.error('❌ Error fetching users:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch users',
@@ -97,7 +99,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Fetched ${users?.length || 0} users from database`);
+        logger.info(`✅ Fetched ${users?.length || 0} users from database`);
 
         return res.json({
           success: true,
@@ -107,7 +109,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -198,7 +200,7 @@ module.exports = async (req, res) => {
           updated_at: new Date().toISOString()
         };
 
-        console.log('📝 Creating user:', userData);
+        logger.info('📝 Creating user:', userData);
 
         const { data: newUser, error } = await supabase
           .from('users')
@@ -207,7 +209,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.error('❌ Error creating user:', error.message);
+          logger.error('❌ Error creating user:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to create user',
@@ -215,7 +217,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Created user: ${newUser.name} (${newUser.username})`);
+        logger.info(`✅ Created user: ${newUser.name} (${newUser.username})`);
 
         return res.json({
           success: true,
@@ -224,7 +226,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -317,14 +319,14 @@ module.exports = async (req, res) => {
 
         // Hash password if provided
         if (password && password.trim() !== '') {
-          console.log('🔐 Hashing new password for user:', userId);
+          logger.info('🔐 Hashing new password for user:', userId);
           const saltRounds = 10;
           try {
             const hashedPassword = await bcrypt.hash(password.trim(), saltRounds);
             updateData.password_hash = hashedPassword;
-            console.log('✅ Password hashed successfully');
+            logger.info('✅ Password hashed successfully');
           } catch (hashError) {
-            console.error('❌ Error hashing password:', hashError);
+            logger.error('❌ Error hashing password:', hashError);
             return res.status(500).json({
               success: false,
               error: 'Failed to process password update'
@@ -332,7 +334,7 @@ module.exports = async (req, res) => {
           }
         }
 
-        console.log(`📝 Updating user ${userId}:`, updateData);
+        logger.info(`📝 Updating user ${userId}:`, updateData);
 
         const { data: updatedUser, error } = await supabase
           .from('users')
@@ -342,7 +344,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.error('❌ Error updating user:', error.message);
+          logger.error('❌ Error updating user:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to update user',
@@ -350,7 +352,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Updated user: ${updatedUser.name} (${updatedUser.username})`);
+        logger.info(`✅ Updated user: ${updatedUser.name} (${updatedUser.username})`);
 
         return res.json({
           success: true,
@@ -359,7 +361,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -406,7 +408,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.error('❌ Error deleting user:', error.message);
+          logger.error('❌ Error deleting user:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to delete user',
@@ -414,7 +416,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Soft deleted user: ${deletedUser.name} (${deletedUser.username})`);
+        logger.info(`✅ Soft deleted user: ${deletedUser.name} (${deletedUser.username})`);
 
         return res.json({
           success: true,
@@ -423,7 +425,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -438,7 +440,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Authentication error:', error.message);
+    logger.error('❌ Authentication error:', error.message);
     return res.status(401).json({
       success: false,
       error: 'Authentication failed',

@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabase = createClient(
@@ -18,7 +20,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log('🧪 Testing SIMPLIFIED follow-up filters (only followUp column)...');
+    logger.info('🧪 Testing SIMPLIFIED follow-up filters (only followUp column)...');
 
     // Get current date/time for testing
     const now = new Date();
@@ -26,8 +28,8 @@ module.exports = async (req, res) => {
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
     
-    console.log(`📅 Current time: ${now.toISOString()}`);
-    console.log(`📅 Today range: ${todayStart.toISOString()} to ${todayEnd.toISOString()}`);
+    logger.info(`📅 Current time: ${now.toISOString()}`);
+    logger.info(`📅 Today range: ${todayStart.toISOString()} to ${todayEnd.toISOString()}`);
 
     // Get all leads with follow-up dates for comparison
     const { data: allLeads, error: allError } = await supabase
@@ -59,28 +61,28 @@ module.exports = async (req, res) => {
       }
     });
 
-    console.log(`\n📊 Manual categorization:`);
-    console.log(`  🔴 Overdue: ${categories.overdue.length}`);
-    console.log(`  🟢 Today: ${categories.today.length}`);
-    console.log(`  🟡 Upcoming: ${categories.upcoming.length}`);
+    logger.info(`\n📊 Manual categorization:`);
+    logger.info(`  🔴 Overdue: ${categories.overdue.length}`);
+    logger.info(`  🟢 Today: ${categories.today.length}`);
+    logger.info(`  🟡 Upcoming: ${categories.upcoming.length}`);
 
     // Test 1: Simplified overdue filter (before current time)
-    console.log('\n🧪 Test 1: Overdue filter (followUp < now)...');
+    logger.info('\n🧪 Test 1: Overdue filter (followUp < now)...');
     const { data: overdueTest, error: overdueError, count: overdueCount } = await supabase
       .from('leads')
       .select('id, fullName, followUp, status', { count: 'exact' })
       .lt('followUp', now.toISOString());
 
     if (overdueError) {
-      console.log('❌ Error:', overdueError.message);
+      logger.info('❌ Error:', overdueError.message);
     } else {
-      console.log(`✅ Query returned: ${overdueCount} leads`);
-      console.log(`   Expected: ${categories.overdue.length} leads`);
-      console.log(`   Match: ${overdueCount === categories.overdue.length ? '✅ PERFECT' : '❌ MISMATCH'}`);
+      logger.info(`✅ Query returned: ${overdueCount} leads`);
+      logger.info(`   Expected: ${categories.overdue.length} leads`);
+      logger.info(`   Match: ${overdueCount === categories.overdue.length ? '✅ PERFECT' : '❌ MISMATCH'}`);
     }
 
     // Test 2: Simplified today filter (between todayStart and todayEnd)
-    console.log('\n🧪 Test 2: Today filter (todayStart <= followUp <= todayEnd)...');
+    logger.info('\n🧪 Test 2: Today filter (todayStart <= followUp <= todayEnd)...');
     const { data: todayTest, error: todayError, count: todayCount } = await supabase
       .from('leads')
       .select('id, fullName, followUp, status', { count: 'exact' })
@@ -88,11 +90,11 @@ module.exports = async (req, res) => {
       .lte('followUp', todayEnd.toISOString());
 
     if (todayError) {
-      console.log('❌ Error:', todayError.message);
+      logger.info('❌ Error:', todayError.message);
     } else {
-      console.log(`✅ Query returned: ${todayCount} leads`);
-      console.log(`   Expected: ${categories.today.length} leads`);
-      console.log(`   Match: ${todayCount === categories.today.length ? '✅ PERFECT' : '❌ MISMATCH'}`);
+      logger.info(`✅ Query returned: ${todayCount} leads`);
+      logger.info(`   Expected: ${categories.today.length} leads`);
+      logger.info(`   Match: ${todayCount === categories.today.length ? '✅ PERFECT' : '❌ MISMATCH'}`);
     }
 
     // Show sample data
@@ -134,15 +136,15 @@ module.exports = async (req, res) => {
       }
     };
 
-    console.log('\n✅ Filter test complete');
-    console.log(`\n📊 RESULTS:`);
-    console.log(`   Overdue: ${result.queryTests.overdue.match ? '✅ WORKING' : '❌ BROKEN'}`);
-    console.log(`   Today: ${result.queryTests.today.match ? '✅ WORKING' : '❌ BROKEN'}`);
+    logger.info('\n✅ Filter test complete');
+    logger.info(`\n📊 RESULTS:`);
+    logger.info(`   Overdue: ${result.queryTests.overdue.match ? '✅ WORKING' : '❌ BROKEN'}`);
+    logger.info(`   Today: ${result.queryTests.today.match ? '✅ WORKING' : '❌ BROKEN'}`);
 
     return res.json({ success: true, ...result });
 
   } catch (error) {
-    console.error('❌ Error testing filters:', error);
+    logger.error('❌ Error testing filters:', error);
     return res.status(500).json({
       success: false,
       error: error.message

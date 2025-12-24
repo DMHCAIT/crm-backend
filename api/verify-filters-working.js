@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabase = createClient(
@@ -18,7 +20,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log('✅ FINAL VERIFICATION - Follow-up filters with IST timezone...\n');
+    logger.info('✅ FINAL VERIFICATION - Follow-up filters with IST timezone...\n');
 
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
@@ -28,8 +30,8 @@ module.exports = async (req, res) => {
     const istTodayStart = `${istDateStr}T00:00`;
     const istTodayEnd = `${istDateStr}T23:59`;
 
-    console.log(`📅 Current IST time: ${istTimeStr}`);
-    console.log(`📅 Today's date: ${istDateStr}\n`);
+    logger.info(`📅 Current IST time: ${istTimeStr}`);
+    logger.info(`📅 Today's date: ${istDateStr}\n`);
 
     // Test 1: Overdue (before current IST time)
     const { count: overdueCount } = await supabase
@@ -37,9 +39,9 @@ module.exports = async (req, res) => {
       .select('id', { count: 'exact', head: true })
       .lt('followUp', istTimeStr);
 
-    console.log(`🔴 OVERDUE Filter (followUp < ${istTimeStr}):`);
-    console.log(`   Result: ${overdueCount} leads`);
-    console.log(`   These leads have follow-up times in the past\n`);
+    logger.info(`🔴 OVERDUE Filter (followUp < ${istTimeStr}):`);
+    logger.info(`   Result: ${overdueCount} leads`);
+    logger.info(`   These leads have follow-up times in the past\n`);
 
     // Test 2: Today (any time today)
     const { count: todayCount } = await supabase
@@ -48,9 +50,9 @@ module.exports = async (req, res) => {
       .gte('followUp', istTodayStart)
       .lte('followUp', istTodayEnd);
 
-    console.log(`🟢 TODAY Filter (${istTodayStart} to ${istTodayEnd}):`);
-    console.log(`   Result: ${todayCount} leads`);
-    console.log(`   These leads have follow-ups scheduled for today (any time)\n`);
+    logger.info(`🟢 TODAY Filter (${istTodayStart} to ${istTodayEnd}):`);
+    logger.info(`   Result: ${todayCount} leads`);
+    logger.info(`   These leads have follow-ups scheduled for today (any time)\n`);
 
     // Test 3: Tomorrow
     const tomorrow = new Date(istNow.getTime() + 24 * 60 * 60 * 1000);
@@ -64,8 +66,8 @@ module.exports = async (req, res) => {
       .gte('followUp', tomorrowStart)
       .lte('followUp', tomorrowEnd);
 
-    console.log(`📅 TOMORROW Filter (${tomorrowStart} to ${tomorrowEnd}):`);
-    console.log(`   Result: ${tomorrowCount} leads\n`);
+    logger.info(`📅 TOMORROW Filter (${tomorrowStart} to ${tomorrowEnd}):`);
+    logger.info(`   Result: ${tomorrowCount} leads\n`);
 
     // Test 4: This Week
     const weekStart = new Date(istNow);
@@ -81,8 +83,8 @@ module.exports = async (req, res) => {
       .gte('followUp', weekStartStr)
       .lte('followUp', weekEndStr);
 
-    console.log(`📆 THIS WEEK Filter (${weekStartStr} to ${weekEndStr}):`);
-    console.log(`   Result: ${weekCount} leads\n`);
+    logger.info(`📆 THIS WEEK Filter (${weekStartStr} to ${weekEndStr}):`);
+    logger.info(`   Result: ${weekCount} leads\n`);
 
     // Test 5: No follow-up
     const { count: noFollowUpCount } = await supabase
@@ -90,8 +92,8 @@ module.exports = async (req, res) => {
       .select('id', { count: 'exact', head: true })
       .is('followUp', null);
 
-    console.log(`❌ NO FOLLOW-UP Filter:`);
-    console.log(`   Result: ${noFollowUpCount} leads without follow-up dates\n`);
+    logger.info(`❌ NO FOLLOW-UP Filter:`);
+    logger.info(`   Result: ${noFollowUpCount} leads without follow-up dates\n`);
 
     // Get sample data
     const { data: overdueSamples } = await supabase
@@ -139,12 +141,12 @@ module.exports = async (req, res) => {
       note: 'Filters now show exact leads based on Follow Up Date field in lead details'
     };
 
-    console.log('✅✅✅ ALL FILTERS VERIFIED AND WORKING!\n');
+    logger.info('✅✅✅ ALL FILTERS VERIFIED AND WORKING!\n');
 
     return res.json({ success: true, ...result });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    logger.error('❌ Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message

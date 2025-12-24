@@ -2,6 +2,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -13,7 +15,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Notes module: Supabase initialization failed:', error.message);
+  logger.info('Notes module: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -106,7 +108,7 @@ module.exports = async (req, res) => {
         res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('Notes API error:', error);
+    logger.error('Notes API error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -211,7 +213,7 @@ async function handleGetNotes(req, res) {
 async function handleCreateNote(req, res) {
   try {
     const user = verifyToken(req);
-    console.log('🔍 Creating note for user:', user);
+    logger.info('🔍 Creating note for user:', user);
     
     const {
       content,
@@ -226,7 +228,7 @@ async function handleCreateNote(req, res) {
       metadata = {}
     } = req.body;
 
-    console.log('📝 Note data:', { content, lead_id, student_id, note_type, priority });
+    logger.info('📝 Note data:', { content, lead_id, student_id, note_type, priority });
 
     if (!content) {
       return res.status(400).json({
@@ -317,7 +319,7 @@ async function handleCreateNote(req, res) {
       .single();
 
     if (error) {
-      console.error('❌ Database error creating note:', error);
+      logger.error('❌ Database error creating note:', error);
       return res.status(500).json({
         success: false,
         error: 'Failed to create note',
@@ -330,18 +332,18 @@ async function handleCreateNote(req, res) {
       try {
         await createReminderNotification(note, user);
       } catch (reminderError) {
-        console.warn('⚠️ Failed to create reminder notification:', reminderError);
+        logger.warn('⚠️ Failed to create reminder notification:', reminderError);
       }
     }
 
-    console.log('✅ Note created successfully:', note.id);
+    logger.info('✅ Note created successfully:', note.id);
     res.json({
       success: true,
       message: 'Note created successfully',
       note
     });
   } catch (error) {
-    console.error('❌ Notes API error:', error);
+    logger.error('❌ Notes API error:', error);
     if (error.message === 'No valid token provided' || error.name === 'JsonWebTokenError') {
       res.status(401).json({ 
         success: false,
@@ -746,7 +748,7 @@ async function createReminderNotification(note, user) {
         created_at: new Date().toISOString()
       }]);
   } catch (error) {
-    console.error('Failed to create reminder notification:', error);
+    logger.error('Failed to create reminder notification:', error);
   }
 }
 
@@ -795,7 +797,7 @@ async function getNoteStatistics(entityId = null, entityType = null, userId = nu
 
     return stats;
   } catch (error) {
-    console.error('Error getting note statistics:', error);
+    logger.error('Error getting note statistics:', error);
     return null;
   }
 }

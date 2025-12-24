@@ -1,6 +1,8 @@
 // 🚀 ENHANCED LEAD NOTES API - STRUCTURED NOTES MANAGEMENT
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,12 +17,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Lead Notes API: Supabase initialized');
+    logger.info('✅ Lead Notes API: Supabase initialized');
   } else {
-    console.log('❌ Lead Notes API: Supabase credentials missing');
+    logger.info('❌ Lead Notes API: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ Lead Notes API: Supabase initialization failed:', error.message);
+  logger.info('❌ Lead Notes API: Supabase initialization failed:', error.message);
 }
 
 // Note types
@@ -71,7 +73,7 @@ module.exports = async (req, res) => {
 
   try {
     const user = verifyToken(req);
-    console.log('🔍 Lead Notes API request from:', user.username);
+    logger.info('🔍 Lead Notes API request from:', user.username);
 
     // Extract lead ID from URL path
     const urlParts = req.url.split('/').filter(part => part);
@@ -106,7 +108,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.log('❌ Lead Notes API error:', error.message);
+    logger.info('❌ Lead Notes API error:', error.message);
     return res.status(401).json({
       success: false,
       message: error.message
@@ -148,7 +150,7 @@ async function handleGetLeadNotes(req, res, leadId) {
     }
 
     // Fallback: return empty notes if database fails
-    console.log('⚠️ Database unavailable, returning empty notes');
+    logger.info('⚠️ Database unavailable, returning empty notes');
     return res.json({
       success: true,
       data: [],         // Fixed: use 'data' for frontend compatibility
@@ -160,7 +162,7 @@ async function handleGetLeadNotes(req, res, leadId) {
     });
 
   } catch (error) {
-    console.error('❌ Error getting lead notes:', error);
+    logger.error('❌ Error getting lead notes:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get lead notes'
@@ -214,7 +216,7 @@ async function handleAddLeadNote(req, res, leadId, user) {
           .single();
 
         if (!error && data) {
-          console.log('✅ Note saved to database:', data.id);
+          logger.info('✅ Note saved to database:', data.id);
           
           return res.json({
             success: true,
@@ -232,12 +234,12 @@ async function handleAddLeadNote(req, res, leadId, user) {
           });
         }
       } catch (dbError) {
-        console.error('❌ Database save failed:', dbError);
+        logger.error('❌ Database save failed:', dbError);
       }
     }
 
     // Fallback: return success even if database fails
-    console.log('⚠️ Note created but not saved to database');
+    logger.info('⚠️ Note created but not saved to database');
     return res.json({
       success: true,
       note: {
@@ -254,7 +256,7 @@ async function handleAddLeadNote(req, res, leadId, user) {
     });
 
   } catch (error) {
-    console.error('❌ Error adding lead note:', error);
+    logger.error('❌ Error adding lead note:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to add note'
@@ -308,7 +310,7 @@ async function handleUpdateLeadNote(req, res, leadId, user) {
     });
 
   } catch (error) {
-    console.error('❌ Error updating note:', error);
+    logger.error('❌ Error updating note:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to update note'
@@ -349,7 +351,7 @@ async function handleDeleteLeadNote(req, res, leadId, user) {
     });
 
   } catch (error) {
-    console.error('❌ Error deleting note:', error);
+    logger.error('❌ Error deleting note:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to delete note'

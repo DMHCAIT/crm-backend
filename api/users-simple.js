@@ -1,5 +1,7 @@
 // 🚀 SIMPLIFIED USER MANAGEMENT - NO DATABASE DEPENDENCY
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -43,7 +45,7 @@ module.exports = async (req, res) => {
   try {
     // Verify authentication for all requests
     const user = verifyToken(req);
-    console.log('🔍 User Management request from:', user.username);
+    logger.info('🔍 User Management request from:', user.username);
 
     // Handle different endpoints
     if (req.method === 'GET') {
@@ -132,7 +134,7 @@ module.exports = async (req, res) => {
     }
 
   } catch (error) {
-    console.log('❌ User Management error:', error.message);
+    logger.info('❌ User Management error:', error.message);
     return res.status(401).json({
       success: false,
       message: error.message

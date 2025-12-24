@@ -1,6 +1,8 @@
 // Cunnekt WhatsApp API Integration
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 let supabase;
@@ -12,14 +14,14 @@ try {
     );
   }
 } catch (error) {
-  console.log('Cunnekt WhatsApp: Supabase initialization failed:', error.message);
+  logger.info('Cunnekt WhatsApp: Supabase initialization failed:', error.message);
 }
 
 // Cunnekt API Configuration
 const CUNNEKT_BASE_URL = 'https://app2.cunnekt.com/v1';
 const CUNNEKT_API_KEY = process.env.CUNNEKT_API_KEY;
 if (!CUNNEKT_API_KEY) {
-  console.error('CRITICAL: CUNNEKT_API_KEY environment variable is not set');
+  logger.error('CRITICAL: CUNNEKT_API_KEY environment variable is not set');
 }
 
 module.exports = async (req, res) => {
@@ -89,7 +91,7 @@ module.exports = async (req, res) => {
         });
     }
   } catch (error) {
-    console.error('Cunnekt WhatsApp API error:', error);
+    logger.error('Cunnekt WhatsApp API error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message,
@@ -110,14 +112,14 @@ async function sendMessage(req, res) {
   }
 
   try {
-    console.log('🔵 Cunnekt: Sending single message to:', phone);
+    logger.info('🔵 Cunnekt: Sending single message to:', phone);
     
     // Clean phone number (remove spaces, dashes, etc)
     const cleanPhone = phone.replace(/\D/g, '');
     
-    console.log('📱 Cleaned phone:', cleanPhone);
-    console.log('💬 Message:', message.substring(0, 50) + '...');
-    console.log('🔑 API Key:', CUNNEKT_API_KEY ? 'Set' : 'Missing');
+    logger.info('📱 Cleaned phone:', cleanPhone);
+    logger.info('💬 Message:', message.substring(0, 50) + '...');
+    logger.info('🔑 API Key:', CUNNEKT_API_KEY ? 'Set' : 'Missing');
 
     const requestData = {
       phone: cleanPhone,
@@ -125,7 +127,7 @@ async function sendMessage(req, res) {
       type: 'text'
     };
     
-    console.log('📤 Sending to Cunnekt:', requestData);
+    logger.info('📤 Sending to Cunnekt:', requestData);
 
     const response = await axios.post(
       `${CUNNEKT_BASE_URL}/messages`,
@@ -138,7 +140,7 @@ async function sendMessage(req, res) {
       }
     );
     
-    console.log('✅ Cunnekt response:', response.data);
+    logger.info('✅ Cunnekt response:', response.data);
 
     // Log to communications table
     if (supabase && leadId) {
@@ -163,7 +165,7 @@ async function sendMessage(req, res) {
       phone: cleanPhone
     });
   } catch (error) {
-    console.error('Send message error:', error.response?.data || error.message);
+    logger.error('Send message error:', error.response?.data || error.message);
     res.status(500).json({ 
       success: false, 
       error: error.response?.data?.message || error.message 
@@ -226,7 +228,7 @@ async function sendBulkMessages(req, res) {
           personalizedMessage = personalizedMessage.replace(/\{qualification\}/g, lead.qualification || 'your qualification');
           personalizedMessage = personalizedMessage.replace(/\{country\}/g, lead.country || '');
 
-          console.log(`📤 [${i + batch.indexOf(lead) + 1}/${leads.length}] Sending to ${cleanPhone}`);
+          logger.info(`📤 [${i + batch.indexOf(lead) + 1}/${leads.length}] Sending to ${cleanPhone}`);
           
           const requestData = {
             phone: cleanPhone,
@@ -246,7 +248,7 @@ async function sendBulkMessages(req, res) {
             }
           );
           
-          console.log(`✅ [${i + batch.indexOf(lead) + 1}/${leads.length}] Sent:`, response.data);
+          logger.info(`✅ [${i + batch.indexOf(lead) + 1}/${leads.length}] Sent:`, response.data);
 
           // Log to communications
           if (supabase) {
@@ -275,7 +277,7 @@ async function sendBulkMessages(req, res) {
           });
 
         } catch (error) {
-          console.error(`❌ [${i + batch.indexOf(lead) + 1}/${leads.length}] Failed:`, error.response?.data || error.message);
+          logger.error(`❌ [${i + batch.indexOf(lead) + 1}/${leads.length}] Failed:`, error.response?.data || error.message);
           results.failed++;
           results.details.push({
             leadId: lead.id,
@@ -351,7 +353,7 @@ async function sendTemplate(req, res) {
       status: response.data.status
     });
   } catch (error) {
-    console.error('Send template error:', error.response?.data || error.message);
+    logger.error('Send template error:', error.response?.data || error.message);
     res.status(500).json({ 
       success: false, 
       error: error.response?.data?.message || error.message 
@@ -385,7 +387,7 @@ async function getMessageStatus(req, res) {
       status: response.data
     });
   } catch (error) {
-    console.error('Get status error:', error.response?.data || error.message);
+    logger.error('Get status error:', error.response?.data || error.message);
     res.status(500).json({ 
       success: false, 
       error: error.response?.data?.message || error.message 
@@ -400,7 +402,7 @@ async function handleWebhook(req, res) {
   }
 
   const webhookData = req.body;
-  console.log('Cunnekt webhook received:', JSON.stringify(webhookData, null, 2));
+  logger.info('Cunnekt webhook received:', JSON.stringify(webhookData, null, 2));
 
   try {
     // Handle different webhook types
@@ -449,7 +451,7 @@ async function handleWebhook(req, res) {
 
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Webhook processing error:', error);
+    logger.error('Webhook processing error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 }
@@ -505,7 +507,7 @@ async function handleAutoResponse(phone, message, leadId) {
           }]);
       }
     } catch (error) {
-      console.error('Auto-response error:', error);
+      logger.error('Auto-response error:', error);
     }
   }
 }
@@ -528,7 +530,7 @@ async function testConnection(req, res) {
       account: response.data
     });
   } catch (error) {
-    console.error('Connection test failed:', error.response?.data || error.message);
+    logger.error('Connection test failed:', error.response?.data || error.message);
     res.status(500).json({ 
       success: false, 
       error: 'Connection failed',
@@ -573,7 +575,7 @@ async function saveCampaign(req, res) {
       campaign: data
     });
   } catch (error) {
-    console.error('Save campaign error:', error);
+    logger.error('Save campaign error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 
@@ -610,7 +612,7 @@ async function getCampaigns(req, res) {
       campaigns: data || []
     });
   } catch (error) {
-    console.error('Get campaigns error:', error);
+    logger.error('Get campaigns error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message,
@@ -651,7 +653,7 @@ async function getResponses(req, res) {
       responses: data || []
     });
   } catch (error) {
-    console.error('Get responses error:', error);
+    logger.error('Get responses error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message,
@@ -672,7 +674,7 @@ async function deleteCampaign(req, res) {
       });
     }
 
-    console.log('🗑️ Deleting campaign:', campaignId);
+    logger.info('🗑️ Deleting campaign:', campaignId);
 
     const { error } = await supabase
       .from('whatsapp_campaigns')
@@ -683,14 +685,14 @@ async function deleteCampaign(req, res) {
       throw error;
     }
 
-    console.log('✅ Campaign deleted successfully');
+    logger.info('✅ Campaign deleted successfully');
 
     res.json({ 
       success: true,
       message: 'Campaign deleted successfully'
     });
   } catch (error) {
-    console.error('❌ Delete campaign error:', error);
+    logger.error('❌ Delete campaign error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message
@@ -710,7 +712,7 @@ async function updateCampaignStatus(req, res) {
       });
     }
 
-    console.log('📊 Updating campaign status:', { campaignId, status, stats });
+    logger.info('📊 Updating campaign status:', { campaignId, status, stats });
 
     const updateData = { status };
     
@@ -735,14 +737,14 @@ async function updateCampaignStatus(req, res) {
       throw error;
     }
 
-    console.log('✅ Campaign status updated:', data);
+    logger.info('✅ Campaign status updated:', data);
 
     res.json({ 
       success: true,
       campaign: data[0]
     });
   } catch (error) {
-    console.error('❌ Update campaign status error:', error);
+    logger.error('❌ Update campaign status error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message

@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabase = createClient(
@@ -18,7 +20,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log('🧪 Testing IST-aware filters (FINAL)...');
+    logger.info('🧪 Testing IST-aware filters (FINAL)...');
 
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
@@ -28,10 +30,10 @@ module.exports = async (req, res) => {
     const istTodayStart = `${istDateStr}T00:00`;
     const istTodayEnd = `${istDateStr}T23:59`;
 
-    console.log(`\n⏰ Current Time:`);
-    console.log(`   UTC: ${now.toISOString()}`);
-    console.log(`   IST: ${istTimeStr} (UTC+5:30)`);
-    console.log(`   IST Date: ${istDateStr}`);
+    logger.info(`\n⏰ Current Time:`);
+    logger.info(`   UTC: ${now.toISOString()}`);
+    logger.info(`   IST: ${istTimeStr} (UTC+5:30)`);
+    logger.info(`   IST Date: ${istDateStr}`);
 
     // Get all leads for manual verification
     const { data: allLeads, error: allError } = await supabase
@@ -61,26 +63,26 @@ module.exports = async (req, res) => {
       }
     });
 
-    console.log(`\n📊 Manual categorization (IST):`);
-    console.log(`  🔴 Overdue (< ${istTimeStr}): ${categories.overdue.length}`);
-    console.log(`  🟢 Today (${istTodayStart} to ${istTodayEnd}): ${categories.today.length}`);
-    console.log(`  🟡 Upcoming (> ${istTodayEnd}): ${categories.upcoming.length}`);
+    logger.info(`\n📊 Manual categorization (IST):`);
+    logger.info(`  🔴 Overdue (< ${istTimeStr}): ${categories.overdue.length}`);
+    logger.info(`  🟢 Today (${istTodayStart} to ${istTodayEnd}): ${categories.today.length}`);
+    logger.info(`  🟡 Upcoming (> ${istTodayEnd}): ${categories.upcoming.length}`);
 
     // Test 1: Overdue filter
-    console.log('\n🧪 Test 1: Overdue filter...');
+    logger.info('\n🧪 Test 1: Overdue filter...');
     const { data: overdueTest, count: overdueCount } = await supabase
       .from('leads')
       .select('id, fullName, followUp, status', { count: 'exact' })
       .lt('followUp', istTimeStr);
 
     const overdueMatch = overdueCount === categories.overdue.length;
-    console.log(`   Query: followUp < "${istTimeStr}"`);
-    console.log(`   Returned: ${overdueCount} leads`);
-    console.log(`   Expected: ${categories.overdue.length} leads`);
-    console.log(`   Result: ${overdueMatch ? '✅ PERFECT MATCH!' : '❌ MISMATCH'}`);
+    logger.info(`   Query: followUp < "${istTimeStr}"`);
+    logger.info(`   Returned: ${overdueCount} leads`);
+    logger.info(`   Expected: ${categories.overdue.length} leads`);
+    logger.info(`   Result: ${overdueMatch ? '✅ PERFECT MATCH!' : '❌ MISMATCH'}`);
 
     // Test 2: Today filter
-    console.log('\n🧪 Test 2: Today filter...');
+    logger.info('\n🧪 Test 2: Today filter...');
     const { data: todayTest, count: todayCount } = await supabase
       .from('leads')
       .select('id, fullName, followUp, status', { count: 'exact' })
@@ -88,10 +90,10 @@ module.exports = async (req, res) => {
       .lte('followUp', istTodayEnd);
 
     const todayMatch = todayCount === categories.today.length;
-    console.log(`   Query: "${istTodayStart}" <= followUp <= "${istTodayEnd}"`);
-    console.log(`   Returned: ${todayCount} leads`);
-    console.log(`   Expected: ${categories.today.length} leads`);
-    console.log(`   Result: ${todayMatch ? '✅ PERFECT MATCH!' : '❌ MISMATCH'}`);
+    logger.info(`   Query: "${istTodayStart}" <= followUp <= "${istTodayEnd}"`);
+    logger.info(`   Returned: ${todayCount} leads`);
+    logger.info(`   Expected: ${categories.today.length} leads`);
+    logger.info(`   Result: ${todayMatch ? '✅ PERFECT MATCH!' : '❌ MISMATCH'}`);
 
     // Show samples
     const result = {
@@ -132,12 +134,12 @@ module.exports = async (req, res) => {
         : '❌ Filters need adjustment'
     };
 
-    console.log(`\n\n${result.verdict}`);
+    logger.info(`\n\n${result.verdict}`);
 
     return res.json({ success: true, ...result });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    logger.error('❌ Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message

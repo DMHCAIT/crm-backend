@@ -3,6 +3,8 @@ const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const fs = require('fs').promises;
 const path = require('path');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -14,7 +16,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Data Export module: Supabase initialization failed:', error.message);
+  logger.info('Data Export module: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -38,9 +40,9 @@ const formatNotes = (item, options) => {
   // Debug specific lead
   const isDebugLead = item.id === '2d4b57f0-41eb-46f1-b7a2-d2267f71b009';
   if (isDebugLead) {
-    console.log('🔍 DEBUG: Processing Dr Arooja Wani lead notes');
-    console.log('🔍 DEBUG: Notes value:', item.notes);
-    console.log('🔍 DEBUG: Notes type:', typeof item.notes);
+    logger.info('🔍 DEBUG: Processing Dr Arooja Wani lead notes');
+    logger.info('🔍 DEBUG: Notes value:', item.notes);
+    logger.info('🔍 DEBUG: Notes type:', typeof item.notes);
   }
   
   let notesToFormat = [];
@@ -50,11 +52,11 @@ const formatNotes = (item, options) => {
     try {
       notesToFormat = JSON.parse(item.notes);
       if (isDebugLead) {
-        console.log('📝 DEBUG: Successfully parsed', notesToFormat.length, 'notes');
+        logger.info('📝 DEBUG: Successfully parsed', notesToFormat.length, 'notes');
       }
     } catch (error) {
       if (isDebugLead) {
-        console.log('📝 DEBUG: Error parsing notes:', error.message);
+        logger.info('📝 DEBUG: Error parsing notes:', error.message);
       }
       return '';
     }
@@ -77,7 +79,7 @@ const formatNotes = (item, options) => {
     return `"${formattedNotes.replace(/"/g, '""')}"`;
   } catch (error) {
     if (isDebugLead) {
-      console.log('📝 DEBUG: Error formatting notes:', error.message);
+      logger.info('📝 DEBUG: Error formatting notes:', error.message);
     }
     return '';
   }
@@ -113,7 +115,7 @@ async function getSubordinateUsernames(currentUser) {
     
     return [...new Set(usernames)]; // Remove duplicates
   } catch (error) {
-    console.error('Error getting subordinate usernames:', error);
+    logger.error('Error getting subordinate usernames:', error);
     return [currentUser.username];
   }
 }
@@ -167,7 +169,7 @@ module.exports = async (req, res) => {
         res.status(405).json({ success: false, error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('Enhanced Data Export API Error:', error);
+    logger.error('Enhanced Data Export API Error:', error);
     res.status(error.message.includes('token') ? 401 : 500).json({
       success: false,
       error: error.message || 'Internal server error'
@@ -191,11 +193,11 @@ async function handleDataExport(req, res) {
       dateRange = null
     } = req.method === 'GET' ? req.query : req.body;
 
-    console.log(`📊 Export request from ${user.username}: ${dataType} as ${format}`);
+    logger.info(`📊 Export request from ${user.username}: ${dataType} as ${format}`);
 
     // Get accessible usernames for hierarchical filtering
     const accessibleUsernames = await getSubordinateUsernames(user);
-    console.log(`👥 User ${user.username} can access data for:`, accessibleUsernames);
+    logger.info(`👥 User ${user.username} can access data for:`, accessibleUsernames);
 
     let data;
     let filename;
@@ -224,7 +226,7 @@ async function handleDataExport(req, res) {
       });
     }
 
-    console.log(`📈 Exporting ${data.length} ${dataType} records`);
+    logger.info(`📈 Exporting ${data.length} ${dataType} records`);
 
     // Generate export file
     let exportData;
@@ -248,7 +250,7 @@ async function handleDataExport(req, res) {
     res.status(200).send(exportData);
 
   } catch (error) {
-    console.error('Export error:', error);
+    logger.error('Export error:', error);
     res.status(error.message.includes('token') ? 401 : 500).json({
       success: false,
       error: error.message || 'Export failed'
@@ -259,7 +261,7 @@ async function handleDataExport(req, res) {
 // Export leads data with proper notes handling
 async function exportLeads(accessibleUsernames, filters = {}, dateRange = null, columns = null) {
   try {
-    console.log('🔍 Starting leads export with notes...');
+    logger.info('🔍 Starting leads export with notes...');
     
     // Build query with explicit notes field selection
     let query = supabase
@@ -316,16 +318,16 @@ async function exportLeads(accessibleUsernames, filters = {}, dateRange = null, 
     const { data: leads, error } = await query;
 
     if (error) {
-      console.error('Database query error:', error);
+      logger.error('Database query error:', error);
       throw new Error(`Database query failed: ${error.message}`);
     }
 
     if (!leads || leads.length === 0) {
-      console.log('⚠️ No leads found for export');
+      logger.info('⚠️ No leads found for export');
       return [];
     }
 
-    console.log(`📋 Retrieved ${leads.length} leads from database`);
+    logger.info(`📋 Retrieved ${leads.length} leads from database`);
 
     // Process leads with notes formatting
     const processedLeads = leads.map(lead => ({
@@ -351,7 +353,7 @@ async function exportLeads(accessibleUsernames, filters = {}, dateRange = null, 
     return processedLeads;
 
   } catch (error) {
-    console.error('Error exporting leads:', error);
+    logger.error('Error exporting leads:', error);
     throw error;
   }
 }
@@ -407,7 +409,7 @@ async function exportStudents(accessibleUsernames, filters = {}, dateRange = nul
     }));
 
   } catch (error) {
-    console.error('Error exporting students:', error);
+    logger.error('Error exporting students:', error);
     throw error;
   }
 }
@@ -461,7 +463,7 @@ async function exportPayments(accessibleUsernames, filters = {}, dateRange = nul
     }));
 
   } catch (error) {
-    console.error('Error exporting payments:', error);
+    logger.error('Error exporting payments:', error);
     throw error;
   }
 }
@@ -516,7 +518,7 @@ async function handleGetExportStatus(req, res) {
     });
 
   } catch (error) {
-    console.error('Status check error:', error);
+    logger.error('Status check error:', error);
     res.status(401).json({
       success: false,
       error: 'Authentication required'

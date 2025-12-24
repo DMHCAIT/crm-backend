@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabase = createClient(
@@ -18,7 +20,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log('🔍 Testing follow-up columns in database...');
+    logger.info('🔍 Testing follow-up columns in database...');
 
     // Get sample of leads with any follow-up date
     const { data: leads, error } = await supabase
@@ -30,7 +32,7 @@ module.exports = async (req, res) => {
       throw error;
     }
 
-    console.log(`📊 Examining ${leads.length} leads for follow-up date columns...`);
+    logger.info(`📊 Examining ${leads.length} leads for follow-up date columns...`);
 
     // Analyze which columns have data
     const stats = {
@@ -82,12 +84,12 @@ module.exports = async (req, res) => {
       next_follow_upPercent: ((stats.next_follow_upCount / stats.totalLeads) * 100).toFixed(1)
     };
 
-    console.log('📊 Follow-up Column Statistics:');
-    console.log(`  - followUp: ${stats.followUpCount}/${stats.totalLeads} (${percentages.followUpPercent}%)`);
-    console.log(`  - nextfollowup: ${stats.nextfollowupCount}/${stats.totalLeads} (${percentages.nextfollowupPercent}%)`);
-    console.log(`  - next_follow_up: ${stats.next_follow_upCount}/${stats.totalLeads} (${percentages.next_follow_upPercent}%)`);
-    console.log(`  - Leads with ANY follow-up: ${stats.hasAnyFollowUpCount}/${stats.totalLeads}`);
-    console.log(`  - Leads with MULTIPLE columns: ${stats.hasMultipleColumnsCount}`);
+    logger.info('📊 Follow-up Column Statistics:');
+    logger.info(`  - followUp: ${stats.followUpCount}/${stats.totalLeads} (${percentages.followUpPercent}%)`);
+    logger.info(`  - nextfollowup: ${stats.nextfollowupCount}/${stats.totalLeads} (${percentages.nextfollowupPercent}%)`);
+    logger.info(`  - next_follow_up: ${stats.next_follow_upCount}/${stats.totalLeads} (${percentages.next_follow_upPercent}%)`);
+    logger.info(`  - Leads with ANY follow-up: ${stats.hasAnyFollowUpCount}/${stats.totalLeads}`);
+    logger.info(`  - Leads with MULTIPLE columns: ${stats.hasMultipleColumnsCount}`);
 
     // Determine which column is primary
     let primaryColumn = 'followUp';
@@ -112,7 +114,7 @@ module.exports = async (req, res) => {
         : `⚠️ Data is primarily in '${primaryColumn}' but frontend displays 'followUp'`
     };
 
-    console.log('\n💡 Analysis:', analysis.recommendation);
+    logger.info('\n💡 Analysis:', analysis.recommendation);
 
     return res.json({
       success: true,
@@ -121,7 +123,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error testing follow-up columns:', error);
+    logger.error('❌ Error testing follow-up columns:', error);
     return res.status(500).json({
       success: false,
       error: error.message

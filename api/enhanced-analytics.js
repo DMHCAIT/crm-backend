@@ -1,6 +1,8 @@
 // Enhanced Analytics API with Events and Campaign Management
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -12,7 +14,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Analytics module: Supabase initialization failed:', error.message);
+  logger.info('Analytics module: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -41,7 +43,7 @@ async function getSubordinateUsers(userId) {
       .select('id, email, name, reports_to, role');
     
     if (error) {
-      console.error('Error fetching users for hierarchy:', error);
+      logger.error('Error fetching users for hierarchy:', error);
       return [];
     }
     
@@ -64,7 +66,7 @@ async function getSubordinateUsers(userId) {
     return subordinates;
     
   } catch (error) {
-    console.error('Error getting subordinate users:', error);
+    logger.error('Error getting subordinate users:', error);
     return [];
   }
 }
@@ -110,14 +112,14 @@ module.exports = async (req, res) => {
       endpoint = urlWithoutQuery;
     }
 
-    console.log(`📊 Enhanced Analytics - Raw URL: ${req.url}`);
-    console.log(`📊 Enhanced Analytics - URL without query: ${urlWithoutQuery}`);
-    console.log(`📊 Enhanced Analytics - Extracted endpoint: ${endpoint}`);
+    logger.info(`📊 Enhanced Analytics - Raw URL: ${req.url}`);
+    logger.info(`📊 Enhanced Analytics - URL without query: ${urlWithoutQuery}`);
+    logger.info(`📊 Enhanced Analytics - Extracted endpoint: ${endpoint}`);
 
     // Show debug info for any request
-    console.log(`🔍 DEBUG - Final endpoint value: "${endpoint}"`);
-    console.log(`🔍 DEBUG - Endpoint === 'realtime': ${endpoint === 'realtime'}`);
-    console.log(`🔍 DEBUG - Endpoint === 'test': ${endpoint === 'test'}`);
+    logger.info(`🔍 DEBUG - Final endpoint value: "${endpoint}"`);
+    logger.info(`🔍 DEBUG - Endpoint === 'realtime': ${endpoint === 'realtime'}`);
+    logger.info(`🔍 DEBUG - Endpoint === 'test': ${endpoint === 'test'}`);
 
     switch (endpoint) {
       case 'realtime':
@@ -171,7 +173,7 @@ module.exports = async (req, res) => {
         });
     }
   } catch (error) {
-    console.error('Analytics API error:', error);
+    logger.error('Analytics API error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -524,21 +526,21 @@ async function handleDashboardStats(req, res) {
 // Realtime Analytics Handler - COMPREHENSIVE REAL DATA ANALYTICS
 async function handleRealtimeAnalytics(req, res) {
   try {
-    console.log('📊 handleRealtimeAnalytics called - Processing real-time analytics');
+    logger.info('📊 handleRealtimeAnalytics called - Processing real-time analytics');
     
     // Verify authentication for hierarchical access control
     const user = verifyToken(req);
-    console.log(`📊 Analytics requested by user ${user.email} (${user.role})`);
+    logger.info(`📊 Analytics requested by user ${user.email} (${user.role})`);
     
     // Get subordinate users for hierarchical filtering
     const subordinates = await getSubordinateUsers(user.id);
     const accessibleUserIds = [user.id, ...subordinates];
     
-    console.log(`🏢 Analytics: User ${user.email} can access data for ${accessibleUserIds.length} users (self + ${subordinates.length} subordinates)`);
+    logger.info(`🏢 Analytics: User ${user.email} can access data for ${accessibleUserIds.length} users (self + ${subordinates.length} subordinates)`);
     
     // Get comprehensive real data from all tables
     const timeframe = req.query.timeframe || 'month';
-    console.log(`📊 Analytics timeframe: ${timeframe}`);
+    logger.info(`📊 Analytics timeframe: ${timeframe}`);
     
     const now = new Date();
     let startDate;
@@ -571,7 +573,7 @@ async function handleRealtimeAnalytics(req, res) {
     const { data: leads, error: leadsError } = await leadsQuery;
 
     if (leadsError) {
-      console.error('Leads query error:', leadsError);
+      logger.error('Leads query error:', leadsError);
       return res.status(500).json({ success: false, error: 'Failed to fetch leads data' });
     }
 
@@ -582,7 +584,7 @@ async function handleRealtimeAnalytics(req, res) {
       .gte('created_at', startDate.toISOString());
 
     if (studentsError) {
-      console.error('Students query error:', studentsError);
+      logger.error('Students query error:', studentsError);
     }
 
     // 3. GET REAL COMMUNICATIONS DATA
@@ -592,7 +594,7 @@ async function handleRealtimeAnalytics(req, res) {
       .gte('created_at', startDate.toISOString());
 
     if (commError) {
-      console.error('Communications query error:', commError);
+      logger.error('Communications query error:', commError);
     }
 
     // 4. GET REAL PAYMENTS DATA
@@ -602,7 +604,7 @@ async function handleRealtimeAnalytics(req, res) {
       .gte('created_at', startDate.toISOString());
 
     if (paymentsError) {
-      console.error('Payments query error:', paymentsError);
+      logger.error('Payments query error:', paymentsError);
     }
 
     // 5. CALCULATE REAL METRICS FROM ACTUAL DATA
@@ -696,7 +698,7 @@ async function handleRealtimeAnalytics(req, res) {
     res.json(analyticsData);
 
   } catch (error) {
-    console.error('Analytics API error:', error);
+    logger.error('Analytics API error:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Internal server error',
@@ -918,7 +920,7 @@ async function handleRevenueForecast(req, res) {
       }
     });
   } catch (error) {
-    console.error('Revenue forecast error:', error);
+    logger.error('Revenue forecast error:', error);
     return res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'
@@ -953,7 +955,7 @@ async function handlePipelineVelocity(req, res) {
       .gte('timestamp', fromDate.toISOString());
 
     if (eventsError) {
-      console.log('No status change events found, using lead data only');
+      logger.info('No status change events found, using lead data only');
     }
 
     // Calculate velocity metrics
@@ -1052,7 +1054,7 @@ async function handlePipelineVelocity(req, res) {
       }
     });
   } catch (error) {
-    console.error('Pipeline velocity error:', error);
+    logger.error('Pipeline velocity error:', error);
     return res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'

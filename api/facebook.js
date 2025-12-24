@@ -1,6 +1,8 @@
 // Facebook Lead Ads Webhook
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabase = createClient(
@@ -37,7 +39,7 @@ module.exports = async (req, res) => {
     const challenge = req.query['hub.challenge'];
 
     if (mode === 'subscribe' && token === process.env.FACEBOOK_VERIFY_TOKEN) {
-      console.log('Facebook webhook verified');
+      logger.info('Facebook webhook verified');
       res.status(200).send(challenge);
     } else {
       res.status(403).send('Forbidden');
@@ -64,7 +66,7 @@ module.exports = async (req, res) => {
 
       res.status(200).send('OK');
     } catch (error) {
-      console.error('Facebook webhook error:', error);
+      logger.error('Facebook webhook error:', error);
       res.status(500).send('Error');
     }
   }
@@ -72,7 +74,7 @@ module.exports = async (req, res) => {
 
 async function processFacebookLead(leadgenId) {
   if (!process.env.FACEBOOK_ACCESS_TOKEN) {
-    console.log('Facebook not configured, skipping lead processing');
+    logger.info('Facebook not configured, skipping lead processing');
     return;
   }
 
@@ -110,9 +112,9 @@ async function processFacebookLead(leadgenId) {
 
     if (error) throw error;
 
-    console.log('Facebook lead processed:', lead.id);
+    logger.info('Facebook lead processed:', lead.id);
 
   } catch (error) {
-    console.error('Facebook lead processing error:', error);
+    logger.error('Facebook lead processing error:', error);
   }
 }

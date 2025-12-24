@@ -1,6 +1,8 @@
 // 🚀 SUPABASE-CONNECTED LEADS API
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,12 +17,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Leads API: Supabase initialized');
+    logger.info('✅ Leads API: Supabase initialized');
   } else {
-    console.log('❌ Leads API: Supabase credentials missing');
+    logger.info('❌ Leads API: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ Leads API: Supabase initialization failed:', error.message);
+  logger.info('❌ Leads API: Supabase initialization failed:', error.message);
 }
 
 // Email to Username Assignment Normalization
@@ -98,7 +100,7 @@ async function getSystemConfig() {
       courseOptions: configMap.course_options || { fellowship: [], pgDiploma: [] }
     };
   } catch (error) {
-    console.error('Error loading system config:', error);
+    logger.error('Error loading system config:', error);
     // Return fallback configuration
     return {
       statusOptions: ['Fresh', 'Follow Up', 'Warm', 'Hot', 'Enrolled', 'Will Enroll Later', 'Not Answering', 'Not Interested', 'Junk'],
@@ -126,12 +128,12 @@ function verifyToken(req) {
 // Get real user name from database instead of relying on JWT token
 async function getUserRealName(username) {
   if (!supabase || !username) {
-    console.log('⚠️ getUserRealName: No supabase or username provided:', { supabase: !!supabase, username });
+    logger.info('⚠️ getUserRealName: No supabase or username provided:', { supabase: !!supabase, username });
     return username || 'User';
   }
   
   try {
-    console.log(`🔍 getUserRealName: Looking up user "${username}"`);
+    logger.info(`🔍 getUserRealName: Looking up user "${username}"`);
     const { data: userData, error } = await supabase
       .from('users')
       .select('name, fullName, email')
@@ -139,20 +141,20 @@ async function getUserRealName(username) {
       .single();
     
     if (error) {
-      console.log('⚠️ getUserRealName: Database error:', error.message);
+      logger.info('⚠️ getUserRealName: Database error:', error.message);
       return username;
     }
     
     if (userData) {
       const realName = userData.fullName || userData.name || userData.email || username;
-      console.log(`✅ getUserRealName: Found user "${username}" -> "${realName}"`);
+      logger.info(`✅ getUserRealName: Found user "${username}" -> "${realName}"`);
       return realName;
     } else {
-      console.log(`⚠️ getUserRealName: No user found for username "${username}"`);
+      logger.info(`⚠️ getUserRealName: No user found for username "${username}"`);
       return username;
     }
   } catch (error) {
-    console.log('⚠️ getUserRealName: Exception occurred:', error.message);
+    logger.info('⚠️ getUserRealName: Exception occurred:', error.message);
     return username;
   }
 }
@@ -167,7 +169,7 @@ async function getSubordinateUsers(userId) {
       .select('id, email, name, username, reports_to, role');
     
     if (error) {
-      console.error('Error fetching users for hierarchy:', error);
+      logger.error('Error fetching users for hierarchy:', error);
       return [];
     }
     
@@ -190,7 +192,7 @@ async function getSubordinateUsers(userId) {
     return subordinates;
     
   } catch (error) {
-    console.error('Error getting subordinate users:', error);
+    logger.error('Error getting subordinate users:', error);
     return [];
   }
 }
@@ -205,7 +207,7 @@ async function getSubordinateUsernames(userId) {
       .select('id, username, reports_to');
     
     if (error) {
-      console.error('Error fetching users for hierarchy:', error);
+      logger.error('Error fetching users for hierarchy:', error);
       return [];
     }
     
@@ -230,7 +232,7 @@ async function getSubordinateUsernames(userId) {
     return subordinateUsernames;
     
   } catch (error) {
-    console.error('Error getting subordinate usernames:', error);
+    logger.error('Error getting subordinate usernames:', error);
     return [];
   }
 }
@@ -344,17 +346,17 @@ async function logLeadActivity(leadId, activityType, description, performedBy, o
       });
 
     if (error) {
-      console.error('Error logging activity:', error);
+      logger.error('Error logging activity:', error);
     }
   } catch (error) {
-    console.error('Error logging activity:', error);
+    logger.error('Error logging activity:', error);
   }
 }
 
 module.exports = async (req, res) => {
   // Enhanced CORS Headers
   const origin = req.headers.origin;
-  console.log('🌐 Leads API - Origin:', origin);
+  logger.info('🌐 Leads API - Origin:', origin);
   
   // Allow specific origins
   const allowedOrigins = [
@@ -381,7 +383,7 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // For lead data freshness
 
   if (req.method === 'OPTIONS') {
-    console.log('🔧 Leads API - Handling preflight request');
+    logger.info('🔧 Leads API - Handling preflight request');
     return res.status(200).end();
   }
 
@@ -407,12 +409,12 @@ module.exports = async (req, res) => {
             email: jwtUser.email || fullUserData.email,
             role: fullUserData.role || jwtUser.role
           };
-          console.log(`✅ Enhanced user object for ${user.username} with database details - ID: ${user.id}, Role: ${user.role}`);
+          logger.info(`✅ Enhanced user object for ${user.username} with database details - ID: ${user.id}, Role: ${user.role}`);
         } else {
-          console.log(`⚠️ Could not find user ${jwtUser.username} in database, using JWT data only`);
+          logger.info(`⚠️ Could not find user ${jwtUser.username} in database, using JWT data only`);
         }
       } catch (error) {
-        console.log(`⚠️ Error fetching user details: ${error.message}, using JWT data only`);
+        logger.info(`⚠️ Error fetching user details: ${error.message}, using JWT data only`);
       }
     }
     
@@ -434,13 +436,13 @@ module.exports = async (req, res) => {
         
         // Cap the maximum page size to prevent server overload
         if (pageSize > 50000) {
-          console.log(`⚠️ Page size ${pageSize} exceeds maximum, capping at 50000`);
+          logger.info(`⚠️ Page size ${pageSize} exceeds maximum, capping at 50000`);
           pageSize = 50000;
         }
         
         const offset = (page - 1) * pageSize;
         
-        console.log(`📊 Pagination: page=${page}, pageSize=${pageSize}, offset=${offset}`);
+        logger.info(`📊 Pagination: page=${page}, pageSize=${pageSize}, offset=${offset}`);
         
         // ADVANCED FILTERING: Extract filter parameters
         const searchQuery = req.query.search || '';
@@ -515,8 +517,8 @@ module.exports = async (req, res) => {
           pageSize
         });
         
-        console.log(`🔍 Leads API: Building query for user ${user.username} (${user.role}) - Page ${page}, Size ${pageSize}`);
-        console.log(`🔎 Applied filters: search="${searchQuery}", status=[${statusFilter.join(',')}], country="${countryFilter}", source="${sourceFilter}"`);
+        logger.info(`🔍 Leads API: Building query for user ${user.username} (${user.role}) - Page ${page}, Size ${pageSize}`);
+        logger.info(`🔎 Applied filters: search="${searchQuery}", status=[${statusFilter.join(',')}], country="${countryFilter}", source="${sourceFilter}"`);
         
         // OPTIMIZED: Filter at database level for better performance
         let query = supabase
@@ -574,7 +576,7 @@ module.exports = async (req, res) => {
         
         // Apply date filter (for updated_at)
         if (dateFilterType) {
-          console.log('📅 Processing Updated Date Filter:', { dateFilterType, updatedDateFrom, updatedDateTo, updatedDateFilterType, updatedSpecificDate });
+          logger.info('📅 Processing Updated Date Filter:', { dateFilterType, updatedDateFrom, updatedDateTo, updatedDateFilterType, updatedSpecificDate });
           const now = new Date();
           let startDate, endDate;
           
@@ -615,25 +617,25 @@ module.exports = async (req, res) => {
               break;
             case 'custom':
               // Handle custom date range with updatedDateFrom and updatedDateTo
-              console.log('📅 Custom date filter requested:', { updatedDateFrom, updatedDateTo });
+              logger.info('📅 Custom date filter requested:', { updatedDateFrom, updatedDateTo });
               if (updatedDateFrom && updatedDateTo) {
                 startDate = new Date(updatedDateFrom);
                 startDate.setHours(0, 0, 0, 0);
                 endDate = new Date(updatedDateTo);
                 endDate.setHours(23, 59, 59, 999);
-                console.log('✅ Custom date range set:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+                logger.info('✅ Custom date range set:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
               } else if (updatedDateFrom) {
                 startDate = new Date(updatedDateFrom);
                 startDate.setHours(0, 0, 0, 0);
                 endDate = now;
-                console.log('✅ Custom date from set:', { startDate: startDate.toISOString(), endDate: 'now' });
+                logger.info('✅ Custom date from set:', { startDate: startDate.toISOString(), endDate: 'now' });
               } else if (updatedDateTo) {
                 startDate = new Date(0); // Beginning of time
                 endDate = new Date(updatedDateTo);
                 endDate.setHours(23, 59, 59, 999);
-                console.log('✅ Custom date to set:', { startDate: 'beginning', endDate: endDate.toISOString() });
+                logger.info('✅ Custom date to set:', { startDate: 'beginning', endDate: endDate.toISOString() });
               } else {
-                console.log('⚠️ No custom date parameters provided');
+                logger.info('⚠️ No custom date parameters provided');
               }
               break;
             case 'advanced':
@@ -669,15 +671,15 @@ module.exports = async (req, res) => {
           });
           if (startDate && endDate) {
             query = query.gte('updated_at', startDate.toISOString()).lte('updated_at', endDate.toISOString());
-            console.log('✅ Applied updated_at range filter: gte', startDate.toISOString(), 'lte', endDate.toISOString());
+            logger.info('✅ Applied updated_at range filter: gte', startDate.toISOString(), 'lte', endDate.toISOString());
           } else if (startDate && !endDate) {
             query = query.gte('updated_at', startDate.toISOString());
-            console.log('✅ Applied updated_at gte filter:', startDate.toISOString());
+            logger.info('✅ Applied updated_at gte filter:', startDate.toISOString());
           } else if (!startDate && endDate) {
             query = query.lte('updated_at', endDate.toISOString());
-            console.log('✅ Applied updated_at lte filter:', endDate.toISOString());
+            logger.info('✅ Applied updated_at lte filter:', endDate.toISOString());
           } else {
-            console.log('⚠️ No date range calculated for updated_at filter');
+            logger.info('⚠️ No date range calculated for updated_at filter');
           }
         }
         
@@ -762,7 +764,7 @@ module.exports = async (req, res) => {
             query = query.lte('created_at', createdEndDate.toISOString());
           }
           
-          console.log(`🗓️ Applied created date filter: ${createdDateFilter} (${createdStartDate ? createdStartDate.toISOString() : 'no start'} to ${createdEndDate ? createdEndDate.toISOString() : 'no end'})`);
+          logger.info(`🗓️ Applied created date filter: ${createdDateFilter} (${createdStartDate ? createdStartDate.toISOString() : 'no start'} to ${createdEndDate ? createdEndDate.toISOString() : 'no end'})`);
         }
         
         // Apply follow-up date filter
@@ -788,7 +790,7 @@ module.exports = async (req, res) => {
               // Format: "YYYY-MM-DDTHH:MM" (matches database format without timezone)
               const overdueTime = istNow.toISOString().slice(0, 16).replace('Z', '');
               query = query.lt('followUp', overdueTime);
-              console.log(`🚨 Applied overdue follow-up filter (before ${overdueTime} IST)`);
+              logger.info(`🚨 Applied overdue follow-up filter (before ${overdueTime} IST)`);
               break;
               
             case 'today':
@@ -797,7 +799,7 @@ module.exports = async (req, res) => {
               followUpStartDate = `${todayDate}T00:00`;
               followUpEndDate = `${todayDate}T23:59`;
               query = query.gte('followUp', followUpStartDate).lte('followUp', followUpEndDate);
-              console.log(`📍 Applied today follow-up filter (${followUpStartDate} to ${followUpEndDate} IST)`);
+              logger.info(`📍 Applied today follow-up filter (${followUpStartDate} to ${followUpEndDate} IST)`);
               break;
               
             case 'tomorrow':
@@ -806,7 +808,7 @@ module.exports = async (req, res) => {
               followUpStartDate = `${tomorrowDate}T00:00`;
               followUpEndDate = `${tomorrowDate}T23:59`;
               query = query.gte('followUp', followUpStartDate).lte('followUp', followUpEndDate);
-              console.log(`📅 Applied tomorrow follow-up filter (${followUpStartDate} to ${followUpEndDate} IST)`);
+              logger.info(`📅 Applied tomorrow follow-up filter (${followUpStartDate} to ${followUpEndDate} IST)`);
               break;
               
             case 'this_week':
@@ -817,7 +819,7 @@ module.exports = async (req, res) => {
               const weekStartStr = weekStart.toISOString().slice(0, 10) + 'T00:00';
               const weekEndStr = weekEnd.toISOString().slice(0, 10) + 'T23:59';
               query = query.gte('followUp', weekStartStr).lte('followUp', weekEndStr);
-              console.log(`📆 Applied this week follow-up filter (${weekStartStr} to ${weekEndStr} IST)`);
+              logger.info(`📆 Applied this week follow-up filter (${weekStartStr} to ${weekEndStr} IST)`);
               break;
               
             case 'next_week':
@@ -828,7 +830,7 @@ module.exports = async (req, res) => {
               const nextWeekStartStr = nextWeekStart.toISOString().slice(0, 10) + 'T00:00';
               const nextWeekEndStr = nextWeekEnd.toISOString().slice(0, 10) + 'T23:59';
               query = query.gte('followUp', nextWeekStartStr).lte('followUp', nextWeekEndStr);
-              console.log(`📋 Applied next week follow-up filter (${nextWeekStartStr} to ${nextWeekEndStr} IST)`);
+              logger.info(`📋 Applied next week follow-up filter (${nextWeekStartStr} to ${nextWeekEndStr} IST)`);
               break;
               
             case 'this_month':
@@ -837,7 +839,7 @@ module.exports = async (req, res) => {
               const thisMonthStart = followUpStartDate.toISOString().slice(0, 10) + 'T00:00';
               const thisMonthEnd = followUpEndDate.toISOString().slice(0, 10) + 'T23:59';
               query = query.gte('followUp', thisMonthStart).lte('followUp', thisMonthEnd);
-              console.log(`🗓️ Applied this month follow-up filter (${thisMonthStart} to ${thisMonthEnd} IST)`);
+              logger.info(`🗓️ Applied this month follow-up filter (${thisMonthStart} to ${thisMonthEnd} IST)`);
               break;
               
             case 'next_month':
@@ -846,13 +848,13 @@ module.exports = async (req, res) => {
               const nextMonthStart = followUpStartDate.toISOString().slice(0, 10) + 'T00:00';
               const nextMonthEnd = followUpEndDate.toISOString().slice(0, 10) + 'T23:59';
               query = query.gte('followUp', nextMonthStart).lte('followUp', nextMonthEnd);
-              console.log(`📊 Applied next month follow-up filter (${nextMonthStart} to ${nextMonthEnd} IST)`);
+              logger.info(`📊 Applied next month follow-up filter (${nextMonthStart} to ${nextMonthEnd} IST)`);
               break;
               
             case 'no_followup':
               // Only check followUp column for null
               query = query.is('followUp', null);
-              console.log(`❌ Applied no follow-up filter (null values)`);
+              logger.info(`❌ Applied no follow-up filter (null values)`);
               break;
               
             case 'custom':
@@ -860,7 +862,7 @@ module.exports = async (req, res) => {
                 const customStart = followUpDateFrom.includes('T') ? followUpDateFrom : followUpDateFrom + 'T00:00';
                 const customEnd = followUpDateTo.includes('T') ? followUpDateTo : followUpDateTo + 'T23:59';
                 query = query.gte('followUp', customStart).lte('followUp', customEnd);
-                console.log(`📊 Applied custom follow-up filter (${customStart} to ${customEnd})`);
+                logger.info(`📊 Applied custom follow-up filter (${customStart} to ${customEnd})`);
               }
               break;
               
@@ -869,20 +871,20 @@ module.exports = async (req, res) => {
                 const advStart = followUpDateFrom.includes('T') ? followUpDateFrom : followUpDateFrom + 'T00:00';
                 const advEnd = followUpDateTo.includes('T') ? followUpDateTo : followUpDateTo + 'T23:59';
                 query = query.gte('followUp', advStart).lte('followUp', advEnd);
-                console.log(`⚙️ Applied advanced follow-up filter: between ${advStart} and ${advEnd}`);
+                logger.info(`⚙️ Applied advanced follow-up filter: between ${advStart} and ${advEnd}`);
               } else if (followUpDateType === 'after' && followUpDateFrom) {
                 const afterDate = followUpDateFrom.includes('T') ? followUpDateFrom : followUpDateFrom + 'T00:00';
                 query = query.gte('followUp', afterDate);
-                console.log(`⚙️ Applied advanced follow-up filter: after ${afterDate}`);
+                logger.info(`⚙️ Applied advanced follow-up filter: after ${afterDate}`);
               } else if (followUpDateType === 'before' && followUpDateTo) {
                 const beforeDate = followUpDateTo.includes('T') ? followUpDateTo : followUpDateTo + 'T23:59';
                 query = query.lte('followUp', beforeDate);
-                console.log(`⚙️ Applied advanced follow-up filter: before ${beforeDate}`);
+                logger.info(`⚙️ Applied advanced follow-up filter: before ${beforeDate}`);
               } else if (followUpDateType === 'on' && followUpSpecificDate) {
                 const onDateStart = followUpSpecificDate.includes('T') ? followUpSpecificDate : followUpSpecificDate + 'T00:00';
                 const onDateEnd = followUpSpecificDate.includes('T') ? followUpSpecificDate : followUpSpecificDate + 'T23:59';
                 query = query.gte('followUp', onDateStart).lte('followUp', onDateEnd);
-                console.log(`⚙️ Applied advanced follow-up filter: on ${onDateStart}`);
+                logger.info(`⚙️ Applied advanced follow-up filter: on ${onDateStart}`);
               }
               break;
           }
@@ -896,18 +898,18 @@ module.exports = async (req, res) => {
           const istNow = new Date(now.getTime() + istOffset);
           const overdueTime = istNow.toISOString().slice(0, 16).replace('Z', '');
           query = query.lt('followUp', overdueTime);
-          console.log(`🚨 Applied overdue follow-up checkbox filter (before ${overdueTime} IST)`);
+          logger.info(`🚨 Applied overdue follow-up checkbox filter (before ${overdueTime} IST)`);
         }
         
         // Apply pagination AFTER filtering
         query = query.range(offset, offset + pageSize - 1);
-        console.log(`📄 Applied pagination: offset=${offset}, limit=${pageSize}`);
+        logger.info(`📄 Applied pagination: offset=${offset}, limit=${pageSize}`);
         
         // Filter at database level based on role and hierarchy
         if (user.role !== 'super_admin') {
           // Get subordinate usernames for hierarchical access
           const subordinateUsernames = user.id ? await getSubordinateUsernames(user.id) : [];
-          console.log(`🏢 User ${user.username} supervises: [${subordinateUsernames.join(', ')}]`);
+          logger.info(`🏢 User ${user.username} supervises: [${subordinateUsernames.join(', ')}]`);
           
           // Build list of usernames this user can see (self + subordinates)
           const accessibleUsernames = [user.username, ...subordinateUsernames].filter(Boolean);
@@ -932,14 +934,14 @@ module.exports = async (req, res) => {
             }
           }
           
-          console.log(`🔑 User ${user.username} can access leads assigned to: [${accessibleUsernames.join(', ')}]`);
+          logger.info(`🔑 User ${user.username} can access leads assigned to: [${accessibleUsernames.join(', ')}]`);
           
           // Apply database filter using .in() - much faster than JavaScript filter
           if (accessibleUsernames.length > 0) {
             query = query.in('assigned_to', accessibleUsernames);
           } else {
             // If no accessible usernames, return empty result
-            console.log(`⚠️ User ${user.username} has no accessible usernames - returning empty result`);
+            logger.info(`⚠️ User ${user.username} has no accessible usernames - returning empty result`);
             const config = await getSystemConfig();
             return res.status(200).json({
               success: true,
@@ -971,17 +973,17 @@ module.exports = async (req, res) => {
             });
           }
         } else {
-          console.log(`🔑 Super Admin Access: User ${user.username} can see ALL leads`);
+          logger.info(`🔑 Super Admin Access: User ${user.username} can see ALL leads`);
         }
         
         // Execute optimized query with error handling
-        console.log(`📊 Executing query for ${user.username}...`);
+        logger.info(`📊 Executing query for ${user.username}...`);
         const { data: leads, error, count } = await query;
 
         if (error) {
-          console.error('❌ Error fetching leads:', error.message);
-          console.error('❌ Get leads error:', JSON.stringify(error));
-          console.error('❌ Query was for user:', user.username, 'role:', user.role);
+          logger.error('❌ Error fetching leads:', error.message);
+          logger.error('❌ Get leads error:', JSON.stringify(error));
+          logger.error('❌ Query was for user:', user.username, 'role:', user.role);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch leads',
@@ -991,8 +993,8 @@ module.exports = async (req, res) => {
         }
 
         if (error) {
-          console.error('❌ Error fetching leads:', error.message);
-          console.error('❌ Get leads error:', error);
+          logger.error('❌ Error fetching leads:', error.message);
+          logger.error('❌ Get leads error:', error);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch leads',
@@ -1000,14 +1002,14 @@ module.exports = async (req, res) => {
           });
         }
         
-        console.log(`✅ User ${user.username} accessed ${leads?.length || 0} leads (total count: ${count || 0})`);
+        logger.info(`✅ User ${user.username} accessed ${leads?.length || 0} leads (total count: ${count || 0})`);
 
         // Debug: Show sample updated_at values if filtering by updated date
         if (dateFilterType && leads && leads.length > 0) {
-          console.log(`🔍 DEBUG: Updated Date Filter "${dateFilterType}" returned ${leads.length} leads`);
-          console.log('🔍 Sample updated_at values from first 5 results:');
+          logger.info(`🔍 DEBUG: Updated Date Filter "${dateFilterType}" returned ${leads.length} leads`);
+          logger.info('🔍 Sample updated_at values from first 5 results:');
           leads.slice(0, 5).forEach((lead, i) => {
-            console.log(`  ${i + 1}. ${lead.fullName || lead.name} - updated_at: ${lead.updated_at}, created_at: ${lead.created_at}`);
+            logger.info(`  ${i + 1}. ${lead.fullName || lead.name} - updated_at: ${lead.updated_at}, created_at: ${lead.created_at}`);
           });
         }
 
@@ -1017,22 +1019,22 @@ module.exports = async (req, res) => {
             acc[lead.status || 'undefined'] = (acc[lead.status || 'undefined'] || 0) + 1;
             return acc;
           }, {});
-          console.log('📊 Status distribution in database:', statusCounts);
+          logger.info('📊 Status distribution in database:', statusCounts);
         }
 
         // Get dynamic configuration
         const config = await getSystemConfig();
 
         // Process leads to ensure notes are properly formatted as arrays
-        console.log(`🔍 Processing ${leads?.length || 0} leads for notes formatting`);
+        logger.info(`🔍 Processing ${leads?.length || 0} leads for notes formatting`);
         
         const processedLeads = (leads || []).map((lead, index) => {
           let notesArray = [];
           
           if (index < 3) { // Debug first 3 leads
-            console.log(`🔍 Lead ${index + 1} (${lead.id.substring(0, 8)}...):`);
-            console.log(`  Raw notes type: ${typeof lead.notes}`);
-            console.log(`  Raw notes value:`, lead.notes);
+            logger.info(`🔍 Lead ${index + 1} (${lead.id.substring(0, 8)}...):`);
+            logger.info(`  Raw notes type: ${typeof lead.notes}`);
+            logger.info(`  Raw notes value:`, lead.notes);
           }
           
           if (lead.notes) {
@@ -1040,7 +1042,7 @@ module.exports = async (req, res) => {
               // If notes is already an array (JSON), use it
               if (Array.isArray(lead.notes)) {
                 notesArray = lead.notes;
-                if (index < 3) console.log(`  ✅ Notes already array: ${notesArray.length} items`);
+                if (index < 3) logger.info(`  ✅ Notes already array: ${notesArray.length} items`);
               } 
               // If notes is a JSON string, try to parse it
               else if (typeof lead.notes === 'string') {
@@ -1049,7 +1051,7 @@ module.exports = async (req, res) => {
                 // Check if it's a JSON array string
                 if (trimmedNotes.startsWith('[') && trimmedNotes.endsWith(']')) {
                   notesArray = JSON.parse(lead.notes);
-                  if (index < 3) console.log(`  ✅ Parsed JSON array: ${notesArray.length} items`);
+                  if (index < 3) logger.info(`  ✅ Parsed JSON array: ${notesArray.length} items`);
                 }
                 // If it's a plain text note, convert to array format
                 else if (trimmedNotes.length > 0) {
@@ -1060,12 +1062,12 @@ module.exports = async (req, res) => {
                     timestamp: lead.created_at || new Date().toISOString(),
                     note_type: 'legacy'
                   }];
-                  if (index < 3) console.log(`  🔄 Converted plain text to array: "${lead.notes.substring(0, 30)}..."`);
+                  if (index < 3) logger.info(`  🔄 Converted plain text to array: "${lead.notes.substring(0, 30)}..."`);
                 }
               }
             } catch (error) {
-              console.log(`⚠️ Error parsing notes for lead ${lead.id}:`, error.message);
-              console.log(`⚠️ Original notes value:`, lead.notes);
+              logger.info(`⚠️ Error parsing notes for lead ${lead.id}:`, error.message);
+              logger.info(`⚠️ Original notes value:`, lead.notes);
               
               // Fallback: treat as simple string
               if (typeof lead.notes === 'string' && lead.notes.trim()) {
@@ -1076,11 +1078,11 @@ module.exports = async (req, res) => {
                   timestamp: lead.created_at || new Date().toISOString(),
                   note_type: 'fallback'
                 }];
-                if (index < 3) console.log(`  🔄 Fallback conversion: 1 item`);
+                if (index < 3) logger.info(`  🔄 Fallback conversion: 1 item`);
               }
             }
           } else {
-            if (index < 3) console.log(`  ℹ️ No notes found (null/empty)`);
+            if (index < 3) logger.info(`  ℹ️ No notes found (null/empty)`);
           }
           
           // Get the raw assignment value and normalize from email to username
@@ -1102,7 +1104,7 @@ module.exports = async (req, res) => {
           };
         });
         
-        console.log(`✅ Processed ${processedLeads.length} leads with notes formatting`);
+        logger.info(`✅ Processed ${processedLeads.length} leads with notes formatting`);
 
         // Get ALL leads for accurate stats calculation (not just paginated ones)
         let allLeadsForStats = [];
@@ -1129,11 +1131,11 @@ module.exports = async (req, res) => {
               acc[lead.status || 'undefined'] = (acc[lead.status || 'undefined'] || 0) + 1;
               return acc;
             }, {});
-            console.log('📊 FULL DATABASE Status distribution:', allStatusCounts);
-            console.log(`📊 Total leads for stats calculation: ${allLeads.length}`);
+            logger.info('📊 FULL DATABASE Status distribution:', allStatusCounts);
+            logger.info(`📊 Total leads for stats calculation: ${allLeads.length}`);
           }
         } catch (error) {
-          console.error('Error fetching all leads for stats:', error);
+          logger.error('Error fetching all leads for stats:', error);
           allLeadsForStats = processedLeads; // Fallback to paginated data
         }
 
@@ -1164,7 +1166,7 @@ module.exports = async (req, res) => {
           message: `Found ${processedLeads?.length || 0} leads (page ${page} of ${totalPages})`
         });
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -1221,7 +1223,7 @@ module.exports = async (req, res) => {
           try {
             currentNotes = Array.isArray(lead.notes) ? lead.notes : JSON.parse(lead.notes);
           } catch (parseError) {
-            console.log('⚠️ Error parsing existing notes, creating new array');
+            logger.info('⚠️ Error parsing existing notes, creating new array');
             currentNotes = [];
           }
         }
@@ -1238,8 +1240,8 @@ module.exports = async (req, res) => {
         currentNotes.push(newNote);
 
         // Update lead with new notes
-        console.log(`🔍 Updating lead ${leadId} with ${currentNotes.length} notes`);
-        console.log(`🔍 Notes JSON:`, JSON.stringify(currentNotes));
+        logger.info(`🔍 Updating lead ${leadId} with ${currentNotes.length} notes`);
+        logger.info(`🔍 Notes JSON:`, JSON.stringify(currentNotes));
         
         const { error: updateError } = await supabase
           .from('leads')
@@ -1250,11 +1252,11 @@ module.exports = async (req, res) => {
           .eq('id', leadId);
 
         if (updateError) {
-          console.error('❌ Supabase update error:', updateError);
+          logger.error('❌ Supabase update error:', updateError);
           throw updateError;
         }
 
-        console.log(`✅ Successfully updated lead ${leadId} with notes`);
+        logger.info(`✅ Successfully updated lead ${leadId} with notes`);
 
         // Log activity
         await logLeadActivity(
@@ -1272,7 +1274,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Error adding note:', error);
+        logger.error('❌ Error adding note:', error);
         return res.status(500).json({
           success: false,
           error: 'Failed to add note',
@@ -1336,7 +1338,7 @@ module.exports = async (req, res) => {
             cleanUpdateData.followUp = null;
             cleanUpdateData.nextfollowup = null;
             cleanUpdateData.next_follow_up = null;
-            console.log(`🚫 Bulk update: Status changed to "${cleanUpdateData.status}" - Follow-up dates automatically cleared for ${leadIds.length} leads`);
+            logger.info(`🚫 Bulk update: Status changed to "${cleanUpdateData.status}" - Follow-up dates automatically cleared for ${leadIds.length} leads`);
           }
 
           // Add updated timestamp and user
@@ -1351,7 +1353,7 @@ module.exports = async (req, res) => {
             .select();
 
           if (error) {
-            console.error('❌ Bulk update error:', error);
+            logger.error('❌ Bulk update error:', error);
             return res.status(500).json({
               success: false,
               error: 'Failed to update leads',
@@ -1373,7 +1375,7 @@ module.exports = async (req, res) => {
             );
           }
 
-          console.log(`✅ Bulk ${operationType || 'update'} completed for ${updatedLeads.length} leads by ${updatedBy || user.username}`);
+          logger.info(`✅ Bulk ${operationType || 'update'} completed for ${updatedLeads.length} leads by ${updatedBy || user.username}`);
 
           return res.json({
             success: true,
@@ -1387,7 +1389,7 @@ module.exports = async (req, res) => {
           });
 
         } catch (error) {
-          console.error('❌ Bulk operation error:', error);
+          logger.error('❌ Bulk operation error:', error);
           return res.status(500).json({
             success: false,
             error: 'Bulk operation failed',
@@ -1408,7 +1410,7 @@ module.exports = async (req, res) => {
         }
 
         try {
-          console.log(`🗑️ Starting bulk delete for ${leadIds.length} leads by ${updatedBy || user.username}`);
+          logger.info(`🗑️ Starting bulk delete for ${leadIds.length} leads by ${updatedBy || user.username}`);
 
           // First, get all leads to check access permissions
           const { data: leadsToDelete, error: fetchError } = await supabase
@@ -1417,7 +1419,7 @@ module.exports = async (req, res) => {
             .in('id', leadIds);
 
           if (fetchError) {
-            console.error('❌ Error fetching leads for deletion:', fetchError);
+            logger.error('❌ Error fetching leads for deletion:', fetchError);
             return res.status(500).json({
               success: false,
               error: 'Failed to fetch leads for deletion',
@@ -1459,7 +1461,7 @@ module.exports = async (req, res) => {
             .in('lead_id', accessibleLeadIds);
 
           if (activitiesDeleteError) {
-            console.log('⚠️ Warning: Failed to delete some lead activities:', activitiesDeleteError.message);
+            logger.info('⚠️ Warning: Failed to delete some lead activities:', activitiesDeleteError.message);
           }
 
           // Delete the leads
@@ -1470,7 +1472,7 @@ module.exports = async (req, res) => {
             .select();
 
           if (deleteError) {
-            console.error('❌ Bulk delete error:', deleteError);
+            logger.error('❌ Bulk delete error:', deleteError);
             return res.status(500).json({
               success: false,
               error: 'Failed to delete leads',
@@ -1489,7 +1491,7 @@ module.exports = async (req, res) => {
           }
 
           const deletedCount = deletedLeads ? deletedLeads.length : accessibleLeadIds.length;
-          console.log(`✅ Bulk delete completed: ${deletedCount} leads deleted by ${updatedBy || user.username}`);
+          logger.info(`✅ Bulk delete completed: ${deletedCount} leads deleted by ${updatedBy || user.username}`);
 
           return res.json({
             success: true,
@@ -1499,7 +1501,7 @@ module.exports = async (req, res) => {
           });
 
         } catch (error) {
-          console.error('❌ Bulk delete operation error:', error);
+          logger.error('❌ Bulk delete operation error:', error);
           return res.status(500).json({
             success: false,
             error: 'Bulk delete operation failed',
@@ -1558,14 +1560,14 @@ module.exports = async (req, res) => {
 
       try {
         // Debug: Log user information during lead creation
-        console.log(`👤 Creating lead - User: ${user.username} (${user.email}) - Role: ${user.role}`);
-        console.log(`� Full user object from JWT:`, user);
-        console.log(`�📝 Assignment intention: ${assignedTo || user.username || 'Unassigned'}`);
-        console.log(`📝 assignedTo parameter:`, assignedTo);
+        logger.info(`👤 Creating lead - User: ${user.username} (${user.email}) - Role: ${user.role}`);
+        logger.info(`� Full user object from JWT:`, user);
+        logger.info(`�📝 Assignment intention: ${assignedTo || user.username || 'Unassigned'}`);
+        logger.info(`📝 assignedTo parameter:`, assignedTo);
         
         // Get user's real name for notes - with fallback logic
         const userRealName = await getUserRealName(user.username);
-        console.log(`👤 User real name resolved: "${userRealName}"`);
+        logger.info(`👤 User real name resolved: "${userRealName}"`);
         
         // Prepare lead data for database with all new fields
         const leadStatus = status || 'Fresh';
@@ -1574,7 +1576,7 @@ module.exports = async (req, res) => {
         let followUpDate = followUp || null;
         if (leadStatus === 'Not Interested' || leadStatus === 'Junk') {
           followUpDate = null;
-          console.log(`🚫 Status set to "${leadStatus}" - Follow-up date automatically cleared`);
+          logger.info(`🚫 Status set to "${leadStatus}" - Follow-up date automatically cleared`);
         }
         
         const leadData = {
@@ -1626,7 +1628,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.error('❌ Error creating lead:', error.message);
+          logger.error('❌ Error creating lead:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to create lead',
@@ -1634,7 +1636,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Created new lead in database: ${fullName} (${email}) - ID: ${insertedLead.id}`);
+        logger.info(`✅ Created new lead in database: ${fullName} (${email}) - ID: ${insertedLead.id}`);
 
         // Log lead creation activity
         await logLeadActivity(
@@ -1669,7 +1671,7 @@ module.exports = async (req, res) => {
           message: 'Lead created successfully with all new fields'
         });
       } catch (error) {
-        console.error('❌ Database error creating lead:', error.message);
+        logger.error('❌ Database error creating lead:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -1713,7 +1715,7 @@ module.exports = async (req, res) => {
         }
 
         const updateData = req.body;
-        console.log(`🔄 Updating lead ${leadId} with data:`, updateData);
+        logger.info(`🔄 Updating lead ${leadId} with data:`, updateData);
         console.log(`📝 Current lead data:`, {
           id: existingLead.id,
           fullName: existingLead.fullName,
@@ -1735,7 +1737,7 @@ module.exports = async (req, res) => {
         
         // Log current assignment before update
         const currentAssignment = existingLead.assigned_to || existingLead.assignedTo || existingLead.assignedcounselor;
-        console.log(`📋 Current assignment: "${currentAssignment}"`);
+        logger.info(`📋 Current assignment: "${currentAssignment}"`);
 
         // Remove undefined values and prepare update object
         const cleanUpdateData = {};
@@ -1748,12 +1750,12 @@ module.exports = async (req, res) => {
 
         // Enhanced assignment synchronization with debugging
         if (cleanUpdateData.assignedTo) {
-          console.log(`🎯 New assignment detected: "${cleanUpdateData.assignedTo}"`);
+          logger.info(`🎯 New assignment detected: "${cleanUpdateData.assignedTo}"`);
           cleanUpdateData.assignedcounselor = cleanUpdateData.assignedTo; // Match actual DB column (lowercase)
           cleanUpdateData.assigned_to = cleanUpdateData.assignedTo; // Snake case version (PRIMARY)
           // Remove camelCase version that doesn't exist in database schema
           delete cleanUpdateData.assignedCounselor; // This column doesn't exist in DB
-          console.log(`✅ Synchronized assignment fields to: "${cleanUpdateData.assigned_to}"`);
+          logger.info(`✅ Synchronized assignment fields to: "${cleanUpdateData.assigned_to}"`);
         }
 
         // Ensure numeric conversion for estimatedValue in updates (DB column is 'estimatedvalue' - no underscore)
@@ -1776,7 +1778,7 @@ module.exports = async (req, res) => {
           cleanUpdateData.followUp = null;
           cleanUpdateData.nextfollowup = null;
           cleanUpdateData.next_follow_up = null;
-          console.log(`🚫 Status changed to "${cleanUpdateData.status}" - Follow-up date automatically cleared`);
+          logger.info(`🚫 Status changed to "${cleanUpdateData.status}" - Follow-up date automatically cleared`);
         }
 
         // Add updated timestamp
@@ -1791,7 +1793,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.error('❌ Database error updating lead:', error);
+          logger.error('❌ Database error updating lead:', error);
           return res.status(500).json({
             success: false,
             error: 'Failed to update lead',
@@ -1806,7 +1808,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log('✅ Lead updated successfully:', updatedLead.id);
+        logger.info('✅ Lead updated successfully:', updatedLead.id);
         console.log('📊 Updated lead details:', {
           id: updatedLead.id,
           fullName: updatedLead.fullName,
@@ -1831,7 +1833,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Error updating lead:', error);
+        logger.error('❌ Error updating lead:', error);
         return res.status(500).json({
           success: false,
           error: 'Failed to update lead',
@@ -1897,7 +1899,7 @@ module.exports = async (req, res) => {
           .eq('id', leadId);
 
         if (deleteError) {
-          console.error('❌ Delete error:', deleteError);
+          logger.error('❌ Delete error:', deleteError);
           return res.status(500).json({
             success: false,
             error: 'Failed to delete lead',
@@ -1905,7 +1907,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Lead deleted: ${leadToDelete.fullName} (${leadToDelete.email}) by ${user.username}`);
+        logger.info(`✅ Lead deleted: ${leadToDelete.fullName} (${leadToDelete.email}) by ${user.username}`);
 
         return res.json({
           success: true,
@@ -1917,7 +1919,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Delete lead error:', error);
+        logger.error('❌ Delete lead error:', error);
         return res.status(500).json({
           success: false,
           error: 'Failed to delete lead',

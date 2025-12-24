@@ -2,6 +2,8 @@
 // Reduces network requests from 5-10 to 1
 
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -201,7 +203,7 @@ module.exports = async (req, res) => {
 
     res.status(200).json(dashboardSummary);
   } catch (error) {
-    console.error('Dashboard summary error:', error);
+    logger.error('Dashboard summary error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 };

@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -15,7 +17,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Payments module: Supabase initialization failed:', error.message);
+  logger.info('Payments module: Supabase initialization failed:', error.message);
 }
 
 // Initialize Razorpay (conditionally)
@@ -121,7 +123,7 @@ module.exports = async (req, res) => {
         res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('Payments API error:', error);
+    logger.error('Payments API error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -367,7 +369,7 @@ async function handleCreateOrder(req, res) {
       razorpay_key_id: process.env.RAZORPAY_KEY_ID
     });
   } catch (error) {
-    console.error('Create order error:', error);
+    logger.error('Create order error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to create payment order',
@@ -519,7 +521,7 @@ async function handleRefundPayment(req, res) {
           }
         });
       } catch (refundError) {
-        console.error('Razorpay refund error:', refundError);
+        logger.error('Razorpay refund error:', refundError);
         return res.status(500).json({
           success: false,
           error: 'Failed to process refund',
@@ -666,12 +668,12 @@ async function handleWebhook(req, res) {
         await handleRefundProcessed(event.payload.refund.entity);
         break;
       default:
-        console.log('Unhandled webhook event:', event.event);
+        logger.info('Unhandled webhook event:', event.event);
     }
 
     res.status(200).json({ status: 'ok' });
   } catch (error) {
-    console.error('Webhook error:', error);
+    logger.error('Webhook error:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 }
@@ -776,7 +778,7 @@ async function logPaymentActivity(paymentId, action, description, userId) {
         timestamp: new Date().toISOString()
       }]);
   } catch (error) {
-    console.error('Failed to log payment activity:', error);
+    logger.error('Failed to log payment activity:', error);
   }
 }
 
@@ -792,7 +794,7 @@ async function handlePaymentCaptured(payment) {
     .eq('gateway_order_id', payment.order_id);
 
   if (error) {
-    console.error('Error updating payment from webhook:', error);
+    logger.error('Error updating payment from webhook:', error);
   }
 }
 
@@ -808,6 +810,6 @@ async function handlePaymentFailed(payment) {
     .eq('gateway_order_id', payment.order_id);
 
   if (error) {
-    console.error('Error updating failed payment:', error);
+    logger.error('Error updating failed payment:', error);
   }
 }

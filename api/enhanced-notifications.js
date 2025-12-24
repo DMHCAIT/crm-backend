@@ -2,6 +2,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -13,7 +15,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Notifications module: Supabase initialization failed:', error.message);
+  logger.info('Notifications module: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -113,7 +115,7 @@ module.exports = async (req, res) => {
         res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('Notifications API error:', error);
+    logger.error('Notifications API error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -679,7 +681,7 @@ async function sendEmailNotification(notification) {
   try {
     // Implement email notification logic
     // This would integrate with your email service (SendGrid, AWS SES, etc.)
-    console.log('Email notification sent:', notification.title);
+    logger.info('Email notification sent:', notification.title);
     
     // Update notification status
     await supabase
@@ -692,7 +694,7 @@ async function sendEmailNotification(notification) {
 
     return { success: true };
   } catch (error) {
-    console.error('Failed to send email notification:', error);
+    logger.error('Failed to send email notification:', error);
     return { success: false, error: error.message };
   }
 }
@@ -701,7 +703,7 @@ async function sendPushNotification(notification) {
   try {
     // Implement push notification logic
     // This would integrate with FCM, APNS, or other push services
-    console.log('Push notification sent:', notification.title);
+    logger.info('Push notification sent:', notification.title);
     
     // Update notification status
     await supabase
@@ -714,7 +716,7 @@ async function sendPushNotification(notification) {
 
     return { success: true };
   } catch (error) {
-    console.error('Failed to send push notification:', error);
+    logger.error('Failed to send push notification:', error);
     return { success: false, error: error.message };
   }
 }
@@ -730,10 +732,10 @@ async function cleanupExpiredNotifications() {
 
     if (error) throw error;
 
-    console.log(`Cleaned up ${expiredNotifications?.length || 0} expired notifications`);
+    logger.info(`Cleaned up ${expiredNotifications?.length || 0} expired notifications`);
     return expiredNotifications?.length || 0;
   } catch (error) {
-    console.error('Failed to cleanup expired notifications:', error);
+    logger.error('Failed to cleanup expired notifications:', error);
     return 0;
   }
 }

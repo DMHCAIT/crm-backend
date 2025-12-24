@@ -1,6 +1,8 @@
 // WhatsApp API Integration
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -12,7 +14,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('WhatsApp module: Supabase initialization failed:', error.message);
+  logger.info('WhatsApp module: Supabase initialization failed:', error.message);
 }
 
 module.exports = async (req, res) => {
@@ -44,7 +46,7 @@ module.exports = async (req, res) => {
     const challenge = req.query['hub.challenge'];
 
     if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-      console.log('WhatsApp webhook verified');
+      logger.info('WhatsApp webhook verified');
       res.status(200).send(challenge);
     } else {
       res.status(403).send('Forbidden');
@@ -107,7 +109,7 @@ async function handleAutoResponse(phone, message) {
 
 async function sendWhatsAppMessage(phone, message) {
   if (!process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_ID) {
-    console.log('WhatsApp not configured, skipping message');
+    logger.info('WhatsApp not configured, skipping message');
     return;
   }
 
@@ -130,7 +132,7 @@ async function sendWhatsAppMessage(phone, message) {
 
     return { success: true, messageId: response.data.messages[0].id };
   } catch (error) {
-    console.error('WhatsApp API error:', error.response?.data || error.message);
+    logger.error('WhatsApp API error:', error.response?.data || error.message);
     return { success: false, error: error.message };
   }
 }

@@ -7,6 +7,8 @@ const {
   generateUserPermissions,
   FEATURE_DESCRIPTIONS 
 } = require('../config/permissions');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -40,7 +42,7 @@ module.exports = async (req, res) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     const userRole = decoded.role || 'default';
     
-    console.log('🔍 Permissions check for role:', userRole);
+    logger.info('🔍 Permissions check for role:', userRole);
 
     if (req.method === 'GET') {
       const { feature } = req.query;
@@ -101,7 +103,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Permissions API error:', error);
+    logger.error('❌ Permissions API error:', error);
     
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({

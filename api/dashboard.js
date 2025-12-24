@@ -1,6 +1,8 @@
 // Dashboard Stats API with Hierarchical Access Control
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -17,7 +19,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Dashboard module: Supabase initialization failed:', error.message);
+  logger.info('Dashboard module: Supabase initialization failed:', error.message);
 }
 
 // JWT verification function
@@ -39,7 +41,7 @@ async function getSubordinateUsers(userId) {
       .select('id, email, name, reports_to, role');
     
     if (error) {
-      console.error('Error fetching users for hierarchy:', error);
+      logger.error('Error fetching users for hierarchy:', error);
       return [];
     }
     
@@ -62,7 +64,7 @@ async function getSubordinateUsers(userId) {
     return subordinates;
     
   } catch (error) {
-    console.error('Error getting subordinate users:', error);
+    logger.error('Error getting subordinate users:', error);
     return [];
   }
 }
@@ -77,7 +79,7 @@ async function getSubordinateUsernames(userId) {
       .select('id, username, reports_to');
     
     if (error) {
-      console.error('Error fetching users for hierarchy:', error);
+      logger.error('Error fetching users for hierarchy:', error);
       return [];
     }
     
@@ -102,7 +104,7 @@ async function getSubordinateUsernames(userId) {
     return subordinateUsernames;
     
   } catch (error) {
-    console.error('Error getting subordinate usernames:', error);
+    logger.error('Error getting subordinate usernames:', error);
     return [];
   }
 }
@@ -136,13 +138,13 @@ module.exports = async (req, res) => {
   try {
     // Verify authentication
     const user = verifyToken(req);
-    console.log(`📊 Dashboard data requested by user ${user.email} (${user.role})`);
+    logger.info(`📊 Dashboard data requested by user ${user.email} (${user.role})`);
 
     // Get subordinate users for hierarchical filtering
     const subordinates = await getSubordinateUsers(user.id);
     const accessibleUserIds = [user.id, ...subordinates];
     
-    console.log(`🏢 User ${user.email} can access data for ${accessibleUserIds.length} users (self + ${subordinates.length} subordinates)`);
+    logger.info(`🏢 User ${user.email} can access data for ${accessibleUserIds.length} users (self + ${subordinates.length} subordinates)`);
 
     // Get dashboard statistics with hierarchical filtering
     let leadsResult, studentsResult, communicationsResult, documentsResult;
@@ -164,15 +166,15 @@ module.exports = async (req, res) => {
       const subordinateUsernames = await getSubordinateUsernames(user.id);
       const accessibleUsernames = [user.username, ...subordinateUsernames].filter(Boolean);
       
-      console.log(`🔍 Dashboard Stats: User ${user.username} (${user.email}) accessing dashboard`);
-      console.log(`🔍 Dashboard Stats: Accessible usernames: [${accessibleUsernames.join(', ')}]`);
+      logger.info(`🔍 Dashboard Stats: User ${user.username} (${user.email}) accessing dashboard`);
+      logger.info(`🔍 Dashboard Stats: Accessible usernames: [${accessibleUsernames.join(', ')}]`);
       
       if (accessibleUsernames.length > 0) {
         leadsQuery = leadsQuery.or(`assigned_to.in.(${accessibleUsernames.join(',')}),assignedTo.in.(${accessibleUsernames.join(',')}),assignedcounselor.in.(${accessibleUsernames.join(',')})`);
-        console.log(`🔍 Dashboard Stats: Applied username filter for leads`);
+        logger.info(`🔍 Dashboard Stats: Applied username filter for leads`);
       }
     } else {
-      console.log(`🔍 Dashboard Stats: Super admin ${user.username} accessing all leads`);
+      logger.info(`🔍 Dashboard Stats: Super admin ${user.username} accessing all leads`);
     }
     
     [leadsResult, studentsResult, communicationsResult, documentsResult] = await Promise.all([
@@ -231,16 +233,16 @@ module.exports = async (req, res) => {
       const subordinateUsernames = await getSubordinateUsernames(user.id);
       const accessibleUsernames = [user.username, ...subordinateUsernames].filter(Boolean);
       
-      console.log(`🔍 Dashboard Stats: Filtering recent activity for usernames: [${accessibleUsernames.join(', ')}]`);
+      logger.info(`🔍 Dashboard Stats: Filtering recent activity for usernames: [${accessibleUsernames.join(', ')}]`);
       
       if (accessibleUsernames.length > 0) {
         const usernameFilter = `assigned_to.in.(${accessibleUsernames.join(',')}),assignedTo.in.(${accessibleUsernames.join(',')}),assignedcounselor.in.(${accessibleUsernames.join(',')})`;
         recentLeadsQuery = recentLeadsQuery.or(usernameFilter);
         updatedTodayQuery = updatedTodayQuery.or(usernameFilter);
-        console.log(`🔍 Dashboard Stats: Applied user-specific filtering for recent activity`);
+        logger.info(`🔍 Dashboard Stats: Applied user-specific filtering for recent activity`);
       }
     } else {
-      console.log(`🔍 Dashboard Stats: Super admin accessing all recent activity`);
+      logger.info(`🔍 Dashboard Stats: Super admin accessing all recent activity`);
     }
     
     const [recentLeadsResult, updatedTodayResult] = await Promise.all([
@@ -251,7 +253,7 @@ module.exports = async (req, res) => {
     const newLeadsThisWeek = recentLeadsResult.data?.length || 0;
     const leadsUpdatedToday = updatedTodayResult.data?.length || 0;
     
-    console.log(`📊 Dashboard Stats for ${user.username}: ${totalLeads} total leads, ${newLeadsThisWeek} new this week, ${leadsUpdatedToday} updated today`);
+    logger.info(`📊 Dashboard Stats for ${user.username}: ${totalLeads} total leads, ${newLeadsThisWeek} new this week, ${leadsUpdatedToday} updated today`);
 
     const stats = {
       totalLeads,
@@ -279,7 +281,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Dashboard stats error:', error);
+    logger.error('Dashboard stats error:', error);
     res.status(500).json({
       error: 'Failed to fetch dashboard statistics',
       message: error.message

@@ -1,6 +1,8 @@
 // Analytics Event Tracking API
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 let supabase;
 try {
@@ -11,7 +13,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Analytics Tracking: Supabase initialization failed:', error.message);
+  logger.info('Analytics Tracking: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -140,7 +142,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Analytics tracking error:', error);
+    logger.error('Analytics tracking error:', error);
     return res.status(500).json({
       success: false,
       error: error.message

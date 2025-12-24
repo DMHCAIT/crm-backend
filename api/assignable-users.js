@@ -1,6 +1,8 @@
 // 🚀 ASSIGNABLE USERS API - SUPABASE CONNECTED
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,12 +17,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Assignable Users API: Supabase initialized');
+    logger.info('✅ Assignable Users API: Supabase initialized');
   } else {
-    console.log('❌ Assignable Users API: Supabase credentials missing');
+    logger.info('❌ Assignable Users API: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ Assignable Users API: Supabase initialization failed:', error.message);
+  logger.info('❌ Assignable Users API: Supabase initialization failed:', error.message);
 }
 
 // Verify JWT token
@@ -40,7 +42,7 @@ async function getSubordinateUsers(userId, allUsers) {
   const subordinates = [];
   const visited = new Set();
   
-  console.log(`🔍 Finding subordinates for user ID: ${userId}`);
+  logger.info(`🔍 Finding subordinates for user ID: ${userId}`);
   console.log(`🔍 Available users with reports_to:`, allUsers.map(u => ({
     id: u.id,
     name: u.name,
@@ -55,7 +57,7 @@ async function getSubordinateUsers(userId, allUsers) {
     
     allUsers.forEach(user => {
       if (user.reports_to === supervisorId) {
-        console.log(`📋 Found subordinate: ${user.name} (${user.role}) reports to ${supervisorId}`);
+        logger.info(`📋 Found subordinate: ${user.name} (${user.role}) reports to ${supervisorId}`);
         subordinates.push(user);
         findSubordinates(user.id);
       }
@@ -63,7 +65,7 @@ async function getSubordinateUsers(userId, allUsers) {
   }
   
   findSubordinates(userId);
-  console.log(`✅ Total subordinates found: ${subordinates.length}`, subordinates.map(s => ({ name: s.name, role: s.role })));
+  logger.info(`✅ Total subordinates found: ${subordinates.length}`, subordinates.map(s => ({ name: s.name, role: s.role })));
   return subordinates;
 }
 
@@ -87,7 +89,7 @@ module.exports = async (req, res) => {
 
   try {
     const jwtUser = verifyToken(req);
-    console.log(`🔍 Assignable Users API: Request from ${jwtUser.username} (${jwtUser.email})`);
+    logger.info(`🔍 Assignable Users API: Request from ${jwtUser.username} (${jwtUser.email})`);
 
     // GET /api/assignable-users - Get users that current user can assign leads to
     if (req.method === 'GET') {
@@ -100,7 +102,7 @@ module.exports = async (req, res) => {
           .order('name');
 
         if (error) {
-          console.error('❌ Error fetching users:', error.message);
+          logger.error('❌ Error fetching users:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch users',
@@ -176,7 +178,7 @@ module.exports = async (req, res) => {
 
         // Super admins can assign to everyone
         if (currentUser.role === 'super_admin') {
-          console.log(`🔑 Super Admin Access: Adding all ${allUsers.length} users to assignable list`);
+          logger.info(`🔑 Super Admin Access: Adding all ${allUsers.length} users to assignable list`);
           allUsers.forEach(u => {
             if (!assignableUsers.find(au => au.id === u.id)) {
               assignableUsers.push({
@@ -228,7 +230,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Found ${assignableUsers.length} assignable users for ${currentUser.name}`);
+        logger.info(`✅ Found ${assignableUsers.length} assignable users for ${currentUser.name}`);
 
         return res.json({
           success: true,
@@ -239,7 +241,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -254,7 +256,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Authentication error:', error.message);
+    logger.error('❌ Authentication error:', error.message);
     return res.status(401).json({
       success: false,
       error: 'Authentication failed',

@@ -1,5 +1,7 @@
 // 🚀 STUDENTS API - DATABASE-CONNECTED WITH HIERARCHICAL ACCESS
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -12,10 +14,10 @@ try {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
     const { createClient } = require('@supabase/supabase-js');
     supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-    console.log('✅ Students Simple API: Supabase client initialized');
+    logger.info('✅ Students Simple API: Supabase client initialized');
   }
 } catch (error) {
-  console.error('❌ Students Simple API: Supabase initialization failed:', error.message);
+  logger.error('❌ Students Simple API: Supabase initialization failed:', error.message);
 }
 
 // Demo students data
@@ -61,7 +63,7 @@ const DEMO_STUDENTS = [
 // Get subordinate users for hierarchical access control
 async function getSubordinateUsers(userId) {
   if (!supabase) {
-    console.log('⚠️ No database connection, skipping hierarchical filtering');
+    logger.info('⚠️ No database connection, skipping hierarchical filtering');
     return [userId];
   }
 
@@ -95,7 +97,7 @@ async function getSubordinateUsers(userId) {
 
     return subordinates;
   } catch (error) {
-    console.error('❌ Error getting subordinate users:', error);
+    logger.error('❌ Error getting subordinate users:', error);
     return [userId];
   }
 }
@@ -134,14 +136,14 @@ module.exports = async (req, res) => {
   try {
     // Verify authentication for all requests
     const user = verifyToken(req);
-    console.log('🔍 Students API request from:', user.username);
+    logger.info('🔍 Students API request from:', user.username);
 
     // Handle different HTTP methods
     if (req.method === 'GET') {
       // Get enrolled students from leads database with hierarchical access control
       try {
         if (!supabase) {
-          console.log('⚠️ No database connection, returning demo data');
+          logger.info('⚠️ No database connection, returning demo data');
           return res.json(DEMO_STUDENTS);
         }
 
@@ -153,7 +155,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (!currentUserData) {
-          console.log('⚠️ User not found in database, using demo data');
+          logger.info('⚠️ User not found in database, using demo data');
           return res.json(DEMO_STUDENTS);
         }
 
@@ -204,11 +206,11 @@ module.exports = async (req, res) => {
           updated_at: lead.updated_at || new Date().toISOString()
         }));
 
-        console.log(`✅ Students Simple API: Found ${students.length} enrolled students for user ${user.username}`);
+        logger.info(`✅ Students Simple API: Found ${students.length} enrolled students for user ${user.username}`);
         return res.json(students);
 
       } catch (error) {
-        console.error('❌ Error fetching enrolled students:', error);
+        logger.error('❌ Error fetching enrolled students:', error);
         return res.json(DEMO_STUDENTS); // Fallback to demo data
       }
     }
@@ -249,7 +251,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.log('❌ Students API error:', error.message);
+    logger.info('❌ Students API error:', error.message);
     return res.status(401).json({
       success: false,
       message: error.message

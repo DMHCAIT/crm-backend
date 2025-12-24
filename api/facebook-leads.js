@@ -2,6 +2,8 @@
 // Fetches leads from Facebook Lead Ads and syncs to CRM database
 
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase client
 let supabase = null;
@@ -9,10 +11,10 @@ try {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
     const { createClient } = require('@supabase/supabase-js');
     supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-    console.log('✅ Facebook Leads: Supabase initialized');
+    logger.info('✅ Facebook Leads: Supabase initialized');
   }
 } catch (error) {
-  console.error('❌ Facebook Leads: Supabase initialization failed:', error.message);
+  logger.error('❌ Facebook Leads: Supabase initialization failed:', error.message);
 }
 
 module.exports = async (req, res) => {
@@ -31,7 +33,7 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  console.log('🔗 Facebook Leads API called:', req.method, req.url);
+  logger.info('🔗 Facebook Leads API called:', req.method, req.url);
 
   try {
     // Handle GET - Fetch leads from Facebook API
@@ -54,7 +56,7 @@ module.exports = async (req, res) => {
     return res.status(404).json({ error: 'Endpoint not found' });
 
   } catch (error) {
-    console.error('❌ Facebook Leads API error:', error);
+    logger.error('❌ Facebook Leads API error:', error);
     return res.status(500).json({
       success: false,
       error: 'Facebook integration error',
@@ -65,7 +67,7 @@ module.exports = async (req, res) => {
 
 // 📥 FETCH LEADS FROM FACEBOOK API
 async function handleGetFacebookLeads(req, res) {
-  console.log('📥 Fetching leads from Facebook Lead Ads API...');
+  logger.info('📥 Fetching leads from Facebook Lead Ads API...');
 
   // Validate Facebook API credentials
   const {
@@ -90,7 +92,7 @@ async function handleGetFacebookLeads(req, res) {
     // Build Facebook API URL for lead forms
     let apiUrl = `https://graph.facebook.com/v18.0/${FACEBOOK_PAGE_ID}/leadgen_forms?access_token=${FACEBOOK_ACCESS_TOKEN}&fields=id,name,status,leads_count`;
     
-    console.log('🔍 Fetching Facebook lead forms...');
+    logger.info('🔍 Fetching Facebook lead forms...');
     const formsResponse = await fetch(apiUrl);
     const formsData = await formsResponse.json();
 
@@ -99,7 +101,7 @@ async function handleGetFacebookLeads(req, res) {
     }
 
     const leadForms = formsData.data || [];
-    console.log(`📋 Found ${leadForms.length} lead forms`);
+    logger.info(`📋 Found ${leadForms.length} lead forms`);
 
     let allLeads = [];
 
@@ -111,24 +113,24 @@ async function handleGetFacebookLeads(req, res) {
         if (since) leadsUrl += `&since=${since}`;
         if (until) leadsUrl += `&until=${until}`;
 
-        console.log(`📥 Fetching leads from form: ${form.name} (${form.id})`);
+        logger.info(`📥 Fetching leads from form: ${form.name} (${form.id})`);
         const leadsResponse = await fetch(leadsUrl);
         const leadsData = await leadsResponse.json();
 
         if (leadsData.error) {
-          console.error(`❌ Error fetching leads from form ${form.id}:`, leadsData.error);
+          logger.error(`❌ Error fetching leads from form ${form.id}:`, leadsData.error);
           continue;
         }
 
         const formLeads = leadsData.data || [];
-        console.log(`📊 Found ${formLeads.length} leads in form: ${form.name}`);
+        logger.info(`📊 Found ${formLeads.length} leads in form: ${form.name}`);
 
         // Transform Facebook lead data to CRM format
         const transformedLeads = formLeads.map(fbLead => transformFacebookLead(fbLead, form));
         allLeads = allLeads.concat(transformedLeads);
 
       } catch (formError) {
-        console.error(`❌ Error processing form ${form.id}:`, formError);
+        logger.error(`❌ Error processing form ${form.id}:`, formError);
         continue;
       }
     }
@@ -137,7 +139,7 @@ async function handleGetFacebookLeads(req, res) {
     let savedLeads = [];
     if (supabase && allLeads.length > 0) {
       try {
-        console.log(`💾 Saving ${allLeads.length} Facebook leads to CRM database...`);
+        logger.info(`💾 Saving ${allLeads.length} Facebook leads to CRM database...`);
         
         for (const lead of allLeads) {
           try {
@@ -149,7 +151,7 @@ async function handleGetFacebookLeads(req, res) {
               .single();
 
             if (existingLead) {
-              console.log(`⚠️ Lead already exists: ${lead.email}, skipping...`);
+              logger.info(`⚠️ Lead already exists: ${lead.email}, skipping...`);
               continue;
             }
 
@@ -162,19 +164,19 @@ async function handleGetFacebookLeads(req, res) {
 
             if (!error && savedLead) {
               savedLeads.push(savedLead);
-              console.log(`✅ Saved Facebook lead: ${lead.email}`);
+              logger.info(`✅ Saved Facebook lead: ${lead.email}`);
             } else {
-              console.error(`❌ Error saving lead ${lead.email}:`, error);
+              logger.error(`❌ Error saving lead ${lead.email}:`, error);
             }
 
           } catch (saveError) {
-            console.error(`❌ Error processing lead ${lead.email}:`, saveError);
+            logger.error(`❌ Error processing lead ${lead.email}:`, saveError);
             continue;
           }
         }
 
       } catch (dbError) {
-        console.error('❌ Database error during lead sync:', dbError);
+        logger.error('❌ Database error during lead sync:', dbError);
       }
     }
 
@@ -196,7 +198,7 @@ async function handleGetFacebookLeads(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ Facebook API fetch error:', error);
+    logger.error('❌ Facebook API fetch error:', error);
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch Facebook leads',
@@ -207,7 +209,7 @@ async function handleGetFacebookLeads(req, res) {
 
 // 🔄 TRANSFORM FACEBOOK LEAD DATA TO CRM FORMAT
 function transformFacebookLead(fbLead, form) {
-  console.log('🔄 Transforming Facebook lead:', fbLead.id);
+  logger.info('🔄 Transforming Facebook lead:', fbLead.id);
 
   // Extract field data from Facebook lead
   const fieldData = {};
@@ -253,7 +255,7 @@ function transformFacebookLead(fbLead, form) {
 
 // 🔗 WEBHOOK VERIFICATION (Required by Facebook)
 async function handleWebhookVerification(req, res) {
-  console.log('🔗 Facebook webhook verification request');
+  logger.info('🔗 Facebook webhook verification request');
 
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -263,10 +265,10 @@ async function handleWebhookVerification(req, res) {
 
   if (mode && token) {
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('✅ Facebook webhook verified successfully');
+      logger.info('✅ Facebook webhook verified successfully');
       return res.status(200).send(challenge);
     } else {
-      console.error('❌ Facebook webhook verification failed - invalid token');
+      logger.error('❌ Facebook webhook verification failed - invalid token');
       return res.status(403).send('Forbidden');
     }
   }
@@ -276,7 +278,7 @@ async function handleWebhookVerification(req, res) {
 
 // 📨 WEBHOOK RECEIVER (Real-time lead notifications from Facebook)
 async function handleWebhookReceiver(req, res) {
-  console.log('📨 Facebook webhook notification received');
+  logger.info('📨 Facebook webhook notification received');
 
   try {
     const body = req.body;
@@ -293,7 +295,7 @@ async function handleWebhookReceiver(req, res) {
           entry.changes.forEach(async (change) => {
             if (change.field === 'leadgen') {
               const leadgenId = change.value.leadgen_id;
-              console.log(`🎯 New Facebook lead received: ${leadgenId}`);
+              logger.info(`🎯 New Facebook lead received: ${leadgenId}`);
               
               // Fetch the full lead data and process it
               await processFacebookWebhookLead(leadgenId);
@@ -308,19 +310,19 @@ async function handleWebhookReceiver(req, res) {
     }
 
   } catch (error) {
-    console.error('❌ Webhook processing error:', error);
+    logger.error('❌ Webhook processing error:', error);
     return res.status(500).send('Internal Server Error');
   }
 }
 
 // 🎯 PROCESS INDIVIDUAL WEBHOOK LEAD
 async function processFacebookWebhookLead(leadgenId) {
-  console.log(`🎯 Processing Facebook webhook lead: ${leadgenId}`);
+  logger.info(`🎯 Processing Facebook webhook lead: ${leadgenId}`);
 
   const FACEBOOK_ACCESS_TOKEN = process.env.FACEBOOK_ACCESS_TOKEN;
   
   if (!FACEBOOK_ACCESS_TOKEN) {
-    console.error('❌ Missing FACEBOOK_ACCESS_TOKEN for webhook processing');
+    logger.error('❌ Missing FACEBOOK_ACCESS_TOKEN for webhook processing');
     return;
   }
 
@@ -331,7 +333,7 @@ async function processFacebookWebhookLead(leadgenId) {
     const leadData = await response.json();
 
     if (leadData.error) {
-      console.error('❌ Facebook API error:', leadData.error);
+      logger.error('❌ Facebook API error:', leadData.error);
       return;
     }
 
@@ -359,27 +361,27 @@ async function processFacebookWebhookLead(leadgenId) {
           .single();
 
         if (savedLead && !error) {
-          console.log(`✅ Webhook lead saved to CRM: ${transformedLead.email}`);
+          logger.info(`✅ Webhook lead saved to CRM: ${transformedLead.email}`);
           
           // You can add notification logic here
           // await sendNewLeadNotification(savedLead);
           
         } else {
-          console.error('❌ Error saving webhook lead:', error);
+          logger.error('❌ Error saving webhook lead:', error);
         }
       } else {
-        console.log(`⚠️ Webhook lead already exists: ${transformedLead.email}`);
+        logger.info(`⚠️ Webhook lead already exists: ${transformedLead.email}`);
       }
     }
 
   } catch (error) {
-    console.error('❌ Error processing webhook lead:', error);
+    logger.error('❌ Error processing webhook lead:', error);
   }
 }
 
 // 🔄 MANUAL SYNC TRIGGER
 async function handleManualSync(req, res) {
-  console.log('🔄 Manual Facebook leads sync triggered');
+  logger.info('🔄 Manual Facebook leads sync triggered');
 
   const { timeRange = '7d' } = req.body;
 

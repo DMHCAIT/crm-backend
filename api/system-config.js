@@ -1,6 +1,8 @@
 // 🚀 SYSTEM CONFIGURATION API - DYNAMIC DROPDOWN OPTIONS
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,12 +17,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ System Config API: Supabase initialized');
+    logger.info('✅ System Config API: Supabase initialized');
   } else {
-    console.log('❌ System Config API: Supabase credentials missing');
+    logger.info('❌ System Config API: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ System Config API: Supabase initialization failed:', error.message);
+  logger.info('❌ System Config API: Supabase initialization failed:', error.message);
 }
 
 // Default configuration keys
@@ -81,7 +83,7 @@ module.exports = async (req, res) => {
         const { data: configs, error } = await query;
 
         if (error) {
-          console.error('❌ Error fetching system config:', error.message);
+          logger.error('❌ Error fetching system config:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch system configuration',
@@ -127,7 +129,7 @@ module.exports = async (req, res) => {
         }
 
       } catch (error) {
-        console.error('❌ Database error:', error.message);
+        logger.error('❌ Database error:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -172,7 +174,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.error('❌ Error creating/updating config:', error.message);
+          logger.error('❌ Error creating/updating config:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to create/update configuration',
@@ -180,7 +182,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Created/updated config ${configKey} by ${user.username}`);
+        logger.info(`✅ Created/updated config ${configKey} by ${user.username}`);
 
         return res.json({
           success: true,
@@ -195,7 +197,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error creating config:', error.message);
+        logger.error('❌ Database error creating config:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -242,7 +244,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.error('❌ Error updating config:', error.message);
+          logger.error('❌ Error updating config:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to update configuration',
@@ -257,7 +259,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Updated config ${configKey} by ${user.username}`);
+        logger.info(`✅ Updated config ${configKey} by ${user.username}`);
 
         return res.json({
           success: true,
@@ -272,7 +274,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error updating config:', error.message);
+        logger.error('❌ Database error updating config:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -308,7 +310,7 @@ module.exports = async (req, res) => {
           .eq('config_key', configKey);
 
         if (error) {
-          console.error('❌ Error deleting config:', error.message);
+          logger.error('❌ Error deleting config:', error.message);
           return res.status(500).json({
             success: false,
             error: 'Failed to delete configuration',
@@ -316,7 +318,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Deleted config ${configKey} by ${user.username}`);
+        logger.info(`✅ Deleted config ${configKey} by ${user.username}`);
 
         return res.json({
           success: true,
@@ -324,7 +326,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.error('❌ Database error deleting config:', error.message);
+        logger.error('❌ Database error deleting config:', error.message);
         return res.status(500).json({
           success: false,
           error: 'Database operation failed',
@@ -339,7 +341,7 @@ module.exports = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Authentication error:', error.message);
+    logger.error('❌ Authentication error:', error.message);
     return res.status(401).json({
       success: false,
       message: error.message

@@ -4,6 +4,8 @@ const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -11,7 +13,7 @@ const supabaseKey = process.env.SUPABASE_KEY;
 let supabase;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase credentials for document management');
+  logger.error('Missing Supabase credentials for document management');
 } else {
   supabase = createClient(supabaseUrl, supabaseKey);
 }
@@ -92,7 +94,7 @@ router.post('/upload', verifyToken, upload.single('file'), async (req, res) => {
       });
 
     if (uploadError) {
-      console.error('Supabase storage upload error:', uploadError);
+      logger.error('Supabase storage upload error:', uploadError);
       throw uploadError;
     }
 
@@ -139,7 +141,7 @@ router.post('/upload', verifyToken, upload.single('file'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Upload document error:', error);
+    logger.error('Upload document error:', error);
     res.status(500).json({ 
       error: error.message || 'Failed to upload document'
     });
@@ -183,7 +185,7 @@ router.get('/:entityType/:entityId', verifyToken, async (req, res) => {
     res.json({ documents });
 
   } catch (error) {
-    console.error('Get documents error:', error);
+    logger.error('Get documents error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -217,7 +219,7 @@ router.delete('/:id', verifyToken, async (req, res) => {
       .remove([doc.file_path]);
 
     if (storageError) {
-      console.error('Storage delete error:', storageError);
+      logger.error('Storage delete error:', storageError);
       // Continue with database deletion even if storage fails
     }
 
@@ -232,7 +234,7 @@ router.delete('/:id', verifyToken, async (req, res) => {
     res.json({ message: 'Document deleted successfully' });
 
   } catch (error) {
-    console.error('Delete document error:', error);
+    logger.error('Delete document error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -266,7 +268,7 @@ router.get('/file/:id', verifyToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get document error:', error);
+    logger.error('Get document error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -357,7 +359,7 @@ router.post('/bulk-upload', verifyToken, upload.array('files', 10), async (req, 
     });
 
   } catch (error) {
-    console.error('Bulk upload error:', error);
+    logger.error('Bulk upload error:', error);
     res.status(500).json({ error: error.message });
   }
 });

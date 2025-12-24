@@ -4,6 +4,8 @@ const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const cron = require('node-cron');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -11,7 +13,7 @@ const supabaseKey = process.env.SUPABASE_KEY;
 let supabase;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase credentials for scheduled exports');
+  logger.error('Missing Supabase credentials for scheduled exports');
 } else {
   supabase = createClient(supabaseUrl, supabaseKey);
 }
@@ -61,7 +63,7 @@ const exportLeads = async (userId, userRole) => {
     
     return data;
   } catch (error) {
-    console.error('Export leads error:', error);
+    logger.error('Export leads error:', error);
     throw error;
   }
 };
@@ -79,7 +81,7 @@ const exportStudents = async (userId, userRole) => {
     
     return data;
   } catch (error) {
-    console.error('Export students error:', error);
+    logger.error('Export students error:', error);
     throw error;
   }
 };
@@ -137,7 +139,7 @@ const sendExportEmail = async (email, exportType, format, data) => {
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    console.error('Send export email error:', error);
+    logger.error('Send export email error:', error);
     throw error;
   }
 };
@@ -159,7 +161,7 @@ router.get('/', verifyToken, async (req, res) => {
 
     res.json({ schedules: data || [] });
   } catch (error) {
-    console.error('Get scheduled exports error:', error);
+    logger.error('Get scheduled exports error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -197,7 +199,7 @@ router.post('/', verifyToken, async (req, res) => {
 
     res.json({ schedule: data });
   } catch (error) {
-    console.error('Create scheduled export error:', error);
+    logger.error('Create scheduled export error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -229,7 +231,7 @@ router.put('/:id', verifyToken, async (req, res) => {
 
     res.json({ schedule: data });
   } catch (error) {
-    console.error('Update scheduled export error:', error);
+    logger.error('Update scheduled export error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -253,7 +255,7 @@ router.delete('/:id', verifyToken, async (req, res) => {
 
     res.json({ message: 'Scheduled export deleted successfully' });
   } catch (error) {
-    console.error('Delete scheduled export error:', error);
+    logger.error('Delete scheduled export error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -280,7 +282,7 @@ router.post('/:id/run', verifyToken, async (req, res) => {
 
     res.json({ message: 'Export executed successfully' });
   } catch (error) {
-    console.error('Run export error:', error);
+    logger.error('Run export error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -288,7 +290,7 @@ router.post('/:id/run', verifyToken, async (req, res) => {
 // Execute export function
 const executeExport = async (schedule) => {
   try {
-    console.log(`Executing export: ${schedule.name}`);
+    logger.info(`Executing export: ${schedule.name}`);
     
     let data;
     switch (schedule.export_type) {
@@ -313,9 +315,9 @@ const executeExport = async (schedule) => {
       })
       .eq('id', schedule.id);
 
-    console.log(`Export completed: ${schedule.name}`);
+    logger.info(`Export completed: ${schedule.name}`);
   } catch (error) {
-    console.error(`Export failed: ${schedule.name}`, error);
+    logger.error(`Export failed: ${schedule.name}`, error);
     
     // Update status to error
     await supabase
@@ -389,7 +391,7 @@ const scheduleExportJob = (schedule) => {
   });
 
   scheduledJobs.set(schedule.id, job);
-  console.log(`Scheduled export job: ${schedule.name} (${cronExpression})`);
+  logger.info(`Scheduled export job: ${schedule.name} (${cronExpression})`);
 };
 
 // Load and schedule all active exports on startup
@@ -408,9 +410,9 @@ const initializeSchedules = async () => {
       scheduleExportJob(schedule);
     });
 
-    console.log(`Initialized ${data.length} scheduled exports`);
+    logger.info(`Initialized ${data.length} scheduled exports`);
   } catch (error) {
-    console.error('Initialize schedules error:', error);
+    logger.error('Initialize schedules error:', error);
   }
 };
 

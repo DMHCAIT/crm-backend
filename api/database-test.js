@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 let supabase;
@@ -8,12 +10,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Database Test: Supabase initialized');
+    logger.info('✅ Database Test: Supabase initialized');
   } else {
-    console.log('❌ Database Test: Supabase credentials missing');
+    logger.info('❌ Database Test: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ Database Test: Supabase initialization failed:', error.message);
+  logger.info('❌ Database Test: Supabase initialization failed:', error.message);
 }
 
 module.exports = async (req, res) => {
@@ -89,7 +91,7 @@ module.exports = async (req, res) => {
       });
 
     } catch (error) {
-      console.error('❌ Database test error:', error);
+      logger.error('❌ Database test error:', error);
       return res.status(500).json({
         success: false,
         error: error.message,

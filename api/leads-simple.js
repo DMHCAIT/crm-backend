@@ -1,6 +1,8 @@
 // 🚀 LEADS API WITH DATABASE INTEGRATION
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,12 +17,12 @@ try {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Leads Simple API: Supabase initialized');
+    logger.info('✅ Leads Simple API: Supabase initialized');
   } else {
-    console.log('❌ Leads Simple API: Supabase credentials missing');
+    logger.info('❌ Leads Simple API: Supabase credentials missing');
   }
 } catch (error) {
-  console.log('❌ Leads Simple API: Supabase initialization failed:', error.message);
+  logger.info('❌ Leads Simple API: Supabase initialization failed:', error.message);
 }
 
 // Verify JWT token
@@ -57,7 +59,7 @@ module.exports = async (req, res) => {
   try {
     // Verify authentication for all requests
     const user = verifyToken(req);
-    console.log('🔍 Leads API request from:', user.username);
+    logger.info('🔍 Leads API request from:', user.username);
 
     // Handle different HTTP methods
     if (req.method === 'GET') {
@@ -77,7 +79,7 @@ module.exports = async (req, res) => {
           .order('createdAt', { ascending: false });
 
         if (error) {
-          console.log('❌ Get leads error:', error);
+          logger.info('❌ Get leads error:', error);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch leads',
@@ -93,7 +95,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.log('❌ Get leads error:', error);
+        logger.info('❌ Get leads error:', error);
         return res.status(500).json({
           success: false,
           error: 'Failed to fetch leads',
@@ -148,7 +150,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
-          console.log('❌ Create lead error:', error);
+          logger.info('❌ Create lead error:', error);
           return res.status(500).json({
             success: false,
             error: 'Failed to create lead',
@@ -156,7 +158,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Lead created: ${newLead.fullName} (${newLead.email}) by ${user.username}`);
+        logger.info(`✅ Lead created: ${newLead.fullName} (${newLead.email}) by ${user.username}`);
 
         return res.json({
           success: true,
@@ -165,7 +167,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.log('❌ Create lead error:', error);
+        logger.info('❌ Create lead error:', error);
         return res.status(500).json({
           success: false,
           error: 'Failed to create lead',
@@ -221,7 +223,7 @@ module.exports = async (req, res) => {
           .single();
 
         if (updateError) {
-          console.log('❌ Update lead error:', updateError);
+          logger.info('❌ Update lead error:', updateError);
           return res.status(500).json({
             success: false,
             error: 'Failed to update lead',
@@ -229,7 +231,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        console.log(`✅ Lead updated: ${updatedLead.fullName} (${updatedLead.email}) by ${user.username}`);
+        logger.info(`✅ Lead updated: ${updatedLead.fullName} (${updatedLead.email}) by ${user.username}`);
 
         return res.json({
           success: true,
@@ -238,7 +240,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.log('❌ Update lead error:', error);
+        logger.info('❌ Update lead error:', error);
         return res.status(500).json({
           success: false,
           error: 'Failed to update lead',
@@ -287,7 +289,7 @@ module.exports = async (req, res) => {
           .in('id', leadIds);
 
         if (fetchError) {
-          console.log('❌ Fetch error:', fetchError);
+          logger.info('❌ Fetch error:', fetchError);
           return res.status(500).json({
             success: false,
             error: 'Failed to fetch leads for deletion'
@@ -323,7 +325,7 @@ module.exports = async (req, res) => {
           .in('id', foundLeadIds);
 
         if (deleteError) {
-          console.log('❌ Delete error:', deleteError);
+          logger.info('❌ Delete error:', deleteError);
           return res.status(500).json({
             success: false,
             error: 'Failed to delete leads',
@@ -333,7 +335,7 @@ module.exports = async (req, res) => {
 
         // Log the deletion activity
         const deletedNames = leadsToDelete.map(lead => `${lead.fullName} (${lead.email})`).join(', ');
-        console.log(`✅ ${leadsToDelete.length} lead(s) deleted: ${deletedNames} by ${user.username}`);
+        logger.info(`✅ ${leadsToDelete.length} lead(s) deleted: ${deletedNames} by ${user.username}`);
 
         return res.json({
           success: true,
@@ -346,7 +348,7 @@ module.exports = async (req, res) => {
         });
 
       } catch (error) {
-        console.log('❌ Delete lead error:', error);
+        logger.info('❌ Delete lead error:', error);
         return res.status(500).json({
           success: false,
           error: 'Failed to delete leads',
@@ -356,7 +358,7 @@ module.exports = async (req, res) => {
     }
 
   } catch (error) {
-    console.log('❌ Leads API error:', error.message);
+    logger.info('❌ Leads API error:', error.message);
     return res.status(401).json({
       success: false,
       message: error.message

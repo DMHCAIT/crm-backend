@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase
 const supabase = createClient(
@@ -18,7 +20,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log('🔍 Testing timezone handling for IST (UTC+5:30)...');
+    logger.info('🔍 Testing timezone handling for IST (UTC+5:30)...');
 
     // Current time in different formats
     const now = new Date();
@@ -31,18 +33,18 @@ module.exports = async (req, res) => {
     const istTimeStr = istTime.toISOString().slice(0, 16).replace('Z', '');
     const istDateStr = istTime.toISOString().slice(0, 10);
 
-    console.log('\n⏰ Time Comparison:');
-    console.log(`   UTC: ${utcTime}`);
-    console.log(`   UTC Short: ${utcTimeShort}`);
-    console.log(`   IST: ${istTimeStr} (UTC+5:30)`);
-    console.log(`   IST Date: ${istDateStr}`);
+    logger.info('\n⏰ Time Comparison:');
+    logger.info(`   UTC: ${utcTime}`);
+    logger.info(`   UTC Short: ${utcTimeShort}`);
+    logger.info(`   IST: ${istTimeStr} (UTC+5:30)`);
+    logger.info(`   IST Date: ${istDateStr}`);
 
     // Test: Get today's leads using different time formats
     const istTodayStart = `${istDateStr}T00:00`;
     const istTodayEnd = `${istDateStr}T23:59`;
     
-    console.log('\n🧪 Testing "Today" filter with IST timezone:');
-    console.log(`   Range: ${istTodayStart} to ${istTodayEnd}`);
+    logger.info('\n🧪 Testing "Today" filter with IST timezone:');
+    logger.info(`   Range: ${istTodayStart} to ${istTodayEnd}`);
 
     const { data: todayLeads, error, count } = await supabase
       .from('leads')
@@ -52,11 +54,11 @@ module.exports = async (req, res) => {
 
     if (error) throw error;
 
-    console.log(`✅ Found ${count} leads for today (IST)`);
+    logger.info(`✅ Found ${count} leads for today (IST)`);
 
     // Test: Overdue filter with IST time
-    console.log('\n🧪 Testing "Overdue" filter with IST timezone:');
-    console.log(`   Before: ${istTimeStr}`);
+    logger.info('\n🧪 Testing "Overdue" filter with IST timezone:');
+    logger.info(`   Before: ${istTimeStr}`);
 
     const { data: overdueLeads, error: overdueError, count: overdueCount } = await supabase
       .from('leads')
@@ -65,7 +67,7 @@ module.exports = async (req, res) => {
 
     if (overdueError) throw overdueError;
 
-    console.log(`✅ Found ${overdueCount} overdue leads (IST)`);
+    logger.info(`✅ Found ${overdueCount} overdue leads (IST)`);
 
     // Get some samples to verify
     const todaySamples = todayLeads.slice(0, 5).map(l => ({
@@ -102,7 +104,7 @@ module.exports = async (req, res) => {
     return res.json({ success: true, ...result });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    logger.error('❌ Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message

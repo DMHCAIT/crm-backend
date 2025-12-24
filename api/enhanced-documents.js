@@ -5,6 +5,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
+const logger = require('../utils/logger');
+
 
 // Initialize Supabase conditionally
 let supabase;
@@ -16,7 +18,7 @@ try {
     );
   }
 } catch (error) {
-  console.log('Documents module: Supabase initialization failed:', error.message);
+  logger.info('Documents module: Supabase initialization failed:', error.message);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -136,7 +138,7 @@ module.exports = async (req, res) => {
         res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('Documents API error:', error);
+    logger.error('Documents API error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -318,7 +320,7 @@ async function handleUploadDocument(req, res) {
         document
       });
     } catch (error) {
-      console.error('Document upload error:', error);
+      logger.error('Document upload error:', error);
       res.status(500).json({
         success: false,
         error: 'Document upload failed',
@@ -651,7 +653,7 @@ async function logDocumentActivity(documentId, action, description, userId) {
         timestamp: new Date().toISOString()
       }]);
   } catch (error) {
-    console.error('Failed to log document activity:', error);
+    logger.error('Failed to log document activity:', error);
   }
 }
 
@@ -682,7 +684,7 @@ async function getDocumentStats(studentId = null, leadId = null) {
 
     return stats;
   } catch (error) {
-    console.error('Error getting document stats:', error);
+    logger.error('Error getting document stats:', error);
     return null;
   }
 }
