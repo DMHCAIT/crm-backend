@@ -45,7 +45,7 @@ async function getSubordinateUsers(userId, allUsers) {
   logger.info(`🔍 Finding subordinates for user ID: ${userId}`);
   console.log(`🔍 Available users with reports_to:`, allUsers.map(u => ({
     id: u.id,
-    name: u.name,
+    name: u.fullName || u.username,
     username: u.username,
     role: u.role,
     reports_to: u.reports_to
@@ -57,7 +57,7 @@ async function getSubordinateUsers(userId, allUsers) {
     
     allUsers.forEach(user => {
       if (user.reports_to === supervisorId) {
-        logger.info(`📋 Found subordinate: ${user.name} (${user.role}) reports to ${supervisorId}`);
+        logger.info(`📋 Found subordinate: ${user.fullName || user.username} (${user.role}) reports to ${supervisorId}`);
         subordinates.push(user);
         findSubordinates(user.id);
       }
@@ -99,7 +99,7 @@ module.exports = async (req, res) => {
           .from('users')
           .select('*')
           .eq('status', 'active')
-          .order('name');
+          .order('fullName');
 
         if (error) {
           logger.error('❌ Error fetching users:', error.message);
@@ -126,7 +126,7 @@ module.exports = async (req, res) => {
           jwtEmail: jwtUser.email,
           foundUser: currentUser ? {
             id: currentUser.id,
-            name: currentUser.name,
+            name: currentUser.fullName || currentUser.username,
             username: currentUser.username,
             email: currentUser.email,
             role: currentUser.role
@@ -141,7 +141,7 @@ module.exports = async (req, res) => {
             details: {
               jwtUsername: jwtUser.username,
               jwtEmail: jwtUser.email,
-              availableUsers: allUsers.map(u => ({ username: u.username, email: u.email, name: u.name }))
+              availableUsers: allUsers.map(u => ({ username: u.username, email: u.email, fullName: u.fullName }))
             }
           });
         }
@@ -155,24 +155,26 @@ module.exports = async (req, res) => {
         // User can assign to themselves
         assignableUsers.push({
           id: currentUser.id,
-          name: currentUser.name,
+          name: currentUser.fullName || currentUser.name,
+          fullName: currentUser.fullName || currentUser.name,
           username: currentUser.username,
           email: currentUser.email,
           role: currentUser.role,
           department: currentUser.department,
-          display_name: `${currentUser.name} (${currentUser.role}) - You`
+          display_name: `${currentUser.fullName || currentUser.name} (${currentUser.role}) - You`
         });
         
         // User can assign to their subordinates
         subordinates.forEach(subordinate => {
           assignableUsers.push({
             id: subordinate.id,
-            name: subordinate.name,
+            name: subordinate.fullName || subordinate.name,
+            fullName: subordinate.fullName || subordinate.name,
             username: subordinate.username,
             email: subordinate.email,
             role: subordinate.role,
             department: subordinate.department,
-            display_name: `${subordinate.name} (${subordinate.role}) - ${subordinate.department || 'No Department'}`
+            display_name: `${subordinate.fullName || subordinate.name} (${subordinate.role}) - ${subordinate.department || 'No Department'}`
           });
         });
 
@@ -183,12 +185,13 @@ module.exports = async (req, res) => {
             if (!assignableUsers.find(au => au.id === u.id)) {
               assignableUsers.push({
                 id: u.id,
-                name: u.name,
+                name: u.fullName || u.name,
+                fullName: u.fullName || u.name,
                 username: u.username,
                 email: u.email,
                 role: u.role,
                 department: u.department,
-                display_name: `${u.name} (${u.role}) - ${u.department || 'No Department'}`
+                display_name: `${u.fullName || u.name} (${u.role}) - ${u.department || 'No Department'}`
               });
             }
           });

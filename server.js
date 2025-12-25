@@ -205,7 +205,7 @@ async function getUsersBelowLevel(currentUserRole) {
 
     return subordinateUsers.map(user => ({
       id: user.id,
-      name: user.name || user.email,
+      name: user.fullName || user.username || user.email,
       email: user.email,
       role: user.role
     }));
@@ -715,7 +715,7 @@ app.post('/api/simple-auth/login', async (req, res) => {
               user: {
                 id: user.id,
                 username: user.username,
-                name: user.name,
+                name: user.fullName || user.username,
                 email: user.email,
                 role: user.role,
                 department: user.department,
@@ -831,7 +831,7 @@ app.post('/api/auth/login', async (req, res) => {
               user: {
                 id: user.id,
                 username: user.username,
-                name: user.name,
+                name: user.fullName || user.username,
                 email: user.email,
                 role: user.role,
                 department: user.department,
@@ -1666,7 +1666,7 @@ app.post('/api/users', async (req, res) => {
     
     // Prepare user data with proper structure (matching actual database schema)
     const userToInsert = {
-      name: userData.name,
+      fullName: userData.name,
       username: username, // Required field in database
       email: userData.email,
       password_hash: hashedPassword, // Use properly hashed password
@@ -1760,7 +1760,7 @@ app.put('/api/users', async (req, res) => {
     };
 
     // Update fields if provided
-    if (userData.name) updateData.name = userData.name;
+    if (userData.name) updateData.fullName = userData.name;
     if (userData.username) updateData.username = userData.username;
     if (userData.email) updateData.email = userData.email;
     if (userData.phone !== undefined) updateData.phone = userData.phone;
@@ -1967,7 +1967,7 @@ app.get('/api/users/me', async (req, res) => {
       
       const userProfile = {
         id: dbUser.id,
-        name: dbUser.name,
+        name: dbUser.fullName || dbUser.username,
         email: dbUser.email,
         role: dbUser.role || 'user',
         department: dbUser.department || 'DMHCA',
@@ -2049,9 +2049,9 @@ app.get('/api/assignable-users', async (req, res) => {
       // Get all active users first
       const { data: allUsers, error } = await supabase
         .from('users')
-        .select('id, name, username, email, role, status')
+        .select('id, "fullName", username, email, role, status, reports_to')
         .eq('status', 'active')
-        .order('name');
+        .order('"fullName"');
       
       if (error) {
         console.error('❌ Database query error:', error);
@@ -2102,9 +2102,9 @@ app.get('/api/assignable-users', async (req, res) => {
             const subordinates = getSubordinates(currentDbUser.id);
             assignableUsers = subordinates;
             
-            console.log(`📊 Found ${subordinates.length} subordinates for ${currentDbUser.name}:`);
+            console.log(`📊 Found ${subordinates.length} subordinates for ${currentDbUser.fullName || currentDbUser.username}:`);
             subordinates.forEach(sub => {
-              console.log(`  - ${sub.name} (${sub.role}) reports to: ${allUsers.find(u => u.id === sub.reports_to)?.name || 'None'}`);
+              console.log(`  - ${sub.fullName || sub.username} (${sub.role}) reports to: ${allUsers.find(u => u.id === sub.reports_to)?.fullName || 'None'}`);
             });
           }
         } else {
@@ -2141,7 +2141,7 @@ app.get('/api/assignable-users', async (req, res) => {
     
     // Format response with safe field access
     const formattedUsers = assignableUsers.map(u => {
-      const name = u.name || u.username || 'Unknown User';
+      const name = u.fullName || u.name || u.username || 'Unknown User';
       const username = u.username || u.email?.split('@')[0] || 'unknown';
       const email = u.email || '';
       const role = u.role || 'user';
@@ -2149,6 +2149,7 @@ app.get('/api/assignable-users', async (req, res) => {
       return {
         id: u.id,
         name: name,
+        fullName: name,
         username: username,
         email: email,
         role: role,
@@ -2177,6 +2178,150 @@ app.get('/api/assignable-users', async (req, res) => {
 
 // OPTIONS handler for assignable-users endpoint
 app.options('/api/assignable-users', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+// BULK TRANSFER LEADS API - Transfer multiple leads to another counselor
+app.put('/api/leads/bulk-transfer', async (req, res) => {
+  console.log('🔄 Bulk transfer leads API called');
+  
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  try {
+    // Authenticate user
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secret-production-key-2024';
+    
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
+    }
+    
+    const token = authHeader.substring(7);
+    const user = jwt.verify(token, JWT_SECRET);
+    console.log(`🔄 Bulk transfer requested by ${user.username} (${user.role})`);
+    
+    const { leadIds, targetUserId, reason } = req.body;
+    
+    // Validate input
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'leadIds array is required and must not be empty'
+      });
+    }
+    
+    if (!targetUserId) {
+      return res.status(400).json({
+        success: false,
+        error: 'targetUserId is required'
+      });
+    }
+    
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+    
+    // Verify target user exists
+    const { data: targetUser, error: userError } = await supabase
+      .from('users')
+      .select('id, "fullName", username, role')
+      .eq('id', targetUserId)
+      .single();
+    
+    if (userError || !targetUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'Target user not found'
+      });
+    }
+    
+    // Get leads to be transferred
+    const { data: leadsToTransfer, error: fetchError } = await supabase
+      .from('leads')
+      .select('id, "fullName", email, assigned_to')
+      .in('id', leadIds);
+    
+    if (fetchError) {
+      console.error('❌ Error fetching leads:', fetchError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch leads',
+        details: fetchError.message
+      });
+    }
+    
+    if (!leadsToTransfer || leadsToTransfer.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No leads found with the provided IDs'
+      });
+    }
+    
+    // Update all leads with new assignment
+    const { data: updatedLeads, error: updateError } = await supabase
+      .from('leads')
+      .update({
+        assigned_to: targetUserId,
+        updated_at: new Date().toISOString(),
+        updated_by: user.username
+      })
+      .in('id', leadIds)
+      .select();
+    
+    if (updateError) {
+      console.error('❌ Error updating leads:', updateError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to transfer leads',
+        details: updateError.message
+      });
+    }
+    
+    // Log the transfer activity
+    const transferredNames = leadsToTransfer.map(l => l.fullName || l.email).join(', ');
+    console.log(`✅ ${updatedLeads.length} lead(s) transferred to ${targetUser.fullName || targetUser.username}: ${transferredNames}`);
+    console.log(`📝 Transfer reason: ${reason || 'Not specified'}`);
+    
+    return res.json({
+      success: true,
+      message: `${updatedLeads.length} lead(s) transferred successfully`,
+      transferredCount: updatedLeads.length,
+      targetUser: {
+        id: targetUser.id,
+        name: targetUser.fullName || targetUser.username,
+        username: targetUser.username
+      },
+      leads: updatedLeads.map(lead => ({
+        id: lead.id,
+        name: lead.fullName || lead.full_name
+      }))
+    });
+    
+  } catch (error) {
+    console.error('❌ Bulk transfer error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to transfer leads',
+      details: error.message
+    });
+  }
+});
+
+// OPTIONS handler for bulk transfer endpoint
+app.options('/api/leads/bulk-transfer', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -2274,7 +2419,7 @@ app.get('/api/users/:userId/subordinates', async (req, res) => {
       const reportsTo = allUsers.find(u => u.id === sub.reports_to);
       return {
         ...sub,
-        reportsToName: reportsTo ? reportsTo.name : null,
+        reportsToName: reportsTo ? (reportsTo.fullName || reportsTo.username) : null,
         reportsToRole: reportsTo ? reportsTo.role : null,
         level: getHierarchyLevel(sub.id, allUsers)
       };
@@ -2950,23 +3095,24 @@ app.get('/api/user-activity-stats', async (req, res) => {
     // Create a map of usernames to user info for quick lookup
     const userMap = new Map();
     users?.forEach(user => {
-      const username = user.username || user.name || user.email?.split('@')[0];
-      userMap.set(user.id, { ...user, displayName: user.name || username });
-      userMap.set(username, { ...user, displayName: user.name || username });
-      if (user.email) userMap.set(user.email, { ...user, displayName: user.name || username });
-      if (user.name) userMap.set(user.name, { ...user, displayName: user.name });
+      const username = user.username || user.fullName || user.email?.split('@')[0];
+      const displayName = user.fullName || username;
+      userMap.set(user.id, { ...user, displayName });
+      userMap.set(username, { ...user, displayName });
+      if (user.email) userMap.set(user.email, { ...user, displayName });
+      if (user.fullName) userMap.set(user.fullName, { ...user, displayName });
     });
 
     // Calculate stats for each user
     const userStats = (users || []).map(user => {
-      const username = user.username || user.name || user.email?.split('@')[0];
-      const displayName = user.name || username;
+      const username = user.username || user.fullName || user.email?.split('@')[0];
+      const displayName = user.fullName || username;
 
       // Find leads assigned to this user (check multiple assignment fields)
       const userLeads = (leads || []).filter(lead => {
         const assignedTo = lead.assigned_to || lead.assignedTo || lead.assignedcounselor || '';
         return assignedTo === username || 
-               assignedTo === user.name || 
+               assignedTo === user.fullName || 
                assignedTo === user.email ||
                assignedTo === user.id;
       });

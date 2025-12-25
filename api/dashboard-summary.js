@@ -195,7 +195,7 @@ module.exports = async (req, res) => {
       user: {
         id: userId,
         role: userRole,
-        name: userDetails.name,
+        name: userDetails.fullName || userDetails.username,
         email: userEmail
       },
       timestamp: new Date().toISOString()
