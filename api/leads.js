@@ -590,15 +590,6 @@ module.exports = async (req, res) => {
           query = query.eq('company', companyFilter);
         }
         
-        // Apply branch access control filter
-        const allowedBranches = getAllowedBranches(user);
-        if (allowedBranches) {
-          logger.info(`🏢 Branch Access: User ${user.username} restricted to branches: ${allowedBranches.join(', ')}`);
-          query = query.in('branch', allowedBranches);
-        } else {
-          logger.info(`🏢 Branch Access: User ${user.username} has access to all branches`);
-        }
-        
         // Apply date filter (for updated_at)
         if (dateFilterType) {
           logger.info('📅 Processing Updated Date Filter:', { dateFilterType, updatedDateFrom, updatedDateTo, updatedDateFilterType, updatedSpecificDate });
@@ -1146,12 +1137,6 @@ module.exports = async (req, res) => {
             } else {
               statsQuery = statsQuery.in('assigned_to', accessibleUserIds);
             }
-          }
-
-          // Apply branch access control filter for stats
-          const allowedBranches = getAllowedBranches(user);
-          if (allowedBranches) {
-            statsQuery = statsQuery.in('branch', allowedBranches);
           }
 
           const { data: allLeads, error: statsError, count: statsCount } = await statsQuery;

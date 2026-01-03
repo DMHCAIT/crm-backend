@@ -38,20 +38,16 @@ function verifyToken(req) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-// Branch Access Control - Simple rule: Only Rubeena gets all branches, others get Delhi + Hyderabad
-function getAllowedBranches(user) {
-  // Rubeena gets access to all branches
+// User Visibility Control - Only Rubeena can see all users, others see limited users
+function getAllowedUserIds(user) {
+  // Rubeena gets access to all users
   if (user.username && user.username.toLowerCase() === 'rubeena') {
-    return null; // null means no branch filtering (access to all)
+    return null; // null means no user filtering (can see all users)
   }
   
-  // Super admins get restricted to Delhi and Hyderabad only
-  if (user.role === 'super_admin' || user.role === 'admin') {
-    return ['Delhi Branch', 'Hyderabad Branch'];
-  }
-  
-  // For other roles, apply full restrictions based on role hierarchy
-  return ['Delhi Branch', 'Hyderabad Branch'];
+  // For now, let's return null to allow all users to be visible
+  // This can be configured later with specific user restrictions
+  return null;
 }
 
 module.exports = async (req, res) => {
@@ -123,14 +119,13 @@ module.exports = async (req, res) => {
           }
         }
 
-        // Apply branch access control filter for users
-        const allowedBranches = getAllowedBranches(user);
-        if (allowedBranches && allowedBranches.length > 0) {
-          logger.info(`🏢 User Branch Access: User ${user.username} restricted to branches: ${allowedBranches.join(', ')}`);
-          // Filter users by their branch if they have one
-          query = query.or(`branch.in.(${allowedBranches.join(',')}),branch.is.null`);
+        // Apply user visibility control filter
+        const allowedUserIds = getAllowedUserIds(user);
+        if (allowedUserIds && allowedUserIds.length > 0) {
+          logger.info(`👥 User Visibility: User ${user.username} restricted to specific users`);
+          query = query.in('id', allowedUserIds);
         } else {
-          logger.info(`🏢 User Branch Access: User ${user.username} has access to all branches`);
+          logger.info(`👥 User Visibility: User ${user.username} has access to all users`);
         }
 
         const { data: users, error } = await query;
