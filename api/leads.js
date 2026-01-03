@@ -329,6 +329,22 @@ function calculatePipelineStats(leads) {
   };
 }
 
+// Branch Access Control - Simple rule: Only Rubeena gets all branches, others get Delhi + Hyderabad
+function getAllowedBranches(user) {
+  // Rubeena gets access to all branches
+  if (user.username && user.username.toLowerCase() === 'rubeena') {
+    return null; // null means no branch filtering (access to all)
+  }
+  
+  // Super admins get restricted to Delhi and Hyderabad only
+  if (user.role === 'super_admin' || user.role === 'admin') {
+    return ['Delhi Branch', 'Hyderabad Branch'];
+  }
+  
+  // For other roles, apply full restrictions based on role hierarchy
+  return ['Delhi Branch', 'Hyderabad Branch'];
+}
+
 // Log lead activity
 async function logLeadActivity(leadId, activityType, description, performedBy, oldValue = null, newValue = null) {
   if (!supabase) return;
@@ -572,6 +588,15 @@ module.exports = async (req, res) => {
         // Apply company filter
         if (companyFilter && companyFilter !== 'all') {
           query = query.eq('company', companyFilter);
+        }
+        
+        // Apply branch access control filter
+        const allowedBranches = getAllowedBranches(user);
+        if (allowedBranches) {
+          logger.info(`🏢 Branch Access: User ${user.username} restricted to branches: ${allowedBranches.join(', ')}`);
+          query = query.in('branch', allowedBranches);
+        } else {
+          logger.info(`🏢 Branch Access: User ${user.username} has access to all branches`);
         }
         
         // Apply date filter (for updated_at)
@@ -1121,6 +1146,12 @@ module.exports = async (req, res) => {
             } else {
               statsQuery = statsQuery.in('assigned_to', accessibleUserIds);
             }
+          }
+
+          // Apply branch access control filter for stats
+          const allowedBranches = getAllowedBranches(user);
+          if (allowedBranches) {
+            statsQuery = statsQuery.in('branch', allowedBranches);
           }
 
           const { data: allLeads, error: statsError, count: statsCount } = await statsQuery;
