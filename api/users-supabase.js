@@ -141,11 +141,17 @@ module.exports = async (req, res) => {
 
         logger.info(`✅ Fetched ${users?.length || 0} users from database`);
 
+        // Map fullName to name field for frontend compatibility
+        const processedUsers = (users || []).map(user => ({
+          ...user,
+          name: user.fullName || user.name || user.username || 'Unknown'
+        }));
+
         return res.json({
           success: true,
-          data: users || [],
-          totalCount: users?.length || 0,
-          message: `Found ${users?.length || 0} users`
+          data: processedUsers,
+          totalCount: processedUsers.length,
+          message: `Found ${processedUsers.length} users`
         });
 
       } catch (error) {
