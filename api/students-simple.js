@@ -162,8 +162,8 @@ module.exports = async (req, res) => {
 
         let enrolledLeads = [];
 
-        // Super admin sees all enrolled leads
-        if (currentUserData.role === 'super_admin') {
+        // Super admin and admin sees all enrolled leads
+        if (currentUserData.role === 'super_admin' || currentUserData.role === 'admin') {
           const { data: allEnrolledLeads, error } = await supabase
             .from('leads')
             .select('*')

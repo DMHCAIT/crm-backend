@@ -906,7 +906,7 @@ module.exports = async (req, res) => {
         logger.info(`📄 Applied pagination: offset=${offset}, limit=${pageSize}`);
         
         // Filter at database level based on role and hierarchy
-        if (user.role !== 'super_admin') {
+        if (user.role !== 'super_admin' && user.role !== 'admin') {
           // Get subordinate usernames for hierarchical access
           const subordinateUsernames = user.id ? await getSubordinateUsernames(user.id) : [];
           logger.info(`🏢 User ${user.username} supervises: [${subordinateUsernames.join(', ')}]`);
@@ -1114,7 +1114,7 @@ module.exports = async (req, res) => {
             .select('status, created_at, updated_at');
 
           // Apply same user access filters for stats
-          if (user.role !== 'super_admin') {
+          if (user.role !== 'super_admin' && user.role !== 'admin') {
             const accessibleUserIds = await getUserAccessibleIds(user);
             if (accessibleUserIds.length === 0) {
               statsQuery = statsQuery.eq('assigned_to', user.id);
@@ -1210,7 +1210,7 @@ module.exports = async (req, res) => {
 
         // Check if user has access to add notes to this lead
         const hasAccess = await canAccessLead(lead, user);
-        if (!hasAccess && user.role !== 'super_admin') {
+        if (!hasAccess && user.role !== 'super_admin' && user.role !== 'admin') {
           return res.status(403).json({
             success: false,
             error: 'Access denied: You can only add notes to leads assigned to you or your subordinates'
@@ -1438,12 +1438,12 @@ module.exports = async (req, res) => {
           const unauthorizedLeads = [];
           for (const lead of leadsToDelete) {
             const hasAccess = await canAccessLead(lead, user);
-            if (!hasAccess && user.role !== 'super_admin') {
+            if (!hasAccess && user.role !== 'super_admin' && user.role !== 'admin') {
               unauthorizedLeads.push(lead.id);
             }
           }
 
-          if (unauthorizedLeads.length > 0 && user.role !== 'super_admin') {
+          if (unauthorizedLeads.length > 0 && user.role !== 'super_admin' && user.role !== 'admin') {
             return res.status(403).json({
               success: false,
               error: `Access denied: You cannot delete ${unauthorizedLeads.length} lead(s) as they are not assigned to you or your subordinates`,
@@ -1707,7 +1707,7 @@ module.exports = async (req, res) => {
 
         // Check if user has access to this lead
         const hasAccess = await canAccessLead(existingLead, user);
-        if (!hasAccess && user.role !== 'super_admin') {
+        if (!hasAccess && user.role !== 'super_admin' && user.role !== 'admin') {
           return res.status(403).json({
             success: false,
             error: 'Access denied: You can only update leads assigned to you or your subordinates'
@@ -1876,7 +1876,7 @@ module.exports = async (req, res) => {
 
         // Check if user has access to delete this lead
         const hasAccess = await canAccessLead(leadToDelete, user);
-        if (!hasAccess && user.role !== 'super_admin') {
+        if (!hasAccess && user.role !== 'super_admin' && user.role !== 'admin') {
           return res.status(403).json({
             success: false,
             error: 'Access denied: You can only delete leads assigned to you or your subordinates'
