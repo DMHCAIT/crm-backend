@@ -85,10 +85,29 @@ module.exports = async (req, res) => {
     // GET /api/users-supabase - Get all users
     if (req.method === 'GET') {
       try {
-        const { data: users, error } = await supabase
+        let query = supabase
           .from('users')
           .select('*')
           .order('created_at', { ascending: false });
+
+        // If user is super_admin, check for restrictions
+        if (user.role === 'super_admin') {
+          // Get list of users this super_admin is restricted from seeing
+          const { data: restrictions } = await supabase
+            .from('user_restrictions')
+            .select('restricted_user_id')
+            .eq('restricted_user_id', user.userId) // This super_admin is restricted
+            .eq('restriction_type', 'user_access')
+            .eq('is_active', true);
+
+          if (restrictions && restrictions.length > 0) {
+            const restrictedUserIds = restrictions.map(r => r.restricted_user_id);
+            query = query.not('id', 'in', `(${restrictedUserIds.join(',')})`);
+            logger.info(`🔒 Applied ${restrictions.length} user restrictions for super_admin ${user.username}`);
+          }
+        }
+
+        const { data: users, error } = await query;
 
         if (error) {
           logger.error('❌ Error fetching users:', error.message);
@@ -184,7 +203,7 @@ module.exports = async (req, res) => {
 
         // Create new user
         const userData = {
-          name,
+          fullName: name, // Map name to fullName for database
           username,
           email,
           role,
@@ -305,7 +324,7 @@ module.exports = async (req, res) => {
         };
 
         // Only update fields that are provided
-        if (name !== undefined) updateData.name = name;
+        if (name !== undefined) updateData.fullName = name; // Map name to fullName for database
         if (email !== undefined) updateData.email = email;
         if (role !== undefined) updateData.role = role;
         if (status !== undefined) updateData.status = status;

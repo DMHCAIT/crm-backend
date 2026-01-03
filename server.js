@@ -171,6 +171,7 @@ app.use((req, res, next) => {
 
 // Define role hierarchy - higher numbers mean higher authority
 const ROLE_HIERARCHY = {
+  'admin': 110,
   'super-admin': 100,
   'admin': 90,
   'manager': 80,
@@ -3376,6 +3377,11 @@ try {
   const usersSupabaseHandler = require('./api/users-supabase.js');
   app.all('/api/users-supabase', usersSupabaseHandler);
   app.all('/api/users-supabase/*', usersSupabaseHandler);
+  
+  // User Restrictions API (Admin only)
+  const userRestrictionsHandler = require('./api/user-restrictions.js');
+  app.all('/api/user-restrictions', userRestrictionsHandler);
+  app.all('/api/user-restrictions/*', userRestrictionsHandler);
   console.log('✅ Users Supabase API loaded successfully');
 
   // Students API handler - ADDED FOR DASHBOARD INTEGRATION  

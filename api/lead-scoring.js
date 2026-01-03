@@ -75,7 +75,7 @@ function calculateLeadScore(lead, activities = []) {
   else scoreBreakdown.recency = 0;
 
   // 3. SOURCE QUALITY SCORE (0-20 points)
-  const sourceScores: { [key: string]: number } = {
+  const sourceScores = {
     'Referral': 20,
     'Website': 18,
     'LinkedIn': 17,
@@ -96,7 +96,7 @@ function calculateLeadScore(lead, activities = []) {
   scoreBreakdown.profile = Math.round((completedFields / fields.length) * 15);
 
   // 5. BEHAVIORAL SIGNALS SCORE (0-10 points)
-  const statusScores: { [key: string]: number } = {
+  const statusScores = {
     'Hot': 10,
     'Warm': 7,
     'Follow Up': 5,
@@ -164,7 +164,7 @@ function predictChurn(lead, activities = []) {
     const previousStatus = latestChange.metadata?.from_status;
     const currentStatus = latestChange.metadata?.to_status;
     
-    const statusRank: { [key: string]: number } = {
+    const statusRank = {
       'Hot': 5,
       'Warm': 4,
       'Follow Up': 3,
@@ -210,7 +210,7 @@ function predictChurn(lead, activities = []) {
 // =====================================================
 // CHURN RECOMMENDATIONS
 // =====================================================
-function getChurnRecommendations(risk: number, lead: any, daysSinceContact: number) {
+function getChurnRecommendations(risk, lead, daysSinceContact) {
   const recs = [];
 
   if (risk > 70) {
@@ -246,7 +246,7 @@ function getChurnRecommendations(risk: number, lead: any, daysSinceContact: numb
 // =====================================================
 // NEXT BEST ACTION RECOMMENDATIONS
 // =====================================================
-function getNextBestAction(lead: any, activities: any[] = []) {
+function getNextBestAction(lead, activities = []) {
   const daysSinceContact = Math.floor(
     (Date.now() - new Date(lead.last_contact || lead.updated_at || lead.created_at).getTime()) / 
     (1000 * 60 * 60 * 24)
@@ -588,7 +588,7 @@ module.exports = async (req, res) => {
       error: 'Endpoint not found'
     });
 
-  } catch (error: any) {
+  } catch (error) {
     logger.error('❌ Lead Scoring API Error:', error);
     return res.status(500).json({
       success: false,

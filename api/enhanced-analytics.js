@@ -1060,10 +1060,4 @@ async function handlePipelineVelocity(req, res) {
       error: error.message || 'Internal server error'
     });
   }
-}
-    eventCounts[event.event_type] = (eventCounts[event.event_type] || 0) + 1;
-  });
-  return Object.entries(eventCounts)
-    .sort(([,a], [,b]) => b - a)
-    .slice(0, 5);
-}
+};

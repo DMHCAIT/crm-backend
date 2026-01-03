@@ -2,6 +2,28 @@
 // Defines what features each role can access
 
 const ROLE_PERMISSIONS = {
+  admin: {
+    dashboard: true,
+    crm_pipeline: true,
+    lead_management: true,
+    lead_monitoring: true,
+    facebook_integration: true,
+    unified_inbox: true,
+    communications_hub: true,
+    course_enrollments: true,
+    crm_analytics: true,
+    documents: true,
+    automations: true,
+    integrations: true,
+    data_export: true,
+    profile: true,
+    user_management: true,
+    user_restrictions: true,
+    branch_management: true,
+    super_admin_control: true,
+    settings: true
+  },
+  
   super_admin: {
     dashboard: true,
     crm_pipeline: true,
@@ -135,11 +157,15 @@ const FEATURE_DESCRIPTIONS = {
   data_export: "Export data to various formats",
   profile: "User profile management",
   user_management: "Create and manage team members",
+  user_restrictions: "Restrict user access for super admins",
+  branch_management: "Manage branch access and restrictions", 
+  super_admin_control: "Control super admin permissions and access",
   settings: "System settings and configuration"
 };
 
 // Role hierarchy (higher numbers have more permissions)
 const ROLE_HIERARCHY = {
+  admin: 110,
   super_admin: 100,
   senior_manager: 90,
   manager: 70,
