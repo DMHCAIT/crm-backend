@@ -265,9 +265,15 @@ module.exports = async (req, res) => {
 
         logger.info(`✅ Created user: ${newUser.fullName} (${newUser.username})`);
 
+        // Map fullName back to name for frontend compatibility
+        const userResponse = {
+          ...newUser,
+          name: newUser.fullName
+        };
+
         return res.json({
           success: true,
-          data: newUser,
+          data: userResponse,
           message: 'User created successfully'
         });
 
@@ -398,11 +404,17 @@ module.exports = async (req, res) => {
           });
         }
 
-        logger.info(`✅ Updated user: ${updatedUser.name} (${updatedUser.username})`);
+        logger.info(`✅ Updated user: ${updatedUser.fullName} (${updatedUser.username})`);
+
+        // Map fullName back to name for frontend compatibility
+        const userResponse = {
+          ...updatedUser,
+          name: updatedUser.fullName
+        };
 
         return res.json({
           success: true,
-          data: updatedUser,
+          data: userResponse,
           message: 'User updated successfully'
         });
 
