@@ -3233,10 +3233,10 @@ app.post('/api/leads/bulk-create', async (req, res) => {
     // Validate each lead has required fields
     for (let i = 0; i < leads.length; i++) {
       const lead = leads[i];
-      if (!lead.fullName || !lead.email) {
+      if (!lead.fullName) {
         return res.status(400).json({
           error: 'Validation failed',
-          message: `Lead at index ${i} missing required fields (fullName, email)`
+          message: `Lead at index ${i} missing required field (fullName)`
         });
       }
     }
@@ -3252,17 +3252,19 @@ app.post('/api/leads/bulk-create', async (req, res) => {
       const lead = leads[i];
       
       try {
-        // Check for existing lead with same email
-        const { data: existingLeads } = await supabase
-          .from('leads')
-          .select('id')
-          .eq('email', lead.email)
-          .limit(1);
+        // Check for existing lead with same email (only if email provided)
+        if (lead.email && lead.email.trim()) {
+          const { data: existingLeads } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('email', lead.email)
+            .limit(1);
 
-        if (existingLeads && existingLeads.length > 0) {
-          results.failed++;
-          results.errors.push(`Lead ${i + 1}: Email ${lead.email} already exists`);
-          continue;
+          if (existingLeads && existingLeads.length > 0) {
+            results.failed++;
+            results.errors.push(`Lead ${i + 1}: Email ${lead.email} already exists`);
+            continue;
+          }
         }
 
         // Prepare lead data for insertion - using correct database column names

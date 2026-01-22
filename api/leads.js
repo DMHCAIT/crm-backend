@@ -1556,10 +1556,10 @@ module.exports = async (req, res) => {
       const leadName = fullName || name;
 
       // Validate required fields
-      if (!leadName || !email) {
+      if (!leadName) {
         return res.status(400).json({
           success: false,
-          error: 'Name and email are required'
+          error: 'Name is required'
         });
       }
 

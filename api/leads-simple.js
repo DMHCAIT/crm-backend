@@ -116,10 +116,10 @@ module.exports = async (req, res) => {
         const { fullName, email, phone, course, source, country, branch, qualification, priority, notes, company } = req.body;
         
         // Validate required fields
-        if (!fullName || !email) {
+        if (!fullName) {
           return res.status(400).json({
             success: false,
-            error: 'Full name and email are required'
+            error: 'Full name is required'
           });
         }
 
