@@ -263,7 +263,7 @@ module.exports = async (req, res) => {
           });
         }
 
-        logger.info(`✅ Created user: ${newUser.name} (${newUser.username})`);
+        logger.info(`✅ Created user: ${newUser.fullName} (${newUser.username})`);
 
         return res.json({
           success: true,
