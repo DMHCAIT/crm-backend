@@ -168,6 +168,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       const {
         name,
+        fullName,
         username,
         email,
         role,
@@ -181,8 +182,11 @@ module.exports = async (req, res) => {
         company
       } = req.body;
 
+      // Support both name and fullName for backward compatibility
+      const userName = fullName || name;
+
       // Validate required fields
-      if (!name || !username || !email || !role) {
+      if (!userName || !username || !email || !role) {
         return res.status(400).json({
           success: false,
           error: 'Name, username, email, and role are required'
@@ -230,7 +234,7 @@ module.exports = async (req, res) => {
 
         // Create new user
         const userData = {
-          fullName: name, // Map name to fullName for database
+          fullName: userName, // Use userName which supports both name and fullName
           username,
           email,
           role,
@@ -300,6 +304,7 @@ module.exports = async (req, res) => {
 
       const {
         name,
+        fullName,
         email,
         role,
         status,
@@ -356,8 +361,9 @@ module.exports = async (req, res) => {
           updated_at: new Date().toISOString()
         };
 
-        // Only update fields that are provided
-        if (name !== undefined) updateData.fullName = name; // Map name to fullName for database
+        // Only update fields that are provided - support both name and fullName
+        if (fullName !== undefined) updateData.fullName = fullName;
+        else if (name !== undefined) updateData.fullName = name; // Backward compatibility
         if (email !== undefined) updateData.email = email;
         if (role !== undefined) updateData.role = role;
         if (status !== undefined) updateData.status = status;
