@@ -1,0 +1,26 @@
+{
+  "testEnvironment": "node",
+  "coverageDirectory": "coverage",
+  "collectCoverageFrom": [
+    "api/**/*.js",
+    "services/**/*.js",
+    "middleware/**/*.js",
+    "utils/**/*.js",
+    "!**/*.test.js",
+    "!**/node_modules/**"
+  ],
+  "testMatch": [
+    "**/__tests__/**/*.js",
+    "**/*.test.js"
+  ],
+  "coverageThreshold": {
+    "global": {
+      "branches": 70,
+      "functions": 70,
+      "lines": 70,
+      "statements": 70
+    }
+  },
+  "testTimeout": 30000,
+  "verbose": true
+}

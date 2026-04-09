@@ -1,0 +1,514 @@
+// 🚀 SUPABASE-CONNECTED USER MANAGEMENT API
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
+// Initialize Supabase
+let supabase;
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY
+    );
+    logger.info('✅ User Management API: Supabase initialized');
+  } else {
+    logger.info('❌ User Management API: Supabase credentials missing');
+  }
+} catch (error) {
+  logger.info('❌ User Management API: Supabase initialization failed:', error.message);
+}
+
+// Verify JWT token
+function verifyToken(req) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('No valid token provided');
+  }
+  
+  const token = authHeader.substring(7);
+  return jwt.verify(token, JWT_SECRET);
+}
+
+// User Visibility Control - Only Rubeena can see all users, others see limited users
+function getAllowedUserIds(user) {
+  // Rubeena gets access to all users
+  if (user.username && user.username.toLowerCase() === 'rubeena') {
+    return null; // null means no user filtering (can see all users)
+  }
+  
+  // For now, let's return null to allow all users to be visible
+  // This can be configured later with specific user restrictions
+  return null;
+}
+
+module.exports = async (req, res) => {
+  // Enhanced CORS Headers
+  const origin = req.headers.origin;
+  logger.info('🌐 Users API - Origin:', origin);
+  
+  // Allow specific origins
+  const allowedOrigins = [
+    'https://www.crmdmhca.com',
+    'https://crmdmhca.com', 
+    'https://crm-frontend-dmhca.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  
+  if (origin && allowedOrigins.some(allowed => origin === allowed || origin.includes('vercel.app') || origin.includes('crmdmhca.com'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // Fallback for production
+    res.setHeader('Access-Control-Allow-Origin', 'https://www.crmdmhca.com');
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+
+  if (req.method === 'OPTIONS') {
+    logger.info('🔧 Users API - Handling preflight request');
+    return res.status(200).end();
+  }
+
+  // Verify Supabase connection
+  if (!supabase) {
+    return res.status(500).json({
+      success: false,
+      error: 'Database connection not available',
+      message: 'Supabase not initialized'
+    });
+  }
+
+  try {
+    const user = verifyToken(req);
+    logger.info(`🔍 User Management API: Request from ${user.username} (${user.email})`);
+
+    // GET /api/users-supabase - Get all users
+    if (req.method === 'GET') {
+      try {
+        let query = supabase
+          .from('users')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        // If user is super_admin, check for restrictions
+        if (user.role === 'super_admin') {
+          // Get list of users this super_admin is restricted from seeing
+          const { data: restrictions } = await supabase
+            .from('user_restrictions')
+            .select('restricted_user_id')
+            .eq('restricted_user_id', user.userId) // This super_admin is restricted
+            .eq('restriction_type', 'user_access')
+            .eq('is_active', true);
+
+          if (restrictions && restrictions.length > 0) {
+            const restrictedUserIds = restrictions.map(r => r.restricted_user_id);
+            query = query.not('id', 'in', `(${restrictedUserIds.join(',')})`);
+            logger.info(`🔒 Applied ${restrictions.length} user restrictions for super_admin ${user.username}`);
+          }
+        }
+
+        // Apply user visibility control filter
+        const allowedUserIds = getAllowedUserIds(user);
+        if (allowedUserIds && allowedUserIds.length > 0) {
+          logger.info(`👥 User Visibility: User ${user.username} restricted to specific users`);
+          query = query.in('id', allowedUserIds);
+        } else {
+          logger.info(`👥 User Visibility: User ${user.username} has access to all users`);
+        }
+
+        const { data: users, error } = await query;
+
+        if (error) {
+          logger.error('❌ Error fetching users:', error.message);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch users',
+            details: error.message
+          });
+        }
+
+        logger.info(`✅ Fetched ${users?.length || 0} users from database`);
+
+        // Map fullName to name field for frontend compatibility
+        const processedUsers = (users || []).map(user => ({
+          ...user,
+          name: user.fullName || user.name || user.username || 'Unknown'
+        }));
+
+        return res.json({
+          success: true,
+          data: processedUsers,
+          totalCount: processedUsers.length,
+          message: `Found ${processedUsers.length} users`
+        });
+
+      } catch (error) {
+        logger.error('❌ Database error:', error.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Database operation failed',
+          details: error.message
+        });
+      }
+    }
+
+    // POST /api/users-supabase - Create new user
+    if (req.method === 'POST') {
+      const {
+        name,
+        fullName,
+        username,
+        email,
+        role,
+        status,
+        department,
+        designation,
+        phone,
+        location,
+        join_date,
+        reports_to,
+        company
+      } = req.body;
+
+      // Support both name and fullName for backward compatibility
+      const userName = fullName || name;
+
+      // Validate required fields
+      if (!userName || !username || !email || !role) {
+        return res.status(400).json({
+          success: false,
+          error: 'Name, username, email, and role are required'
+        });
+      }
+
+      try {
+        // Check if username or email already exists
+        const { data: existingUsers } = await supabase
+          .from('users')
+          .select('username, email')
+          .or(`username.eq.${username},email.eq.${email}`);
+
+        if (existingUsers && existingUsers.length > 0) {
+          const existing = existingUsers[0];
+          if (existing.username === username) {
+            return res.status(400).json({
+              success: false,
+              error: 'Username already exists'
+            });
+          }
+          if (existing.email === email) {
+            return res.status(400).json({
+              success: false,
+              error: 'Email already exists'
+            });
+          }
+        }
+
+        // Validate reports_to if provided
+        if (reports_to) {
+          const { data: supervisor } = await supabase
+            .from('users')
+            .select('id, role')
+            .eq('id', reports_to)
+            .single();
+
+          if (!supervisor) {
+            return res.status(400).json({
+              success: false,
+              error: 'Invalid supervisor selected'
+            });
+          }
+        }
+
+        // Create new user
+        const userData = {
+          fullName: userName, // Use userName which supports both name and fullName
+          username,
+          email,
+          role,
+          status: status || 'active',
+          department: department || null,
+          designation: designation || null,
+          phone: phone || null,
+          location: location || null,
+          join_date: join_date || new Date().toISOString().split('T')[0],
+          reports_to: reports_to === '' ? null : (reports_to || null),
+          company: company || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        logger.info('📝 Creating user:', userData);
+
+        const { data: newUser, error } = await supabase
+          .from('users')
+          .insert(userData)
+          .select()
+          .single();
+
+        if (error) {
+          logger.error('❌ Error creating user:', error.message);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to create user',
+            details: error.message
+          });
+        }
+
+        logger.info(`✅ Created user: ${newUser.fullName} (${newUser.username})`);
+
+        // Map fullName back to name for frontend compatibility
+        const userResponse = {
+          ...newUser,
+          name: newUser.fullName
+        };
+
+        return res.json({
+          success: true,
+          data: userResponse,
+          message: 'User created successfully'
+        });
+
+      } catch (error) {
+        logger.error('❌ Database error:', error.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Database operation failed',
+          details: error.message
+        });
+      }
+    }
+
+    // PUT /api/users-supabase - Update user
+    if (req.method === 'PUT') {
+      const userId = req.query.id;
+      
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          error: 'User ID is required for update'
+        });
+      }
+
+      const {
+        name,
+        fullName,
+        email,
+        role,
+        status,
+        department,
+        designation,
+        phone,
+        location,
+        join_date,
+        reports_to,
+        company,
+        password
+      } = req.body;
+
+      try {
+        // Check if user exists
+        const { data: existingUser, error: fetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (fetchError || !existingUser) {
+          return res.status(404).json({
+            success: false,
+            error: 'User not found'
+          });
+        }
+
+        // Validate reports_to if provided
+        if (reports_to && reports_to !== existingUser.reports_to) {
+          if (reports_to === userId) {
+            return res.status(400).json({
+              success: false,
+              error: 'User cannot report to themselves'
+            });
+          }
+
+          const { data: supervisor } = await supabase
+            .from('users')
+            .select('id, role')
+            .eq('id', reports_to)
+            .single();
+
+          if (!supervisor) {
+            return res.status(400).json({
+              success: false,
+              error: 'Invalid supervisor selected'
+            });
+          }
+        }
+
+        // Prepare update data
+        const updateData = {
+          updated_at: new Date().toISOString()
+        };
+
+        // Only update fields that are provided - support both name and fullName
+        if (fullName !== undefined) updateData.fullName = fullName;
+        else if (name !== undefined) updateData.fullName = name; // Backward compatibility
+        if (email !== undefined) updateData.email = email;
+        if (role !== undefined) updateData.role = role;
+        if (status !== undefined) updateData.status = status;
+        if (department !== undefined) updateData.department = department;
+        if (designation !== undefined) updateData.designation = designation;
+        if (phone !== undefined) updateData.phone = phone;
+        if (location !== undefined) updateData.location = location;
+        if (join_date !== undefined) updateData.join_date = join_date;
+        if (reports_to !== undefined) updateData.reports_to = reports_to === '' ? null : reports_to;
+        if (company !== undefined) updateData.company = company;
+
+        // Hash password if provided
+        if (password && password.trim() !== '') {
+          logger.info('🔐 Hashing new password for user:', userId);
+          const saltRounds = 10;
+          try {
+            const hashedPassword = await bcrypt.hash(password.trim(), saltRounds);
+            updateData.password_hash = hashedPassword;
+            logger.info('✅ Password hashed successfully');
+          } catch (hashError) {
+            logger.error('❌ Error hashing password:', hashError);
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to process password update'
+            });
+          }
+        }
+
+        logger.info(`📝 Updating user ${userId}:`, updateData);
+
+        const { data: updatedUser, error } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', userId)
+          .select()
+          .single();
+
+        if (error) {
+          logger.error('❌ Error updating user:', error.message);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to update user',
+            details: error.message
+          });
+        }
+
+        logger.info(`✅ Updated user: ${updatedUser.fullName} (${updatedUser.username})`);
+
+        // Map fullName back to name for frontend compatibility
+        const userResponse = {
+          ...updatedUser,
+          name: updatedUser.fullName
+        };
+
+        return res.json({
+          success: true,
+          data: userResponse,
+          message: 'User updated successfully'
+        });
+
+      } catch (error) {
+        logger.error('❌ Database error:', error.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Database operation failed',
+          details: error.message
+        });
+      }
+    }
+
+    // DELETE /api/users-supabase - Delete user
+    if (req.method === 'DELETE') {
+      const userId = req.query.id;
+      
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          error: 'User ID is required for deletion'
+        });
+      }
+
+      try {
+        // Check if user exists
+        const { data: existingUser, error: fetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (fetchError || !existingUser) {
+          return res.status(404).json({
+            success: false,
+            error: 'User not found'
+          });
+        }
+
+        // Instead of hard delete, soft delete by setting status to 'inactive'
+        const { data: deletedUser, error } = await supabase
+          .from('users')
+          .update({ 
+            status: 'inactive',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+          .select()
+          .single();
+
+        if (error) {
+          logger.error('❌ Error deleting user:', error.message);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to delete user',
+            details: error.message
+          });
+        }
+
+        logger.info(`✅ Soft deleted user: ${deletedUser.name} (${deletedUser.username})`);
+
+        return res.json({
+          success: true,
+          data: deletedUser,
+          message: 'User deactivated successfully'
+        });
+
+      } catch (error) {
+        logger.error('❌ Database error:', error.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Database operation failed',
+          details: error.message
+        });
+      }
+    }
+
+    return res.status(405).json({
+      success: false,
+      error: 'Method not allowed'
+    });
+
+  } catch (error) {
+    logger.error('❌ Authentication error:', error.message);
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication failed',
+      details: error.message
+    });
+  }
+};
