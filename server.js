@@ -55,6 +55,7 @@ function authenticateToken(req, res, next) {
   const publicPaths = [
     '/',
     '/health',
+    '/api/health',
     '/api/auth/login',
     '/api/auth/register',
     '/api/auth/debug-login',
@@ -139,6 +140,20 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Public health check endpoint for frontend
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'healthy',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    services: {
+      database: SUPABASE_URL ? 'connected' : 'not configured',
+      authentication: JWT_SECRET ? 'configured' : 'not configured'
+    }
+  });
+});
+
 // ====================================
 // 🔑 AUTHENTICATION ENDPOINTS
 // ====================================
@@ -195,6 +210,7 @@ try {
   const usersHandler = require('./api/users.js');
   const leadsHandler = require('./api/leads.js');
   const studentsHandler = require('./api/students.js');
+  const dashboardHandler = require('./api/dashboard.js');
   const communicationsHandler = require('./api/enhanced-communications.js');
   const analyticsHandler = require('./api/enhanced-analytics.js');
   const automationsHandler = require('./api/enhanced-automation.js');
@@ -202,6 +218,7 @@ try {
   const integrationsHandler = require('./api/integrations.js');
   const notificationsHandler = require('./api/enhanced-notifications.js');
   const settingsHandler = require('./api/enhanced-system-settings.js');
+  const assignableUsersHandler = require('./api/assignable-users.js');
 
   // Setup API routes
   app.all('/api/users/*', usersHandler);
@@ -212,6 +229,12 @@ try {
   
   app.all('/api/students/*', studentsHandler);
   app.all('/api/students', studentsHandler);
+  
+  app.all('/api/dashboard-summary', dashboardHandler);
+  app.all('/api/dashboard/*', dashboardHandler);
+  app.all('/api/dashboard', dashboardHandler);
+  
+  app.all('/api/assignable-users', assignableUsersHandler);
   
   app.all('/api/communications/*', communicationsHandler);
   app.all('/api/communications', communicationsHandler);
