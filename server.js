@@ -209,6 +209,7 @@ try {
   // Protected API handlers
   const usersHandler = require('./api/users.js');
   const leadsHandler = require('./api/leads.js');
+  const leadsSimpleHandler = require('./api/leads-simple.js');
   const studentsHandler = require('./api/students.js');
   const dashboardHandler = require('./api/dashboard.js');
   const communicationsHandler = require('./api/enhanced-communications.js');
@@ -223,6 +224,9 @@ try {
   // Setup API routes
   app.all('/api/users/*', usersHandler);
   app.all('/api/users', usersHandler);
+  
+  app.all('/api/leads-simple/*', leadsSimpleHandler);
+  app.all('/api/leads-simple', leadsSimpleHandler);
   
   app.all('/api/leads/*', leadsHandler);
   app.all('/api/leads', leadsHandler);
