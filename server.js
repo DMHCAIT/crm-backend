@@ -60,6 +60,7 @@ const publicPaths = [
   '/api/auth/register',
   '/api/auth/debug-login',
   '/api/leads/google-sheet-webhook',
+  '/api/leads/google-sync',
   '/webhooks'
 ];
 
@@ -229,6 +230,8 @@ try {
   app.all('/api/leads-simple/*', leadsSimpleHandler);
   app.all('/api/leads-simple', leadsSimpleHandler);
   
+  // Explicit path: Express does not treat `/api/leads/*` as a multi-segment wildcard
+  app.all('/api/leads/google-sync', leadsHandler);
   app.all('/api/leads/*', leadsHandler);
   app.all('/api/leads', leadsHandler);
   
