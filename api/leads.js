@@ -52,6 +52,16 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
+  // Browser check: sync is POST-only; avoid treating this public path as GET /api/leads
+  if (req.method === 'GET' && isGoogleSheetsSync) {
+    return res.status(200).json({
+      success: true,
+      message: 'Google Sheet sync endpoint is live. Use POST with JSON body and x-api-key header.',
+      method: 'POST',
+      contentType: 'application/json'
+    });
+  }
+
   // Check if Supabase is initialized
   if (!supabase) {
     return res.status(503).json({
