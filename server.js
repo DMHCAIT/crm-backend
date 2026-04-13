@@ -52,15 +52,16 @@ app.use((req, res, next) => {
 
 function authenticateToken(req, res, next) {
   // Skip authentication for specific routes
-  const publicPaths = [
-    '/',
-    '/health',
-    '/api/health',
-    '/api/auth/login',
-    '/api/auth/register',
-    '/api/auth/debug-login',
-    '/webhooks'
-  ];
+const publicPaths = [
+  '/',
+  '/health',
+  '/api/health',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/debug-login',
+  '/api/leads/google-sheet-webhook',
+  '/webhooks'
+];
 
   // Check if current path should skip authentication
   const shouldSkipAuth = publicPaths.some(path => {
