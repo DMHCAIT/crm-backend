@@ -27,17 +27,74 @@ const isValidPhone = (phone) => {
   return phoneRegex.test(phone);
 };
 
+const normalizePhone = (phone) => {
+  if (!phone) return '';
+  const cleaned = String(phone).trim().replace(/^p:\s*/i, '');
+  return cleaned;
+};
+
+const isTestValue = (value) => {
+  if (!value) return false;
+  const text = String(value).toLowerCase();
+  return text.includes('<test lead:') || text.includes('dummy data') || text === 'test@meta.com';
+};
+
+const isWebhookPath = (req) => req.url.includes('/google-sheet-webhook');
+
+const getWebhookSecret = (req) => (
+  req.headers['x-webhook-secret'] ||
+  req.headers['x-google-webhook-secret'] ||
+  req.body?.secret ||
+  ''
+);
+
+const mapWebhookPayloadToLead = (payload) => {
+  const row = payload?.lead || payload?.row || payload || {};
+
+  const fullName = row.fullName || row.name || row.full_name || '';
+  const email = row.email || row.email_address || '';
+  const phone = normalizePhone(row.phone || row.phone_number || row.mobile || '');
+  const qualification = row.qualification || row.your_highest_qualification || '';
+  const course = row.course ||
+    row.course_interest ||
+    row.in_which_program_are_you_interested_ ||
+    row['in_which_program_are_you_interested_?'] ||
+    '';
+  const source = row.source || row.form_name || 'google_sheets';
+  const status = row.status || row.lead_status || 'new';
+
+  return {
+    fullName,
+    email,
+    phone,
+    country: row.country || '',
+    branch: row.branch || '',
+    qualification,
+    source,
+    course,
+    status,
+    assignedTo: row.assignedTo || null,
+    followUp: row.followUp || null,
+    priority: row.priority || 'medium',
+    notes: row.notes || '',
+    score: Number(row.score) || 0,
+    company: row.company || '',
+    city: row.city || '',
+    designation: row.designation || ''
+  };
+};
+
 module.exports = async (req, res) => {
   // CORS headers
   const allowedOrigins = [
-    'https://www.crmdmhca.com', 
-    'https://crmdmhca.com', 
+    'https://www.crmdmhca.com',
+    'https://crmdmhca.com',
     'https://crm-frontend-final-nnmy850zp-dmhca.vercel.app',
     'https://crm-frontend-final.vercel.app',
     'http://localhost:5173',
     'http://localhost:5174'
   ];
-  
+
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -50,16 +107,153 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Check if Supabase is initialized
-  if (!supabase) {
-    return res.status(503).json({
-      success: false,
-      error: 'Database not configured',
-      message: 'Supabase connection is not available. Please check environment variables.'
-    });
-  }
-
   try {
+    // Google Sheets webhook endpoint (public but secret-protected)
+    if (isWebhookPath(req)) {
+      if (req.method === 'GET') {
+        return res.json({
+          success: true,
+          message: 'Google Sheets webhook endpoint is active'
+        });
+      }
+
+      if (req.method !== 'POST') {
+        return res.status(405).json({
+          success: false,
+          error: 'Method not allowed for webhook endpoint'
+        });
+      }
+
+      const expectedSecret = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
+      if (!expectedSecret) {
+        return res.status(500).json({
+          success: false,
+          error: 'Webhook secret is not configured'
+        });
+      }
+
+      const incomingSecret = getWebhookSecret(req);
+      if (!incomingSecret || incomingSecret !== expectedSecret) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid webhook secret'
+        });
+      }
+
+      if (!supabase) {
+        return res.status(503).json({
+          success: false,
+          error: 'Database not configured',
+          message: 'Supabase connection is not available. Please check environment variables.'
+        });
+      }
+
+      const leadData = mapWebhookPayloadToLead(req.body);
+
+      if (!leadData.fullName && !leadData.email && !leadData.phone) {
+        return res.status(400).json({
+          success: false,
+          error: 'At least one identifier (name/email/phone) is required'
+        });
+      }
+
+      if (isTestValue(leadData.fullName) || isTestValue(leadData.email)) {
+        return res.json({
+          success: true,
+          action: 'skipped',
+          message: 'Test lead skipped'
+        });
+      }
+
+      if (leadData.email && !isValidEmail(leadData.email)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email format'
+        });
+      }
+
+      if (leadData.phone && !isValidPhone(leadData.phone)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid phone format'
+        });
+      }
+
+      let duplicateQuery = supabase.from('leads').select('id').limit(1);
+      if (leadData.email && leadData.phone) {
+        duplicateQuery = duplicateQuery.or(`email.eq.${leadData.email},phone.eq.${leadData.phone}`);
+      } else if (leadData.email) {
+        duplicateQuery = duplicateQuery.eq('email', leadData.email);
+      } else {
+        duplicateQuery = duplicateQuery.eq('phone', leadData.phone);
+      }
+
+      const { data: existingLeads, error: lookupError } = await duplicateQuery;
+      if (lookupError) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to lookup existing lead',
+          message: lookupError.message
+        });
+      }
+
+      if (existingLeads && existingLeads.length > 0) {
+        const leadId = existingLeads[0].id;
+        const { data: updatedLead, error: updateError } = await supabase
+          .from('leads')
+          .update({
+            ...leadData,
+            updatedAt: new Date().toISOString()
+          })
+          .eq('id', leadId)
+          .select()
+          .single();
+
+        if (updateError) {
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to update lead',
+            message: updateError.message
+          });
+        }
+
+        return res.json({
+          success: true,
+          action: 'updated',
+          data: updatedLead
+        });
+      }
+
+      const { data: createdLead, error: insertError } = await supabase
+        .from('leads')
+        .insert([leadData])
+        .select()
+        .single();
+
+      if (insertError) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create lead',
+          message: insertError.message
+        });
+      }
+
+      return res.status(201).json({
+        success: true,
+        action: 'created',
+        data: createdLead
+      });
+    }
+
+    // Check if Supabase is initialized
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured',
+        message: 'Supabase connection is not available. Please check environment variables.'
+      });
+    }
+
     // Handle GET - Retrieve leads with optional filters
     if (req.method === 'GET') {
       try {
@@ -123,7 +317,7 @@ module.exports = async (req, res) => {
     // Handle POST - Create new lead
     if (req.method === 'POST') {
       const requestData = req.body;
-      
+
       // Support both old and new field names
       const fullName = requestData.fullName || requestData.name;
       const email = requestData.email;
@@ -139,7 +333,7 @@ module.exports = async (req, res) => {
       const notes = requestData.notes;
       const status = requestData.status || 'new';
       const score = requestData.score || 0;
-      
+
       // New fields from Google Sheets / Facebook
       const adName = requestData.ad_name || requestData.adName;
       const campaignName = requestData.campaign_name || requestData.campaignName;
@@ -149,25 +343,25 @@ module.exports = async (req, res) => {
 
       // Validate required fields
       if (!fullName && !email) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          error: 'At least name or email is required' 
+          error: 'At least name or email is required'
         });
       }
 
       // Validate email format
       if (email && !isValidEmail(email)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          error: 'Invalid email format' 
+          error: 'Invalid email format'
         });
       }
 
       // Validate phone format
       if (phone && !isValidPhone(phone)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          error: 'Invalid phone format' 
+          error: 'Invalid phone format'
         });
       }
 
@@ -175,7 +369,7 @@ module.exports = async (req, res) => {
       if (email || phone) {
         try {
           let duplicateQuery = supabase.from('leads').select('id, email, phone');
-          
+
           if (email && phone) {
             duplicateQuery = duplicateQuery.or(`email.eq.${email},phone.eq.${phone}`);
           } else if (email) {
@@ -183,9 +377,9 @@ module.exports = async (req, res) => {
           } else if (phone) {
             duplicateQuery = duplicateQuery.eq('phone', phone);
           }
-          
+
           const { data: existingLeads, error: duplicateError } = await duplicateQuery;
-          
+
           if (!duplicateError && existingLeads && existingLeads.length > 0) {
             return res.status(409).json({
               success: false,
@@ -268,7 +462,7 @@ module.exports = async (req, res) => {
     // Handle PUT - Update lead
     if (req.method === 'PUT') {
       const leadId = req.query.id || req.params?.id;
-      
+
       if (!leadId) {
         return res.status(400).json({
           success: false,
@@ -278,7 +472,7 @@ module.exports = async (req, res) => {
 
       const updateData = { ...req.body };
       delete updateData.id; // Remove ID from update data
-      
+
       // Handle field name mapping for legacy support
       if (updateData.name && !updateData.fullName) {
         updateData.fullName = updateData.name;
@@ -291,20 +485,20 @@ module.exports = async (req, res) => {
 
       // Validate email if being updated
       if (updateData.email && !isValidEmail(updateData.email)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          error: 'Invalid email format' 
+          error: 'Invalid email format'
         });
       }
 
       // Validate phone if being updated
       if (updateData.phone && !isValidPhone(updateData.phone)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          error: 'Invalid phone format' 
+          error: 'Invalid phone format'
         });
       }
-      
+
       // Update timestamp
       updateData.updatedAt = new Date().toISOString();
 
@@ -344,7 +538,7 @@ module.exports = async (req, res) => {
     // Handle DELETE - Delete lead
     if (req.method === 'DELETE') {
       const leadId = req.query.id || req.params?.id;
-      
+
       if (!leadId) {
         return res.status(400).json({
           success: false,
@@ -385,7 +579,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    return res.status(405).json({ 
+    return res.status(405).json({
       success: false,
       error: 'Method not allowed',
       message: `${req.method} method is not supported on this endpoint`
