@@ -59,6 +59,7 @@ function authenticateToken(req, res, next) {
     '/api/auth/login',
     '/api/auth/register',
     '/api/auth/debug-login',
+    '/api/leads/google-sync',
     '/webhooks'
   ];
 

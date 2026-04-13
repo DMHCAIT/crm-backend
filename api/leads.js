@@ -28,6 +28,8 @@ const isValidPhone = (phone) => {
 };
 
 module.exports = async (req, res) => {
+  const isGoogleSheetsSync = req.path === '/api/leads/google-sync';
+
   // CORS headers
   const allowedOrigins = [
     'https://www.crmdmhca.com', 
@@ -122,6 +124,16 @@ module.exports = async (req, res) => {
 
     // Handle POST - Create new lead
     if (req.method === 'POST') {
+      if (isGoogleSheetsSync) {
+        const syncKey = req.headers['x-api-key'];
+        if (!process.env.GOOGLE_SHEETS_SYNC_KEY || syncKey !== process.env.GOOGLE_SHEETS_SYNC_KEY) {
+          return res.status(401).json({
+            success: false,
+            error: 'Unauthorized sync request'
+          });
+        }
+      }
+
       const requestData = req.body;
       
       // Support both old and new field names
