@@ -7,7 +7,8 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+// Render sets PORT; must be a number (string is OK for listen, parse avoids edge cases)
+const PORT = Number.parseInt(process.env.PORT, 10) || 3001;
 
 // Environment variables with fallbacks
 const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025';
@@ -19,16 +20,25 @@ console.log('🚀 Starting DMHCA CRM Backend Server...');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
 
-// CORS Configuration
+// CORS — `cors` does not support '*.vercel.app' strings; use a matcher for preview URLs
+const corsStaticOrigins = new Set([
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'https://crmdmhca.com',
+  'https://www.crmdmhca.com',
+  'https://crm-frontend-dmhca.vercel.app',
+  'https://crm-frontend-final.vercel.app',
+  'https://crm-frontend-final-nnmy850zp-dmhca.vercel.app'
+]);
+
 const corsOptions = {
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'https://crmdmhca.com',
-    'https://www.crmdmhca.com',
-    'https://crm-frontend-dmhca.vercel.app',
-    'https://*.vercel.app'
-  ],
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (corsStaticOrigins.has(origin)) return callback(null, true);
+    if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return callback(null, true);
+    callback(null, false);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
   credentials: true,
@@ -306,7 +316,7 @@ app.use((error, req, res, next) => {
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('🎉 DMHCA CRM Backend Started Successfully!');
-  console.log(`📡 Server running on port ${PORT}`);
+  console.log(`📡 Server running on port ${PORT} (process.env.PORT=${process.env.PORT || 'unset'})`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔒 JWT Authentication: ${JWT_SECRET ? 'Enabled' : 'Disabled'}`);
   console.log(`🗄️ Database: ${SUPABASE_URL ? 'Connected' : 'Not configured'}`);
@@ -317,6 +327,11 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('   POST /api/auth/debug-login - Debug authentication');
   console.log('   All  /api/* - Protected API endpoints');
   console.log('');
+});
+
+server.on('error', (err) => {
+  console.error('❌ HTTP server failed to start:', err.message);
+  process.exit(1);
 });
 
 // Graceful shutdown
