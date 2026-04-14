@@ -74,11 +74,20 @@ module.exports = async (req, res) => {
     // Handle GET - Retrieve leads with optional filters
     if (req.method === 'GET') {
       try {
-        const { email, phone, status, source, limit = 50, offset = 0 } = req.query;
+        const {
+          email, phone, status, source,
+          assignedTo, followUpDateType,
+          limit, offset,
+          page, pageSize
+        } = req.query;
 
-        // Validate and parse pagination parameters
-        const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 1000);
-        const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+        // Support both page/pageSize and limit/offset
+        const parsedPageSize = parseInt(pageSize) || parseInt(limit) || 50;
+        const parsedPage = parseInt(page) || 1;
+        const parsedLimit = Math.min(Math.max(parsedPageSize, 1), 1000);
+        const parsedOffset = page
+          ? (parsedPage - 1) * parsedLimit
+          : Math.max(parseInt(offset) || 0, 0);
 
         // Build query with pagination
         let query = supabase
@@ -87,19 +96,12 @@ module.exports = async (req, res) => {
           .range(parsedOffset, parsedOffset + parsedLimit - 1)
           .order('createdAt', { ascending: false });
 
-        // Apply filters if provided (for duplicate checking)
-        if (email) {
-          query = query.eq('email', email);
-        }
-        if (phone) {
-          query = query.eq('phone', phone);
-        }
-        if (status) {
-          query = query.eq('status', status);
-        }
-        if (source) {
-          query = query.ilike('source', `%${source}%`);
-        }
+        // Apply filters
+        if (email) query = query.eq('email', email);
+        if (phone) query = query.eq('phone', phone);
+        if (status) query = query.eq('status', status);
+        if (source) query = query.ilike('source', `%${source}%`);
+        if (assignedTo && assignedTo !== 'all') query = query.eq('assignedTo', assignedTo);
 
         const { data: leads, error, count } = await query;
 
@@ -115,9 +117,12 @@ module.exports = async (req, res) => {
 
         return res.json({
           success: true,
+          leads: leads || [],
           data: leads || [],
           count: leads?.length || 0,
           total: count,
+          page: parsedPage,
+          pageSize: parsedLimit,
           limit: parsedLimit,
           offset: parsedOffset
         });

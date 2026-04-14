@@ -72,11 +72,22 @@ module.exports = async (req, res) => {
       }
 
       try {
-        // Get all leads from database
-        const { data: leads, error } = await supabase
+        // Support page/pageSize pagination
+        const { page, pageSize, assignedTo, status } = req.query;
+        const parsedPageSize = Math.min(parseInt(pageSize) || 100, 1000);
+        const parsedPage = Math.max(parseInt(page) || 1, 1);
+        const parsedOffset = (parsedPage - 1) * parsedPageSize;
+
+        let query = supabase
           .from('leads')
-          .select('*')
+          .select('*', { count: 'exact' })
+          .range(parsedOffset, parsedOffset + parsedPageSize - 1)
           .order('createdAt', { ascending: false });
+
+        if (assignedTo && assignedTo !== 'all') query = query.eq('assignedTo', assignedTo);
+        if (status) query = query.eq('status', status);
+
+        const { data: leads, error, count } = await query;
 
         if (error) {
           logger.info('❌ Get leads error:', error);
@@ -90,7 +101,10 @@ module.exports = async (req, res) => {
         return res.json({
           success: true,
           leads: leads || [],
-          total: (leads || []).length,
+          data: leads || [],
+          total: count || 0,
+          page: parsedPage,
+          pageSize: parsedPageSize,
           message: 'Leads retrieved successfully from database'
         });
 
