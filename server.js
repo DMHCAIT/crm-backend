@@ -202,74 +202,124 @@ app.post('/api/auth/debug-login', async (req, res) => {
 });
 
 // Import and setup API handlers
-try {
-  // Auth handlers
-  const authHandler = require('./api/auth.js');
+const loadedHandlers = [];
+const failedHandlers = [];
+
+// Helper to safely load handler
+function loadHandler(name, path) {
+  try {
+    const handler = require(path);
+    loadedHandlers.push(name);
+    return handler;
+  } catch (error) {
+    console.error(`❌ Failed to load ${name}:`, error.message);
+    failedHandlers.push({ name, error: error.message });
+    return null;
+  }
+}
+
+// Load handlers
+const authHandler = loadHandler('auth', './api/auth.js');
+const usersHandler = loadHandler('users', './api/users.js');
+const leadsHandler = loadHandler('leads', './api/leads.js');
+const leadsSimpleHandler = loadHandler('leads-simple', './api/leads-simple.js');
+const studentsHandler = loadHandler('students', './api/students.js');
+const dashboardHandler = loadHandler('dashboard', './api/dashboard.js');
+const communicationsHandler = loadHandler('communications', './api/enhanced-communications.js');
+const analyticsHandler = loadHandler('analytics', './api/enhanced-analytics.js');
+const automationsHandler = loadHandler('automations', './api/enhanced-automation.js');
+const documentsHandler = loadHandler('documents', './api/enhanced-documents.js');
+const integrationsHandler = loadHandler('integrations', './api/integrations.js');
+const notificationsHandler = loadHandler('notifications', './api/enhanced-notifications.js');
+const settingsHandler = loadHandler('settings', './api/enhanced-system-settings.js');
+const assignableUsersHandler = loadHandler('assignable-users', './api/assignable-users.js');
+
+// Setup routes only for successfully loaded handlers
+if (authHandler) {
   app.all('/api/auth/*', authHandler);
+  app.all('/api/auth', authHandler);
+}
 
-  // Protected API handlers
-  const usersHandler = require('./api/users.js');
-  const leadsHandler = require('./api/leads.js');
-  const leadsSimpleHandler = require('./api/leads-simple.js');
-  const studentsHandler = require('./api/students.js');
-  const dashboardHandler = require('./api/dashboard.js');
-  const communicationsHandler = require('./api/enhanced-communications.js');
-  const analyticsHandler = require('./api/enhanced-analytics.js');
-  const automationsHandler = require('./api/enhanced-automation.js');
-  const documentsHandler = require('./api/enhanced-documents.js');
-  const integrationsHandler = require('./api/integrations.js');
-  const notificationsHandler = require('./api/enhanced-notifications.js');
-  const settingsHandler = require('./api/enhanced-system-settings.js');
-  const assignableUsersHandler = require('./api/assignable-users.js');
-
-  // Setup API routes
+if (usersHandler) {
   app.all('/api/users/*', usersHandler);
   app.all('/api/users', usersHandler);
-  
+}
+
+if (leadsSimpleHandler) {
   app.all('/api/leads-simple/*', leadsSimpleHandler);
   app.all('/api/leads-simple', leadsSimpleHandler);
-  
-  // Explicit path: Express does not treat `/api/leads/*` as a multi-segment wildcard
+}
+
+if (leadsHandler) {
   app.all('/api/leads/google-sync', leadsHandler);
   app.all('/api/leads/*', leadsHandler);
   app.all('/api/leads', leadsHandler);
-  
+}
+
+if (studentsHandler) {
   app.all('/api/students/*', studentsHandler);
   app.all('/api/students', studentsHandler);
-  
+}
+
+if (dashboardHandler) {
   app.all('/api/dashboard-summary', dashboardHandler);
   app.all('/api/dashboard/*', dashboardHandler);
   app.all('/api/dashboard', dashboardHandler);
-  
+}
+
+if (assignableUsersHandler) {
   app.all('/api/assignable-users', assignableUsersHandler);
-  
+}
+
+if (communicationsHandler) {
   app.all('/api/communications/*', communicationsHandler);
   app.all('/api/communications', communicationsHandler);
-  
+}
+
+if (analyticsHandler) {
   app.all('/api/analytics/*', analyticsHandler);
   app.all('/api/analytics', analyticsHandler);
-  
+}
+
+if (automationsHandler) {
   app.all('/api/automations/*', automationsHandler);
   app.all('/api/automations', automationsHandler);
-  
+}
+
+if (documentsHandler) {
   app.all('/api/documents/*', documentsHandler);
   app.all('/api/documents', documentsHandler);
-  
+}
+
+if (integrationsHandler) {
   app.all('/api/integrations/*', integrationsHandler);
   app.all('/api/integrations', integrationsHandler);
-  
+}
+
+if (notificationsHandler) {
   app.all('/api/notifications/*', notificationsHandler);
   app.all('/api/notifications', notificationsHandler);
-  
+}
+
+if (settingsHandler) {
   app.all('/api/settings/*', settingsHandler);
   app.all('/api/settings', settingsHandler);
-
-  console.log('✅ All API handlers loaded successfully');
-
-} catch (error) {
-  console.error('❌ Error loading API handlers:', error.message);
-  console.log('⚠️ Server will continue with available handlers');
 }
+
+console.log(`✅ Loaded ${loadedHandlers.length} API handlers:`, loadedHandlers.join(', '));
+if (failedHandlers.length > 0) {
+  console.error(`❌ Failed to load ${failedHandlers.length} handlers:`, failedHandlers.map(h => h.name).join(', '));
+}
+
+// Debug endpoint to check which routes are loaded
+app.get('/api/debug/routes', (req, res) => {
+  res.json({
+    success: true,
+    loadedHandlers,
+    failedHandlers,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // ====================================
 // 🚫 ERROR HANDLING
