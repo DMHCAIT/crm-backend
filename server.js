@@ -233,11 +233,17 @@ const integrationsHandler = loadHandler('integrations', './api/integrations.js')
 const notificationsHandler = loadHandler('notifications', './api/enhanced-notifications.js');
 const settingsHandler = loadHandler('settings', './api/enhanced-system-settings.js');
 const assignableUsersHandler = loadHandler('assignable-users', './api/assignable-users.js');
+const usersSupabaseHandler = loadHandler('users-supabase', './api/users-supabase.js');
 
 // Setup routes only for successfully loaded handlers
 if (authHandler) {
   app.all('/api/auth/*', authHandler);
   app.all('/api/auth', authHandler);
+}
+
+if (usersSupabaseHandler) {
+  app.all('/api/users-supabase/*', usersSupabaseHandler);
+  app.all('/api/users-supabase', usersSupabaseHandler);
 }
 
 if (usersHandler) {

@@ -141,11 +141,36 @@ module.exports = async (req, res) => {
 
         logger.info(`✅ Fetched ${users?.length || 0} users from database`);
 
-        // Map fullName to name field for frontend compatibility
-        const processedUsers = (users || []).map(user => ({
-          ...user,
-          name: user.fullName || user.name || user.username || 'Unknown'
-        }));
+        // Fetch lead counts for each user in parallel
+        const processedUsers = await Promise.all(
+          (users || []).map(async (u) => {
+            const username = u.username;
+
+            const [{ count: totalLeads }, { data: leadsData }] = await Promise.all([
+              supabase.from('leads').select('*', { count: 'exact', head: true }).eq('assignedTo', username),
+              supabase.from('leads').select('status').eq('assignedTo', username)
+            ]);
+
+            const leadsByStatus = {};
+            (leadsData || []).forEach(lead => {
+              const s = (lead.status || '').toLowerCase();
+              leadsByStatus[s] = (leadsByStatus[s] || 0) + 1;
+            });
+
+            const activeStatuses = ['fresh', 'contacted', 'qualified', 'negotiation', 'hot', 'warm'];
+            const activeLeads = (leadsData || []).filter(l =>
+              activeStatuses.includes((l.status || '').toLowerCase())
+            ).length;
+
+            return {
+              ...u,
+              name: u.fullName || u.name || u.username || 'Unknown',
+              totalLeads: totalLeads || 0,
+              activeLeads,
+              leadsByStatus
+            };
+          })
+        );
 
         return res.json({
           success: true,
