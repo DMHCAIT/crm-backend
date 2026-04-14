@@ -234,6 +234,11 @@ const notificationsHandler = loadHandler('notifications', './api/enhanced-notifi
 const settingsHandler = loadHandler('settings', './api/enhanced-system-settings.js');
 const assignableUsersHandler = loadHandler('assignable-users', './api/assignable-users.js');
 const usersSupabaseHandler = loadHandler('users-supabase', './api/users-supabase.js');
+const leadNotesHandler = loadHandler('lead-notes', './api/lead-notes.js');
+const enhancedNotesHandler = loadHandler('enhanced-notes', './api/enhanced-notes.js');
+const leadActivitiesHandler = loadHandler('lead-activities', './api/lead-activities.js');
+const paymentsHandler = loadHandler('payments', './api/enhanced-payments.js');
+const whatsappHandler = loadHandler('whatsapp', './api/whatsapp.js');
 
 // Setup routes only for successfully loaded handlers
 if (authHandler) {
@@ -311,6 +316,31 @@ if (notificationsHandler) {
 if (settingsHandler) {
   app.all('/api/settings/*', settingsHandler);
   app.all('/api/settings', settingsHandler);
+}
+
+if (leadNotesHandler) {
+  app.all('/api/lead-notes/*', leadNotesHandler);
+  app.all('/api/lead-notes', leadNotesHandler);
+}
+
+if (enhancedNotesHandler) {
+  app.all('/api/notes/*', enhancedNotesHandler);
+  app.all('/api/notes', enhancedNotesHandler);
+}
+
+if (leadActivitiesHandler) {
+  app.all('/api/lead-activities/*', leadActivitiesHandler);
+  app.all('/api/lead-activities', leadActivitiesHandler);
+}
+
+if (paymentsHandler) {
+  app.all('/api/payments/*', paymentsHandler);
+  app.all('/api/payments', paymentsHandler);
+}
+
+if (whatsappHandler) {
+  app.all('/api/whatsapp/*', whatsappHandler);
+  app.all('/api/whatsapp', whatsappHandler);
 }
 
 console.log(`✅ Loaded ${loadedHandlers.length} API handlers:`, loadedHandlers.join(', '));

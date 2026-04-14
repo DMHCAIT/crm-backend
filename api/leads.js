@@ -465,6 +465,16 @@ module.exports = async (req, res) => {
 
       const updateData = { ...req.body };
       delete updateData.id; // Remove ID from update data
+
+      // Serialize notes array to JSON string for DB storage
+      if (updateData.notes !== undefined && Array.isArray(updateData.notes)) {
+        updateData.notes = JSON.stringify(updateData.notes);
+      }
+
+      // Serialize tags array to JSON string for DB storage
+      if (updateData.tags !== undefined && Array.isArray(updateData.tags)) {
+        updateData.tags = JSON.stringify(updateData.tags);
+      }
       
       // Handle field name mapping for legacy support
       if (updateData.name && !updateData.fullName) {
