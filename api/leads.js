@@ -27,6 +27,16 @@ const isValidPhone = (phone) => {
   return phoneRegex.test(phone);
 };
 
+// Backward compatibility for frontend code expecting `name`
+const normalizeLeadForFrontend = (lead) => {
+  if (!lead || typeof lead !== 'object') return lead;
+  const normalized = { ...lead };
+  if (!normalized.name && normalized.fullName) {
+    normalized.name = normalized.fullName;
+  }
+  return normalized;
+};
+
 module.exports = async (req, res) => {
   const isGoogleSheetsSync = req.path === '/api/leads/google-sync';
 
@@ -116,7 +126,7 @@ module.exports = async (req, res) => {
 
         return res.json({
           success: true,
-          data: leads || [],
+          data: (leads || []).map(normalizeLeadForFrontend),
           count: leads?.length || 0,
           total: count,
           limit: parsedLimit,
@@ -273,7 +283,7 @@ module.exports = async (req, res) => {
         return res.status(201).json({
           success: true,
           message: 'Lead captured successfully',
-          data: lead
+          data: normalizeLeadForFrontend(lead)
         });
 
       } catch (dbError) {
@@ -350,7 +360,7 @@ module.exports = async (req, res) => {
         return res.json({
           success: true,
           message: 'Lead updated successfully',
-          data: updatedLead
+          data: normalizeLeadForFrontend(updatedLead)
         });
 
       } catch (dbError) {
