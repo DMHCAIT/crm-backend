@@ -299,6 +299,72 @@ module.exports = async (req, res) => {
 
     // Handle POST - Create new lead
     if (req.method === 'POST') {
+
+      // ── POST /api/leads?action=addNote ── add a note to an existing lead ──
+      if (req.query.action === 'addNote') {
+        const user = verifyToken(req);
+        if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+        const { leadId, content, noteType = 'general' } = req.body;
+        if (!leadId || !content) {
+          return res.status(400).json({ success: false, error: 'leadId and content are required' });
+        }
+
+        // Fetch current lead to get existing notes
+        const { data: lead, error: fetchError } = await supabase
+          .from('leads')
+          .select('notes')
+          .eq('id', leadId)
+          .single();
+
+        if (fetchError || !lead) {
+          return res.status(404).json({ success: false, error: 'Lead not found' });
+        }
+
+        // Parse existing notes
+        let existingNotes = [];
+        if (lead.notes) {
+          if (typeof lead.notes === 'string') {
+            try { existingNotes = JSON.parse(lead.notes); } catch { existingNotes = []; }
+          } else if (Array.isArray(lead.notes)) {
+            existingNotes = lead.notes;
+          }
+        }
+
+        // Build new note object
+        const newNote = {
+          id: `note-${Date.now()}`,
+          content,
+          noteType,
+          note_type: noteType,
+          author: user.username || user.email || 'Unknown',
+          authorName: user.username || user.email || 'Unknown',
+          timestamp: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        };
+
+        const updatedNotes = [...existingNotes, newNote];
+
+        // Save back as JSON string
+        const { data: updatedLead, error: updateError } = await supabase
+          .from('leads')
+          .update({ notes: JSON.stringify(updatedNotes), updatedAt: new Date().toISOString() })
+          .eq('id', leadId)
+          .select()
+          .single();
+
+        if (updateError) {
+          return res.status(500).json({ success: false, error: 'Failed to save note', message: updateError.message });
+        }
+
+        return res.json({
+          success: true,
+          message: 'Note added successfully',
+          note: newNote,
+          data: normalizeLead(updatedLead)
+        });
+      }
+
       if (isGoogleSheetsSync) {
         const syncKey = req.headers['x-api-key'];
         if (!process.env.GOOGLE_SHEETS_SYNC_KEY || syncKey !== process.env.GOOGLE_SHEETS_SYNC_KEY) {
