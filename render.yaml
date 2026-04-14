@@ -3,7 +3,7 @@ services:
     name: crm-backend
     env: node
     plan: free
-    branch: main
+    branch: master
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health

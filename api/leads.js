@@ -27,6 +27,16 @@ const isValidPhone = (phone) => {
   return phoneRegex.test(phone);
 };
 
+// Backward compatibility for frontend code expecting `name`
+const normalizeLeadForFrontend = (lead) => {
+  if (!lead || typeof lead !== 'object') return lead;
+  const normalized = { ...lead };
+  if (!normalized.name && normalized.fullName) {
+    normalized.name = normalized.fullName;
+  }
+  return normalized;
+};
+
 module.exports = async (req, res) => {
   const isGoogleSheetsSync = req.path === '/api/leads/google-sync';
 
@@ -45,13 +55,14 @@ module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
+  // Browser check: sync is POST-only; avoid treating this public path as GET /api/leads
   if (req.method === 'GET' && isGoogleSheetsSync) {
     return res.status(200).json({
       success: true,
@@ -115,7 +126,7 @@ module.exports = async (req, res) => {
 
         return res.json({
           success: true,
-          data: leads || [],
+          data: (leads || []).map(normalizeLeadForFrontend),
           count: leads?.length || 0,
           total: count,
           limit: parsedLimit,
@@ -272,7 +283,7 @@ module.exports = async (req, res) => {
         return res.status(201).json({
           success: true,
           message: 'Lead captured successfully',
-          data: lead
+          data: normalizeLeadForFrontend(lead)
         });
 
       } catch (dbError) {
@@ -349,7 +360,7 @@ module.exports = async (req, res) => {
         return res.json({
           success: true,
           message: 'Lead updated successfully',
-          data: updatedLead
+          data: normalizeLeadForFrontend(updatedLead)
         });
 
       } catch (dbError) {

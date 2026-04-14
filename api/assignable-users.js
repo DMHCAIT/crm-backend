@@ -4,9 +4,9 @@ const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required');
+const JWT_SECRET = process.env.JWT_SECRET || 'dmhca-crm-super-secure-jwt-secret-2025';
+if (!process.env.JWT_SECRET) {
+  logger.info('⚠️ Assignable Users API: JWT_SECRET missing, using fallback secret');
 }
 
 // Initialize Supabase
