@@ -100,7 +100,8 @@ module.exports = async (req, res) => {
         let query = supabase
           .from('users')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(1000);
 
         // If user is super_admin, check for restrictions
         if (user.role === 'super_admin') {

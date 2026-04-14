@@ -105,7 +105,8 @@ async function handleGetUsers(req, res) {
     const { data: users, error } = await supabase
       .from('users')
       .select('id, email, name, username, role, status, department, designation, join_date, created_at, last_login, login_count')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(1000);
 
     if (error) {
       throw error;
