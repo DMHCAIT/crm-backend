@@ -1,5 +1,53 @@
 // Enhanced leads API with Google Sheets support
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Verify JWT and return decoded payload (returns null if missing/invalid)
+function verifyToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  try {
+    return jwt.verify(authHeader.substring(7), JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
+
+// Return array of usernames the requesting user is allowed to see leads for.
+// Returns null to mean "no filter" (admin / super_admin see everything).
+async function getAccessibleUsernames(user) {
+  if (!user) return null; // unauthenticated — handled separately
+  if (user.role === 'super_admin' || user.role === 'admin') return null;
+
+  if (user.role === 'team_leader') {
+    // Include self + all users whose reports_to chain reaches this user
+    const { data: allUsers } = await supabase.from('users').select('id, username, reports_to');
+    const visited = new Set();
+    const usernames = [user.username];
+
+    // Find the team_leader's DB id first
+    const self = (allUsers || []).find(u => u.username === user.username);
+    if (self) {
+      function collectSubordinates(supervisorId) {
+        if (visited.has(supervisorId)) return;
+        visited.add(supervisorId);
+        (allUsers || []).forEach(u => {
+          if (u.reports_to === supervisorId) {
+            usernames.push(u.username);
+            collectSubordinates(u.id);
+          }
+        });
+      }
+      collectSubordinates(self.id);
+    }
+    return usernames;
+  }
+
+  // counselor or any other role — only their own leads
+  return [user.username];
+}
 
 let supabase;
 try {
@@ -79,10 +127,23 @@ module.exports = async (req, res) => {
   if (req.method === 'GET' && isStatsRequest) {
     if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
     try {
+      const user = verifyToken(req);
+      if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+      const accessibleUsernames = await getAccessibleUsernames(user);
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayISO = today.toISOString();
       const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+
+      // Helper to apply role-based filter to each query
+      function applyRoleFilter(q) {
+        if (accessibleUsernames !== null) {
+          return q.in('assignedTo', accessibleUsernames);
+        }
+        return q;
+      }
 
       const [
         { count: total },
@@ -94,14 +155,14 @@ module.exports = async (req, res) => {
         { count: updatedToday },
         { count: overdueFollowUps }
       ] = await Promise.all([
-        supabase.from('leads').select('*', { count: 'exact', head: true }),
-        supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Hot'),
-        supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Warm'),
-        supabase.from('leads').select('*', { count: 'exact', head: true }).not('followUp', 'is', null),
-        supabase.from('leads').select('*', { count: 'exact', head: true }).gte('createdAt', firstOfMonth),
-        supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Enrolled'),
-        supabase.from('leads').select('*', { count: 'exact', head: true }).gte('updatedAt', todayISO),
-        supabase.from('leads').select('*', { count: 'exact', head: true }).lt('followUp', todayISO).not('followUp', 'is', null)
+        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true })),
+        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Hot')),
+        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Warm')),
+        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).not('followUp', 'is', null)),
+        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).gte('createdAt', firstOfMonth)),
+        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Enrolled')),
+        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).gte('updatedAt', todayISO)),
+        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).lt('followUp', todayISO).not('followUp', 'is', null))
       ]);
 
       return res.json({
@@ -145,6 +206,13 @@ module.exports = async (req, res) => {
     // Handle GET - Retrieve leads with optional filters
     if (req.method === 'GET') {
       try {
+        const user = verifyToken(req);
+        if (!user) {
+          return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+
+        const accessibleUsernames = await getAccessibleUsernames(user);
+
         const {
           email, phone, status, source,
           assignedTo, followUpDateType,
@@ -167,12 +235,22 @@ module.exports = async (req, res) => {
           .range(parsedOffset, parsedOffset + parsedLimit - 1)
           .order('createdAt', { ascending: false });
 
-        // Apply filters
+        // ── Role-based access: restrict to assigned leads for non-admin roles ──
+        if (accessibleUsernames !== null) {
+          query = query.in('assignedTo', accessibleUsernames);
+        }
+
+        // Apply additional filters from query params
         if (email) query = query.eq('email', email);
         if (phone) query = query.eq('phone', phone);
         if (status) query = query.eq('status', status);
         if (source) query = query.ilike('source', `%${source}%`);
-        if (assignedTo && assignedTo !== 'all') query = query.eq('assignedTo', assignedTo);
+        // Only honour explicit assignedTo filter if it is within the accessible set
+        if (assignedTo && assignedTo !== 'all') {
+          if (accessibleUsernames === null || accessibleUsernames.includes(assignedTo)) {
+            query = query.eq('assignedTo', assignedTo);
+          }
+        }
 
         const { data: leads, error, count } = await query;
 

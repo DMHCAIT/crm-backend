@@ -58,6 +58,34 @@ function verifyToken(req) {
   }
 }
 
+// Return array of usernames this user can see leads for, or null for unrestricted access.
+async function getAccessibleUsernames(user) {
+  if (user.role === 'super_admin' || user.role === 'admin') return null;
+
+  if (user.role === 'team_leader') {
+    const { data: allUsers } = await supabase.from('users').select('id, username, reports_to');
+    const visited = new Set();
+    const usernames = [user.username];
+    const self = (allUsers || []).find(u => u.username === user.username);
+    if (self) {
+      function collectSubordinates(supervisorId) {
+        if (visited.has(supervisorId)) return;
+        visited.add(supervisorId);
+        (allUsers || []).forEach(u => {
+          if (u.reports_to === supervisorId) {
+            usernames.push(u.username);
+            collectSubordinates(u.id);
+          }
+        });
+      }
+      collectSubordinates(self.id);
+    }
+    return usernames;
+  }
+
+  return [user.username];
+}
+
 module.exports = async (req, res) => {
   // Simple CORS
   const origin = req.headers.origin;
@@ -87,6 +115,8 @@ module.exports = async (req, res) => {
       }
 
       try {
+        const accessibleUsernames = await getAccessibleUsernames(user);
+
         // Support page/pageSize pagination
         const { page, pageSize, assignedTo, status } = req.query;
         const parsedPageSize = Math.min(parseInt(pageSize) || 100, 1000);
@@ -99,7 +129,17 @@ module.exports = async (req, res) => {
           .range(parsedOffset, parsedOffset + parsedPageSize - 1)
           .order('createdAt', { ascending: false });
 
-        if (assignedTo && assignedTo !== 'all') query = query.eq('assignedTo', assignedTo);
+        // ── Role-based access: restrict to assigned leads for non-admin roles ──
+        if (accessibleUsernames !== null) {
+          query = query.in('assignedTo', accessibleUsernames);
+        }
+
+        // Only honour explicit assignedTo filter if within accessible set
+        if (assignedTo && assignedTo !== 'all') {
+          if (accessibleUsernames === null || accessibleUsernames.includes(assignedTo)) {
+            query = query.eq('assignedTo', assignedTo);
+          }
+        }
         if (status) query = query.eq('status', status);
 
         const { data: leads, error, count } = await query;
