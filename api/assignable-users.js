@@ -94,12 +94,12 @@ module.exports = async (req, res) => {
     // GET /api/assignable-users - Get users that current user can assign leads to
     if (req.method === 'GET') {
       try {
-        // Get all active users from database
+        // Get all users from database
         const { data: allUsers, error } = await supabase
           .from('users')
           .select('*')
-          .eq('status', 'active')
-          .order('fullName');
+          .order('fullName')
+          .limit(1000);
 
         if (error) {
           logger.error('❌ Error fetching users:', error.message);
@@ -178,8 +178,8 @@ module.exports = async (req, res) => {
           });
         });
 
-        // Super admins can assign to everyone
-        if (currentUser.role === 'super_admin') {
+        // Super admins and admins can assign to everyone
+        if (currentUser.role === 'super_admin' || currentUser.role === 'admin') {
           logger.info(`🔑 Super Admin Access: Adding all ${allUsers.length} users to assignable list`);
           allUsers.forEach(u => {
             if (!assignableUsers.find(au => au.id === u.id)) {
