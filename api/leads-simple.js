@@ -9,6 +9,21 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
 
+// Normalize lead fields so frontend never gets wrong types
+function normalizeLead(lead) {
+  if (!lead) return lead;
+  let notes = lead.notes;
+  if (typeof notes === 'string') {
+    try { notes = JSON.parse(notes); } catch { notes = [{ id: Date.now(), content: notes, timestamp: new Date().toISOString() }]; }
+  }
+  if (!Array.isArray(notes)) notes = [];
+  let tags = lead.tags;
+  if (!Array.isArray(tags)) tags = [];
+  let custom_fields = lead.custom_fields;
+  if (!custom_fields || typeof custom_fields !== 'object' || Array.isArray(custom_fields)) custom_fields = {};
+  return { ...lead, notes, tags, custom_fields };
+}
+
 // Initialize Supabase
 let supabase;
 try {
@@ -98,10 +113,11 @@ module.exports = async (req, res) => {
           });
         }
 
+        const normalizedLeads = (leads || []).map(normalizeLead);
         return res.json({
           success: true,
-          leads: leads || [],
-          data: leads || [],
+          leads: normalizedLeads,
+          data: normalizedLeads,
           total: count || 0,
           page: parsedPage,
           pageSize: parsedPageSize,

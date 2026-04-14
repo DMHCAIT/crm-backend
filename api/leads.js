@@ -13,6 +13,27 @@ try {
   console.log('Leads module: Supabase initialization failed:', error.message);
 }
 
+// Normalize lead fields so frontend never gets wrong types
+function normalizeLead(lead) {
+  if (!lead) return lead;
+  // notes: stored as JSON string in DB, parse to array
+  let notes = lead.notes;
+  if (typeof notes === 'string') {
+    try { notes = JSON.parse(notes); } catch { notes = [{ id: Date.now(), content: notes, timestamp: new Date().toISOString() }]; }
+  }
+  if (!Array.isArray(notes)) notes = [];
+
+  // tags: null → empty array
+  let tags = lead.tags;
+  if (!Array.isArray(tags)) tags = [];
+
+  // custom_fields: null → empty object
+  let custom_fields = lead.custom_fields;
+  if (!custom_fields || typeof custom_fields !== 'object' || Array.isArray(custom_fields)) custom_fields = {};
+
+  return { ...lead, notes, tags, custom_fields };
+}
+
 // Helper function for email validation
 const isValidEmail = (email) => {
   if (!email) return true; // Optional field
@@ -115,11 +136,12 @@ module.exports = async (req, res) => {
           });
         }
 
+        const normalizedLeads = (leads || []).map(normalizeLead);
         return res.json({
           success: true,
-          leads: leads || [],
-          data: leads || [],
-          count: leads?.length || 0,
+          leads: normalizedLeads,
+          data: normalizedLeads,
+          count: normalizedLeads.length,
           total: count,
           page: parsedPage,
           pageSize: parsedLimit,
