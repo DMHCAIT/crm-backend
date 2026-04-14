@@ -66,6 +66,24 @@ module.exports = async (req, res) => {
     });
   }
 
+  // Route sub-paths before the main switch
+  const urlPath = req.path || req.url || '';
+
+  // GET /api/users/me  — return current authenticated user
+  if (req.method === 'GET' && (urlPath === '/me' || urlPath.endsWith('/me'))) {
+    return handleGetCurrentUser(req, res);
+  }
+
+  // GET /api/users/:id/subordinates
+  if (req.method === 'GET' && urlPath.includes('/subordinates')) {
+    return handleGetSubordinates(req, res);
+  }
+
+  // GET /api/users/:id/leads
+  if (req.method === 'GET' && urlPath.includes('/leads')) {
+    return handleGetUserLeads(req, res);
+  }
+
   try {
     switch (req.method) {
       case 'GET':
@@ -96,6 +114,99 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+// ── GET /api/users/me ── return current user from JWT ──
+async function handleGetCurrentUser(req, res) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Optionally enrich from DB
+    let userData = { id: decoded.id, email: decoded.email, username: decoded.username, role: decoded.role };
+    if (supabase && decoded.id) {
+      const { data } = await supabase.from('users').select('id, email, name, username, role, status, department').eq('id', decoded.id).single();
+      if (data) userData = { ...userData, ...data };
+    }
+    return res.json({ success: true, data: userData, user: userData });
+  } catch (err) {
+    return res.status(401).json({ success: false, error: 'Invalid token', message: err.message });
+  }
+}
+
+// ── GET /api/users/:id/subordinates ── return users managed by userId ──
+async function handleGetSubordinates(req, res) {
+  try {
+    const urlPath = req.path || req.url || '';
+    const match = urlPath.match(/\/([^/]+)\/subordinates/);
+    const userId = match ? match[1] : null;
+
+    if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+    if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
+
+    // Get the target user to find their username
+    const { data: targetUser } = await supabase.from('users').select('id, username, role').eq('id', userId).single();
+    if (!targetUser) return res.status(404).json({ success: false, error: 'User not found' });
+
+    // Find users whose manager_id matches this user, or get all if super_admin/admin
+    let query = supabase.from('users').select('id, email, name, username, role, status');
+    if (targetUser.role === 'super_admin' || targetUser.role === 'admin') {
+      // Admin sees all
+    } else {
+      query = query.eq('manager_id', userId);
+    }
+    const { data: subordinates, error } = await query.limit(500);
+    if (error) throw error;
+
+    return res.json({ success: true, data: subordinates || [], count: (subordinates || []).length });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Failed to get subordinates', message: err.message });
+  }
+}
+
+// ── GET /api/users/:id/leads?includeTeam=true ── return leads for a user ──
+async function handleGetUserLeads(req, res) {
+  try {
+    const urlPath = req.path || req.url || '';
+    const match = urlPath.match(/\/([^/]+)\/leads/);
+    const userId = match ? match[1] : null;
+    const includeTeam = req.query.includeTeam === 'true';
+
+    if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+    if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
+
+    // Resolve username for the user
+    const { data: targetUser } = await supabase.from('users').select('id, username, role').eq('id', userId).single();
+    if (!targetUser) return res.status(404).json({ success: false, error: 'User not found' });
+
+    let usernames = [targetUser.username];
+
+    if (includeTeam && (targetUser.role === 'team_leader' || targetUser.role === 'manager' || targetUser.role === 'admin' || targetUser.role === 'super_admin')) {
+      // Get subordinate usernames
+      const { data: subs } = await supabase.from('users').select('username').eq('manager_id', userId);
+      if (subs && subs.length > 0) {
+        usernames = [...usernames, ...subs.map(s => s.username)];
+      }
+      if (targetUser.role === 'admin' || targetUser.role === 'super_admin') {
+        usernames = null; // All leads
+      }
+    }
+
+    let leadsQuery = supabase.from('leads').select('*').order('createdAt', { ascending: false }).limit(1000);
+    if (usernames !== null) {
+      leadsQuery = leadsQuery.in('assignedTo', usernames);
+    }
+    const { data: leads, error } = await leadsQuery;
+    if (error) throw error;
+
+    return res.json({ success: true, leads: leads || [], count: (leads || []).length });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Failed to get user leads', message: err.message });
+  }
+}
 
 async function handleGetUsers(req, res) {
   try {

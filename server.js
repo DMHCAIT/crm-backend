@@ -239,6 +239,21 @@ const enhancedNotesHandler = loadHandler('enhanced-notes', './api/enhanced-notes
 const leadActivitiesHandler = loadHandler('lead-activities', './api/lead-activities.js');
 const paymentsHandler = loadHandler('payments', './api/enhanced-payments.js');
 const whatsappHandler = loadHandler('whatsapp', './api/whatsapp.js');
+const userActivityStatsHandler = loadHandler('user-activity-stats', './api/user-activity-stats.js');
+const userRestrictionsHandler = loadHandler('user-restrictions', './api/user-restrictions.js');
+const debugAssignableHandler = loadHandler('debug-assignable-users', './api/debug-assignable-users.js');
+const leadScoringHandler = loadHandler('lead-scoring', './api/lead-scoring.js');
+const revenueForecastHandler = loadHandler('revenue-forecast', './api/revenue-forecast.js');
+const dataExportHandler = loadHandler('data-export', './api/enhanced-data-export.js');
+const superAdminHandler = loadHandler('super-admin', './api/super-admin.js');
+const calendarHandler = loadHandler('calendar', './api/calendar.js');
+const emailHandler = loadHandler('email', './api/email.js');
+const integrationLogsHandler = loadHandler('integration-logs', './api/enhanced-integration-logs.js');
+const webhookLeadsHandler = loadHandler('webhook-leads', './api/webhook-leads.js');
+const scheduledExportsHandler = loadHandler('scheduled-exports', './api/scheduled-exports.js');
+const facebookLeadsHandler = loadHandler('facebook-leads', './api/facebook-leads.js');
+const facebookHandler = loadHandler('facebook', './api/facebook.js');
+const cunnektHandler = loadHandler('cunnekt-whatsapp', './api/cunnekt-whatsapp.js');
 
 // Setup routes only for successfully loaded handlers
 if (authHandler) {
@@ -264,6 +279,7 @@ if (leadsSimpleHandler) {
 if (leadsHandler) {
   app.all('/api/leads/google-sync', leadsHandler);
   app.all('/api/leads/stats', leadsHandler);
+  app.all('/api/leads/bulk-create', leadsHandler);
   app.all('/api/leads/*', leadsHandler);
   app.all('/api/leads', leadsHandler);
 }
@@ -341,6 +357,79 @@ if (paymentsHandler) {
 if (whatsappHandler) {
   app.all('/api/whatsapp/*', whatsappHandler);
   app.all('/api/whatsapp', whatsappHandler);
+}
+
+if (userActivityStatsHandler) {
+  app.all('/api/user-activity-stats', userActivityStatsHandler);
+}
+
+if (userRestrictionsHandler) {
+  app.all('/api/user-restrictions/*', userRestrictionsHandler);
+  app.all('/api/user-restrictions', userRestrictionsHandler);
+}
+
+if (debugAssignableHandler) {
+  app.all('/api/debug-assignable-users', debugAssignableHandler);
+}
+
+if (leadScoringHandler) {
+  app.all('/api/lead-scoring/*', leadScoringHandler);
+  app.all('/api/lead-scoring', leadScoringHandler);
+}
+
+if (revenueForecastHandler) {
+  app.all('/api/revenue-forecast/*', revenueForecastHandler);
+  app.all('/api/revenue-forecast', revenueForecastHandler);
+}
+
+if (dataExportHandler) {
+  app.all('/api/data-export/*', dataExportHandler);
+  app.all('/api/data-export', dataExportHandler);
+}
+
+if (superAdminHandler) {
+  app.all('/api/super-admin/*', superAdminHandler);
+  app.all('/api/super-admin', superAdminHandler);
+}
+
+if (calendarHandler) {
+  app.all('/api/calendar/*', calendarHandler);
+  app.all('/api/calendar', calendarHandler);
+}
+
+if (emailHandler) {
+  app.all('/api/email/*', emailHandler);
+  app.all('/api/email', emailHandler);
+}
+
+if (integrationLogsHandler) {
+  app.all('/api/integration-logs/*', integrationLogsHandler);
+  app.all('/api/integration-logs', integrationLogsHandler);
+}
+
+if (webhookLeadsHandler) {
+  app.all('/api/webhook-leads/*', webhookLeadsHandler);
+  app.all('/api/webhook-leads', webhookLeadsHandler);
+}
+
+if (scheduledExportsHandler) {
+  app.all('/api/scheduled-exports/*', scheduledExportsHandler);
+  app.all('/api/scheduled-exports', scheduledExportsHandler);
+}
+
+if (facebookLeadsHandler) {
+  app.all('/api/facebook-leads/*', facebookLeadsHandler);
+  app.all('/api/facebook-leads', facebookLeadsHandler);
+}
+
+if (facebookHandler) {
+  app.all('/api/facebook/*', facebookHandler);
+  app.all('/api/facebook', facebookHandler);
+}
+
+if (cunnektHandler) {
+  app.all('/api/cunnekt/*', cunnektHandler);
+  app.all('/api/cunnekt', cunnektHandler);
 }
 
 console.log(`✅ Loaded ${loadedHandlers.length} API handlers:`, loadedHandlers.join(', '));

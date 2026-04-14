@@ -110,6 +110,7 @@ module.exports = async (req, res) => {
   const urlPath = req.path || req.url || '';
   const isGoogleSheetsSync = urlPath.includes('google-sync');
   const isStatsRequest = urlPath.includes('/stats') || req.query.statsOnly === 'true';
+  const isBulkCreate = urlPath.includes('bulk-create');
 
   // CORS headers
   const allowedOrigins = [
@@ -427,6 +428,66 @@ module.exports = async (req, res) => {
           success: true,
           message: `${deleted?.length || 0} leads deleted successfully`,
           count: deleted?.length || 0
+        });
+      }
+
+      // ── POST /api/leads/bulk-create ── import multiple leads at once ──
+      if (isBulkCreate) {
+        const user = verifyToken(req);
+        if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+        const { leads: leadsToCreate } = req.body;
+        if (!Array.isArray(leadsToCreate) || leadsToCreate.length === 0) {
+          return res.status(400).json({ success: false, error: 'leads array is required' });
+        }
+
+        const results = { success: 0, failed: 0, errors: [] };
+        const insertBatch = [];
+
+        for (const lead of leadsToCreate) {
+          const fullName = lead.fullName || lead.name || '';
+          if (!fullName) {
+            results.failed++;
+            results.errors.push({ lead, error: 'fullName is required' });
+            continue;
+          }
+          insertBatch.push({
+            fullName,
+            email: lead.email || '',
+            phone: lead.phone || '',
+            country: lead.country || '',
+            branch: lead.branch || '',
+            qualification: lead.qualification || '',
+            source: lead.source || 'import',
+            course: lead.course || '',
+            status: lead.status || 'new',
+            assignedTo: lead.assignedTo || null,
+            followUp: lead.followUp || null,
+            priority: lead.priority || 'medium',
+            notes: typeof lead.notes === 'string' ? lead.notes : (Array.isArray(lead.notes) ? JSON.stringify(lead.notes) : ''),
+            score: lead.score || 0,
+            company: lead.company || '',
+            city: lead.city || '',
+            designation: lead.designation || ''
+          });
+        }
+
+        if (insertBatch.length > 0) {
+          const { data: inserted, error: insertError } = await supabase
+            .from('leads')
+            .insert(insertBatch)
+            .select();
+
+          if (insertError) {
+            return res.status(500).json({ success: false, error: 'Bulk create failed', message: insertError.message });
+          }
+          results.success = inserted?.length || 0;
+        }
+
+        return res.json({
+          success: true,
+          message: `${results.success} leads imported, ${results.failed} failed`,
+          results
         });
       }
 
