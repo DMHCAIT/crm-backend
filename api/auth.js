@@ -117,6 +117,7 @@ async function handleLogin(req, res) {
           { 
             id: dbUser.id,
             email: dbUser.email,
+            username: dbUser.username,
             role: dbUser.role 
           },
           JWT_SECRET,
@@ -194,6 +195,7 @@ async function handleLogin(req, res) {
       { 
         id: userData.id,
         email: userData.email,
+        username: userData.username,
         role: userData.role 
       },
       JWT_SECRET,

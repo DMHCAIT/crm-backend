@@ -62,6 +62,16 @@ function verifyToken(req) {
 async function getAccessibleUsernames(user) {
   if (user.role === 'super_admin' || user.role === 'admin') return null;
 
+  // If username missing from token (old tokens), look it up by id or email
+  if (!user.username && (user.id || user.email)) {
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('username')
+      .or(user.id ? `id.eq.${user.id}` : `email.eq.${user.email}`)
+      .single();
+    if (dbUser?.username) user = { ...user, username: dbUser.username };
+  }
+
   if (user.role === 'team_leader') {
     const { data: allUsers } = await supabase.from('users').select('id, username, reports_to');
     const visited = new Set();
