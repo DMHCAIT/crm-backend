@@ -242,6 +242,24 @@ mountHandler('notifications', ['/api/notifications/*', '/api/notifications'], '.
 mountHandler('settings', ['/api/settings/*', '/api/settings'], './api/enhanced-system-settings.js');
 mountHandler('assignable-users', ['/api/assignable-users'], './api/assignable-users.js');
 
+// Hard fallback: keep route available even if module fails to load in some deploys
+app.all('/api/assignable-users', async (req, res) => {
+  try {
+    // Delegate to module when available
+    const handler = require('./api/assignable-users.js');
+    return handler(req, res);
+  } catch (error) {
+    console.error('❌ assignable-users fallback triggered:', error.message);
+    return res.status(200).json({
+      success: true,
+      users: [],
+      data: [],
+      totalCount: 0,
+      message: 'Fallback response: assignable users temporarily unavailable'
+    });
+  }
+});
+
 // ====================================
 // 🚫 ERROR HANDLING
 // ====================================
