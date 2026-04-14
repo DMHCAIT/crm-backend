@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
-// Render sets PORT; must be a number (string is OK for listen, parse avoids edge cases)
+// Render sets PORT; parse avoids edge cases
 const PORT = Number.parseInt(process.env.PORT, 10) || 3001;
 
 // Environment variables with fallbacks
@@ -20,7 +20,7 @@ console.log('🚀 Starting DMHCA CRM Backend Server...');
 console.log('🔑 JWT Secret configured:', JWT_SECRET ? '✅ Set' : '❌ Missing');
 console.log('🗄️ Supabase URL:', SUPABASE_URL ? '✅ Set' : '❌ Missing');
 
-// CORS — `cors` does not support '*.vercel.app' strings; use a matcher for preview URLs
+// CORS — glob '*.vercel.app' is not valid in cors(); use a matcher
 const corsStaticOrigins = new Set([
   'http://localhost:5173',
   'http://localhost:5174',
@@ -61,25 +61,29 @@ app.use((req, res, next) => {
 // ====================================
 
 function authenticateToken(req, res, next) {
-  // Skip authentication for specific routes
-const publicPaths = [
-  '/',
-  '/health',
-  '/api/health',
-  '/api/auth/login',
-  '/api/auth/register',
-  '/api/auth/debug-login',
-  '/api/leads/google-sheet-webhook',
-  '/api/leads/google-sync',
-  '/webhooks'
-];
+  // CORS preflight must never hit JWT (browser shows 404/CORS / failed fetch otherwise)
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
 
-  // Check if current path should skip authentication
-  const shouldSkipAuth = publicPaths.some(path => {
-    if (path.endsWith('/')) {
-      return req.path.startsWith(path);
-    }
-    return req.path === path || req.path.startsWith(path + '/');
+  const pathNorm = (req.path || '/').replace(/\/+$/, '') || '/';
+
+  // Skip authentication for specific routes
+  const publicPaths = [
+    '/',
+    '/health',
+    '/api/health',
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/debug-login',
+    '/api/leads/google-sync',
+    '/api/leads/google-sheet-webhook',
+    '/webhooks'
+  ];
+
+  const shouldSkipAuth = publicPaths.some((path) => {
+    const base = path.endsWith('/') ? path.slice(0, -1) : path;
+    return pathNorm === base || pathNorm.startsWith(`${base}/`);
   });
 
   if (shouldSkipAuth) {
@@ -212,75 +216,31 @@ app.post('/api/auth/debug-login', async (req, res) => {
   }
 });
 
-// Import and setup API handlers
-try {
-  // Auth handlers
-  const authHandler = require('./api/auth.js');
-  app.all('/api/auth/*', authHandler);
-
-  // Protected API handlers
-  const usersHandler = require('./api/users.js');
-  const leadsHandler = require('./api/leads.js');
-  const leadsSimpleHandler = require('./api/leads-simple.js');
-  const studentsHandler = require('./api/students.js');
-  const dashboardHandler = require('./api/dashboard.js');
-  const communicationsHandler = require('./api/enhanced-communications.js');
-  const analyticsHandler = require('./api/enhanced-analytics.js');
-  const automationsHandler = require('./api/enhanced-automation.js');
-  const documentsHandler = require('./api/enhanced-documents.js');
-  const integrationsHandler = require('./api/integrations.js');
-  const notificationsHandler = require('./api/enhanced-notifications.js');
-  const settingsHandler = require('./api/enhanced-system-settings.js');
-  const assignableUsersHandler = require('./api/assignable-users.js');
-
-  // Setup API routes
-  app.all('/api/users/*', usersHandler);
-  app.all('/api/users', usersHandler);
-  
-  app.all('/api/leads-simple/*', leadsSimpleHandler);
-  app.all('/api/leads-simple', leadsSimpleHandler);
-  
-  // Explicit path: Express does not treat `/api/leads/*` as a multi-segment wildcard
-  app.all('/api/leads/google-sync', leadsHandler);
-  app.all('/api/leads/*', leadsHandler);
-  app.all('/api/leads', leadsHandler);
-  
-  app.all('/api/students/*', studentsHandler);
-  app.all('/api/students', studentsHandler);
-  
-  app.all('/api/dashboard-summary', dashboardHandler);
-  app.all('/api/dashboard/*', dashboardHandler);
-  app.all('/api/dashboard', dashboardHandler);
-  
-  app.all('/api/assignable-users', assignableUsersHandler);
-  
-  app.all('/api/communications/*', communicationsHandler);
-  app.all('/api/communications', communicationsHandler);
-  
-  app.all('/api/analytics/*', analyticsHandler);
-  app.all('/api/analytics', analyticsHandler);
-  
-  app.all('/api/automations/*', automationsHandler);
-  app.all('/api/automations', automationsHandler);
-  
-  app.all('/api/documents/*', documentsHandler);
-  app.all('/api/documents', documentsHandler);
-  
-  app.all('/api/integrations/*', integrationsHandler);
-  app.all('/api/integrations', integrationsHandler);
-  
-  app.all('/api/notifications/*', notificationsHandler);
-  app.all('/api/notifications', notificationsHandler);
-  
-  app.all('/api/settings/*', settingsHandler);
-  app.all('/api/settings', settingsHandler);
-
-  console.log('✅ All API handlers loaded successfully');
-
-} catch (error) {
-  console.error('❌ Error loading API handlers:', error.message);
-  console.log('⚠️ Server will continue with available handlers');
+// Import and setup API handlers — load each module separately so one failure does not drop all routes
+function mountHandler(label, paths, modulePath) {
+  try {
+    const handler = require(modulePath);
+    paths.forEach((p) => app.all(p, handler));
+    console.log(`✅ Mounted ${label} (${modulePath})`);
+  } catch (error) {
+    console.error(`❌ Failed to mount ${label} (${modulePath}):`, error.message);
+  }
 }
+
+mountHandler('auth', ['/api/auth/*'], './api/auth.js');
+mountHandler('users', ['/api/users/*', '/api/users'], './api/users.js');
+mountHandler('leads', ['/api/leads/google-sync', '/api/leads/*', '/api/leads'], './api/leads.js');
+mountHandler('leads-simple', ['/api/leads-simple/*', '/api/leads-simple'], './api/leads-simple.js');
+mountHandler('students', ['/api/students/*', '/api/students'], './api/students.js');
+mountHandler('dashboard', ['/api/dashboard-summary', '/api/dashboard/*', '/api/dashboard'], './api/dashboard.js');
+mountHandler('communications', ['/api/communications/*', '/api/communications'], './api/enhanced-communications.js');
+mountHandler('analytics', ['/api/analytics/*', '/api/analytics'], './api/enhanced-analytics.js');
+mountHandler('automations', ['/api/automations/*', '/api/automations'], './api/enhanced-automation.js');
+mountHandler('documents', ['/api/documents/*', '/api/documents'], './api/enhanced-documents.js');
+mountHandler('integrations', ['/api/integrations/*', '/api/integrations'], './api/integrations.js');
+mountHandler('notifications', ['/api/notifications/*', '/api/notifications'], './api/enhanced-notifications.js');
+mountHandler('settings', ['/api/settings/*', '/api/settings'], './api/enhanced-system-settings.js');
+mountHandler('assignable-users', ['/api/assignable-users'], './api/assignable-users.js');
 
 // ====================================
 // 🚫 ERROR HANDLING

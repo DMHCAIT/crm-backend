@@ -52,6 +52,7 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
+  // Browser check: sync is POST-only; avoid treating this public path as GET /api/leads
   if (req.method === 'GET' && isGoogleSheetsSync) {
     return res.status(200).json({
       success: true,
