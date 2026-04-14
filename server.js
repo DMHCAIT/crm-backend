@@ -258,6 +258,7 @@ if (leadsSimpleHandler) {
 
 if (leadsHandler) {
   app.all('/api/leads/google-sync', leadsHandler);
+  app.all('/api/leads/stats', leadsHandler);
   app.all('/api/leads/*', leadsHandler);
   app.all('/api/leads', leadsHandler);
 }

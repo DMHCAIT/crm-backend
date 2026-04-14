@@ -119,6 +119,7 @@ module.exports = async (req, res) => {
           leads: normalizedLeads,
           data: normalizedLeads,
           total: count || 0,
+          totalLeads: count || 0,
           page: parsedPage,
           pageSize: parsedPageSize,
           message: 'Leads retrieved successfully from database'

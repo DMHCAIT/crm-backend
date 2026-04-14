@@ -49,7 +49,9 @@ const isValidPhone = (phone) => {
 };
 
 module.exports = async (req, res) => {
-  const isGoogleSheetsSync = req.path === '/api/leads/google-sync';
+  const urlPath = req.path || req.url || '';
+  const isGoogleSheetsSync = urlPath.includes('google-sync');
+  const isStatsRequest = urlPath.includes('/stats') || req.query.statsOnly === 'true';
 
   // CORS headers
   const allowedOrigins = [
@@ -71,6 +73,54 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  // ─── GET /api/leads/stats ── return DB-level counts without fetching all rows ───
+  if (req.method === 'GET' && isStatsRequest) {
+    if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+
+      const [
+        { count: total },
+        { count: hot },
+        { count: warm },
+        { count: followUps },
+        { count: thisMonth },
+        { count: converted },
+        { count: updatedToday },
+        { count: overdueFollowUps }
+      ] = await Promise.all([
+        supabase.from('leads').select('*', { count: 'exact', head: true }),
+        supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Hot'),
+        supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Warm'),
+        supabase.from('leads').select('*', { count: 'exact', head: true }).not('followUp', 'is', null),
+        supabase.from('leads').select('*', { count: 'exact', head: true }).gte('createdAt', firstOfMonth),
+        supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Enrolled'),
+        supabase.from('leads').select('*', { count: 'exact', head: true }).gte('updatedAt', todayISO),
+        supabase.from('leads').select('*', { count: 'exact', head: true }).lt('followUp', todayISO).not('followUp', 'is', null)
+      ]);
+
+      return res.json({
+        success: true,
+        stats: {
+          total: total || 0,
+          totalLeads: total || 0,
+          hot: hot || 0,
+          warm: warm || 0,
+          followUps: followUps || 0,
+          thisMonth: thisMonth || 0,
+          converted: converted || 0,
+          updatedToday: updatedToday || 0,
+          overdueFollowUps: overdueFollowUps || 0
+        }
+      });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   }
 
   if (req.method === 'GET' && isGoogleSheetsSync) {
@@ -143,6 +193,7 @@ module.exports = async (req, res) => {
           data: normalizedLeads,
           count: normalizedLeads.length,
           total: count,
+          totalLeads: count,
           page: parsedPage,
           pageSize: parsedLimit,
           limit: parsedLimit,
