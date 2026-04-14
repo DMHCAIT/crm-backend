@@ -52,24 +52,26 @@ app.use((req, res, next) => {
 
 function authenticateToken(req, res, next) {
   // Skip authentication for specific routes
-const publicPaths = [
-  '/',
-  '/health',
-  '/api/health',
-  '/api/auth/login',
-  '/api/auth/register',
-  '/api/auth/debug-login',
-  '/api/leads/google-sheet-webhook',
-  '/api/leads/google-sync',
-  '/webhooks'
-];
+  const publicPaths = [
+    '/',
+    '/health',
+    '/auth/login',
+    '/auth/register',
+    '/auth/debug-login',
+    '/leads/google-sheet-webhook',
+    '/leads/google-sync',
+    '/webhooks'
+  ];
+
+  // Build full path for comparison (since middleware is mounted on /api, req.path is relative)
+  const fullPath = req.path;
 
   // Check if current path should skip authentication
   const shouldSkipAuth = publicPaths.some(path => {
     if (path.endsWith('/')) {
-      return req.path.startsWith(path);
+      return fullPath.startsWith(path);
     }
-    return req.path === path || req.path.startsWith(path + '/');
+    return fullPath === path || fullPath.startsWith(path + '/');
   });
 
   if (shouldSkipAuth) {
@@ -111,9 +113,6 @@ const publicPaths = [
     });
   }
 }
-
-// Apply authentication to all /api routes (except auth routes)
-app.use('/api', authenticateToken);
 
 // ====================================
 // 🏥 HEALTH CHECK
