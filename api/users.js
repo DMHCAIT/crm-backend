@@ -111,9 +111,58 @@ async function handleGetUsers(req, res) {
       throw error;
     }
 
+    // Fetch lead counts for each user
+    const usersWithLeads = await Promise.all(
+      (users || []).map(async (user) => {
+        // Get total leads assigned to this user
+        const { count: totalLeads, error: leadsError } = await supabase
+          .from('leads')
+          .select('*', { count: 'exact', head: true })
+          .eq('assignedTo', user.username);
+
+        // Get leads by status for this user
+        const { data: leadsData, error: statusError } = await supabase
+          .from('leads')
+          .select('status')
+          .eq('assignedTo', user.username);
+
+        // Count leads by status
+        const leadsByStatus = {
+          fresh: 0,
+          contacted: 0,
+          qualified: 0,
+          negotiation: 0,
+          won: 0,
+          lost: 0,
+          enrolled: 0,
+          hot: 0,
+          warm: 0,
+          cold: 0
+        };
+
+        if (leadsData && !statusError) {
+          leadsData.forEach(lead => {
+            const status = (lead.status || '').toLowerCase();
+            if (leadsByStatus.hasOwnProperty(status)) {
+              leadsByStatus[status]++;
+            }
+          });
+        }
+
+        return {
+          ...user,
+          totalLeads: totalLeads || 0,
+          leadsByStatus: leadsByStatus,
+          activeLeads: (leadsData || []).filter(l => 
+            ['fresh', 'contacted', 'qualified', 'negotiation', 'hot', 'warm'].includes((l.status || '').toLowerCase())
+          ).length
+        };
+      })
+    );
+
     res.json({
       success: true,
-      users: users || []
+      users: usersWithLeads
     });
   } catch (error) {
     res.status(error.message.includes('Admin access') ? 403 : 500).json({
