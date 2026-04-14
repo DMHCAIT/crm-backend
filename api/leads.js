@@ -308,6 +308,7 @@ module.exports = async (req, res) => {
         const { leadId, content, noteType = 'general' } = req.body;
         if (!leadId || !content) {
           return res.status(400).json({ success: false, error: 'leadId and content are required' });
+
         }
 
         // Fetch current lead to get existing notes
@@ -362,6 +363,70 @@ module.exports = async (req, res) => {
           message: 'Note added successfully',
           note: newNote,
           data: normalizeLead(updatedLead)
+        });
+      }
+
+      // ── POST /api/leads { operation: 'bulk_update' } ──
+      if (req.body && req.body.operation === 'bulk_update') {
+        const user = verifyToken(req);
+        if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+        const { leadIds, updateData } = req.body;
+        if (!Array.isArray(leadIds) || leadIds.length === 0) {
+          return res.status(400).json({ success: false, error: 'leadIds array is required' });
+        }
+        if (!updateData || typeof updateData !== 'object') {
+          return res.status(400).json({ success: false, error: 'updateData is required' });
+        }
+
+        const cleanUpdate = { ...updateData };
+        delete cleanUpdate.id;
+        if (Array.isArray(cleanUpdate.notes)) cleanUpdate.notes = JSON.stringify(cleanUpdate.notes);
+        if (Array.isArray(cleanUpdate.tags)) cleanUpdate.tags = JSON.stringify(cleanUpdate.tags);
+        cleanUpdate.updatedAt = new Date().toISOString();
+
+        const { data: updated, error } = await supabase
+          .from('leads')
+          .update(cleanUpdate)
+          .in('id', leadIds)
+          .select();
+
+        if (error) {
+          return res.status(500).json({ success: false, error: 'Bulk update failed', message: error.message });
+        }
+
+        return res.json({
+          success: true,
+          message: `${updated?.length || 0} leads updated successfully`,
+          data: (updated || []).map(normalizeLead),
+          count: updated?.length || 0
+        });
+      }
+
+      // ── POST /api/leads { operation: 'bulk_delete' } ──
+      if (req.body && req.body.operation === 'bulk_delete') {
+        const user = verifyToken(req);
+        if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+        const { leadIds } = req.body;
+        if (!Array.isArray(leadIds) || leadIds.length === 0) {
+          return res.status(400).json({ success: false, error: 'leadIds array is required' });
+        }
+
+        const { data: deleted, error } = await supabase
+          .from('leads')
+          .delete()
+          .in('id', leadIds)
+          .select();
+
+        if (error) {
+          return res.status(500).json({ success: false, error: 'Bulk delete failed', message: error.message });
+        }
+
+        return res.json({
+          success: true,
+          message: `${deleted?.length || 0} leads deleted successfully`,
+          count: deleted?.length || 0
         });
       }
 
@@ -532,6 +597,14 @@ module.exports = async (req, res) => {
       const updateData = { ...req.body };
       delete updateData.id; // Remove ID from update data
 
+      // Remove frontend-only / read-only fields that don't exist in the DB schema
+      delete updateData.assigned_to; // alias for assignedTo — DB uses assignedTo
+      delete updateData.created_at;
+      delete updateData.updated_at;
+      delete updateData.leadsByStatus;
+      delete updateData.totalLeads;
+      delete updateData.activeLeads;
+
       // Serialize notes array to JSON string for DB storage
       if (updateData.notes !== undefined && Array.isArray(updateData.notes)) {
         updateData.notes = JSON.stringify(updateData.notes);
@@ -541,7 +614,12 @@ module.exports = async (req, res) => {
       if (updateData.tags !== undefined && Array.isArray(updateData.tags)) {
         updateData.tags = JSON.stringify(updateData.tags);
       }
-      
+
+      // Serialize custom_fields object if needed
+      if (updateData.custom_fields !== undefined && typeof updateData.custom_fields === 'object' && !Array.isArray(updateData.custom_fields)) {
+        updateData.custom_fields = JSON.stringify(updateData.custom_fields);
+      }
+
       // Handle field name mapping for legacy support
       if (updateData.name && !updateData.fullName) {
         updateData.fullName = updateData.name;
@@ -552,7 +630,7 @@ module.exports = async (req, res) => {
         delete updateData.course_interest;
       }
 
-      // Validate email if being updated
+      // Validate email if being updated (allow empty string to clear it)
       if (updateData.email && !isValidEmail(updateData.email)) {
         return res.status(400).json({ 
           success: false,
@@ -560,7 +638,7 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Validate phone if being updated
+      // Validate phone if being updated (allow empty string to clear it)
       if (updateData.phone && !isValidPhone(updateData.phone)) {
         return res.status(400).json({ 
           success: false,
@@ -591,7 +669,8 @@ module.exports = async (req, res) => {
         return res.json({
           success: true,
           message: 'Lead updated successfully',
-          data: updatedLead
+          data: normalizeLead(updatedLead),
+          lead: normalizeLead(updatedLead)
         });
 
       } catch (dbError) {
