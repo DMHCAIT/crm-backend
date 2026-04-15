@@ -653,14 +653,27 @@ module.exports = async (req, res) => {
           return isNaN(d.getTime()) ? null : d.toISOString();
         }
 
+        // Map any frontend status values to the values actually stored in the DB.
+        // The DB started with 'new','contacted','qualified','converted','lost' but the app
+        // uses 'Fresh','Hot','Warm', etc.  Both sets are accepted here; if a CSV row
+        // has none of these, fall back to 'new' so the insert never violates a CHECK constraint.
+        const VALID_STATUSES = new Set([
+          'new','contacted','qualified','converted','lost',
+          'Fresh','Hot','Warm','Follow Up','Enrolled','Will Enroll Later',
+          'Not Answering','Not Interested','Junk'
+        ]);
+
         const results = { success: 0, failed: 0, errors: [] };
+
+        // Build insert objects using ONLY the columns confirmed in the leads schema.
+        // Do not include score / city / designation — they may not exist as DB columns.
         const insertBatch = [];
 
         for (const lead of leadsToCreate) {
-          const fullName = lead.fullName || lead.name || '';
+          const fullName = (lead.fullName || lead.name || '').trim();
           if (!fullName) {
             results.failed++;
-            results.errors.push({ lead: fullName || 'unknown', error: 'fullName is required' });
+            results.errors.push(`Row skipped: missing fullName`);
             continue;
           }
 
@@ -670,7 +683,6 @@ module.exports = async (req, res) => {
             if (Array.isArray(lead.notes)) {
               notesArr = lead.notes;
             } else if (typeof lead.notes === 'string') {
-              // Try to parse as JSON first; fall back to wrapping in a note object
               try {
                 const parsed = JSON.parse(lead.notes);
                 notesArr = Array.isArray(parsed) ? parsed : [{ id: `note-${Date.now()}`, content: lead.notes, timestamp: new Date().toISOString(), author: user.username || 'Import' }];
@@ -680,7 +692,10 @@ module.exports = async (req, res) => {
             }
           }
 
-          insertBatch.push({
+          const statusValue = lead.status && VALID_STATUSES.has(lead.status) ? lead.status : 'new';
+
+          // Base row — only columns that are guaranteed to exist
+          const row = {
             fullName,
             email: lead.email || '',
             phone: lead.phone || '',
@@ -689,29 +704,68 @@ module.exports = async (req, res) => {
             qualification: lead.qualification || '',
             source: lead.source || 'import',
             course: lead.course || '',
-            status: lead.status || 'Fresh',
+            status: statusValue,
             assignedTo: lead.assignedTo || null,
-            followUp: safeDate(lead.followUp),  // parse date string to ISO, null if invalid
+            followUp: safeDate(lead.followUp),
             priority: lead.priority || 'medium',
             notes: JSON.stringify(notesArr),
-            score: typeof lead.score === 'number' ? lead.score : (parseInt(lead.score) || 0),
-            company: lead.company || '',
-            city: lead.city || '',
-            designation: lead.designation || ''
-          });
+          };
+
+          // Conditionally add extended columns — if they don't exist in the DB,
+          // the per-row error handler below will retry without them.
+          if (lead.company !== undefined && lead.company !== null) row.company = lead.company || '';
+
+          insertBatch.push(row);
         }
 
+        // ── Attempt batch insert ──
         if (insertBatch.length > 0) {
-          const { data: inserted, error: insertError } = await supabase
+          const { data: inserted, error: batchError } = await supabase
             .from('leads')
             .insert(insertBatch)
             .select();
 
-          if (insertError) {
-            console.error('❌ Bulk create insert error:', insertError.message);
-            return res.status(500).json({ success: false, error: 'Bulk create failed', message: insertError.message });
+          if (!batchError) {
+            results.success = inserted?.length || 0;
+          } else {
+            // Batch failed — fall back to per-row inserts so we get individual error info
+            // and can succeed on the rows that are valid.
+            console.warn('⚠️  Batch insert failed, falling back to per-row inserts. Error:', batchError.message);
+
+            // If the error is about an unknown column, strip company and retry
+            const unknownCol = batchError.code === '42703' || batchError.message?.includes('column') || batchError.message?.includes('schema cache');
+
+            for (let i = 0; i < insertBatch.length; i++) {
+              const row = { ...insertBatch[i] };
+              if (unknownCol) {
+                // Remove any column that might not exist in the base schema
+                delete row.company;
+              }
+
+              const { error: rowError } = await supabase
+                .from('leads')
+                .insert([row]);
+
+              if (rowError) {
+                results.failed++;
+                results.errors.push(`Row ${i + 1} (${row.fullName}): ${rowError.message}`);
+                console.error(`❌ Row ${i + 1} insert error:`, rowError.message);
+              } else {
+                results.success++;
+              }
+            }
           }
-          results.success = inserted?.length || 0;
+        }
+
+        // Return 200 even when some rows failed so the frontend can show the report.
+        // Only return 500 if zero rows succeeded and there were rows to insert.
+        if (results.success === 0 && insertBatch.length > 0) {
+          return res.status(500).json({
+            success: false,
+            error: 'All rows failed to import',
+            message: results.errors[0] || 'Database insert error',
+            results
+          });
         }
 
         return res.json({
