@@ -645,6 +645,14 @@ module.exports = async (req, res) => {
           return res.status(400).json({ success: false, error: 'leads array is required' });
         }
 
+        // Helper: safely parse a date string into ISO format for TIMESTAMP columns.
+        // Returns null if the string is empty or not parseable.
+        function safeDate(raw) {
+          if (!raw || typeof raw !== 'string' || !raw.trim()) return null;
+          const d = new Date(raw.trim());
+          return isNaN(d.getTime()) ? null : d.toISOString();
+        }
+
         const results = { success: 0, failed: 0, errors: [] };
         const insertBatch = [];
 
@@ -652,9 +660,26 @@ module.exports = async (req, res) => {
           const fullName = lead.fullName || lead.name || '';
           if (!fullName) {
             results.failed++;
-            results.errors.push({ lead, error: 'fullName is required' });
+            results.errors.push({ lead: fullName || 'unknown', error: 'fullName is required' });
             continue;
           }
+
+          // Build notes as a JSON array so normalizeLead can parse it on read
+          let notesArr = [];
+          if (lead.notes) {
+            if (Array.isArray(lead.notes)) {
+              notesArr = lead.notes;
+            } else if (typeof lead.notes === 'string') {
+              // Try to parse as JSON first; fall back to wrapping in a note object
+              try {
+                const parsed = JSON.parse(lead.notes);
+                notesArr = Array.isArray(parsed) ? parsed : [{ id: `note-${Date.now()}`, content: lead.notes, timestamp: new Date().toISOString(), author: user.username || 'Import' }];
+              } catch {
+                notesArr = [{ id: `note-${Date.now()}`, content: lead.notes, timestamp: new Date().toISOString(), author: user.username || 'Import' }];
+              }
+            }
+          }
+
           insertBatch.push({
             fullName,
             email: lead.email || '',
@@ -664,12 +689,12 @@ module.exports = async (req, res) => {
             qualification: lead.qualification || '',
             source: lead.source || 'import',
             course: lead.course || '',
-            status: lead.status || 'new',
+            status: lead.status || 'Fresh',
             assignedTo: lead.assignedTo || null,
-            followUp: lead.followUp || null,
+            followUp: safeDate(lead.followUp),  // parse date string to ISO, null if invalid
             priority: lead.priority || 'medium',
-            notes: typeof lead.notes === 'string' ? lead.notes : (Array.isArray(lead.notes) ? JSON.stringify(lead.notes) : ''),
-            score: lead.score || 0,
+            notes: JSON.stringify(notesArr),
+            score: typeof lead.score === 'number' ? lead.score : (parseInt(lead.score) || 0),
             company: lead.company || '',
             city: lead.city || '',
             designation: lead.designation || ''
@@ -683,6 +708,7 @@ module.exports = async (req, res) => {
             .select();
 
           if (insertError) {
+            console.error('❌ Bulk create insert error:', insertError.message);
             return res.status(500).json({ success: false, error: 'Bulk create failed', message: insertError.message });
           }
           results.success = inserted?.length || 0;
