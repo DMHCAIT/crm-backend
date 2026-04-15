@@ -866,24 +866,29 @@ module.exports = async (req, res) => {
       delete updateData.assigned_to; // alias for assignedTo — DB uses assignedTo
       delete updateData.created_at;
       delete updateData.updated_at;
+      delete updateData.createdAt;   // read-only, set on creation only
       delete updateData.leadsByStatus;
       delete updateData.totalLeads;
       delete updateData.activeLeads;
+      // Frontend Lead interface fields not in leads DB table
+      delete updateData.fees;
+      delete updateData.estimatedValue;
+      delete updateData.estimated_value;
+      delete updateData.actualRevenue;
+      delete updateData.actual_revenue;
+      delete updateData.salePrice;
+      delete updateData.sale_price;
+      delete updateData.currency;
+      delete updateData.updated_by;
+      delete updateData.custom_fields; // not a leads table column
 
-      // Serialize notes array to JSON string for DB storage
+      // Serialize notes array to JSON string for DB storage (notes column is TEXT)
       if (updateData.notes !== undefined && Array.isArray(updateData.notes)) {
         updateData.notes = JSON.stringify(updateData.notes);
       }
 
-      // Serialize tags array to JSON string for DB storage
-      if (updateData.tags !== undefined && Array.isArray(updateData.tags)) {
-        updateData.tags = JSON.stringify(updateData.tags);
-      }
-
-      // Serialize custom_fields object if needed
-      if (updateData.custom_fields !== undefined && typeof updateData.custom_fields === 'object' && !Array.isArray(updateData.custom_fields)) {
-        updateData.custom_fields = JSON.stringify(updateData.custom_fields);
-      }
+      // tags is TEXT[] in Postgres — pass as JS array directly (do NOT JSON.stringify)
+      // If tags is somehow a string, leave it as-is
 
       // Handle field name mapping for legacy support
       if (updateData.name && !updateData.fullName) {
