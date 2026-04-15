@@ -226,9 +226,18 @@ module.exports = async (req, res) => {
 
         const {
           email, phone, status, source,
-          assignedTo, followUpDateType,
+          assignedTo,
           limit, offset,
-          page, pageSize
+          page, pageSize,
+          search,
+          country, qualification, course, company,
+          // updatedAt date filter
+          dateFilter, dateFrom, dateTo, dateFilterType, specificDate,
+          // createdAt date filter
+          createdDateFilter, createdDateFrom, createdDateTo, createdDateFilterType, createdSpecificDate,
+          // followUp date filter
+          followUpFilter, followUpDateFrom, followUpDateTo, followUpDateType, followUpSpecificDate,
+          showOverdueFollowUp
         } = req.query;
 
         // Support both page/pageSize and limit/offset
@@ -251,15 +260,187 @@ module.exports = async (req, res) => {
           query = query.in('assignedTo', accessibleUsernames);
         }
 
-        // Apply additional filters from query params
-        if (email) query = query.eq('email', email);
-        if (phone) query = query.eq('phone', phone);
-        if (status) query = query.eq('status', status);
-        if (source) query = query.ilike('source', `%${source}%`);
-        // Only honour explicit assignedTo filter if it is within the accessible set
+        // ── Search ──
+        if (search && search.trim()) {
+          const s = search.trim();
+          query = query.or(
+            `fullName.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%,country.ilike.%${s}%,course.ilike.%${s}%,source.ilike.%${s}%,company.ilike.%${s}%`
+          );
+        }
+
+        // ── Basic field filters ──
+        if (email) query = query.ilike('email', `%${email}%`);
+        if (phone) query = query.ilike('phone', `%${phone}%`);
+
+        // Status — can be comma-separated list
+        if (status && status !== 'all') {
+          const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+          if (statuses.length === 1) {
+            query = query.eq('status', statuses[0]);
+          } else if (statuses.length > 1) {
+            query = query.in('status', statuses);
+          }
+        }
+
+        if (source && source !== 'all') query = query.ilike('source', `%${source}%`);
+        if (country && country !== 'all') query = query.ilike('country', `%${country}%`);
+        if (qualification && qualification !== 'all') query = query.ilike('qualification', `%${qualification}%`);
+        if (course && course !== 'all') query = query.ilike('course', `%${course}%`);
+        if (company && company !== 'all') query = query.ilike('company', `%${company}%`);
+
+        // ── AssignedTo — comma-separated usernames ──
         if (assignedTo && assignedTo !== 'all') {
-          if (accessibleUsernames === null || accessibleUsernames.includes(assignedTo)) {
-            query = query.eq('assignedTo', assignedTo);
+          const names = assignedTo.split(',').map(n => n.trim()).filter(Boolean);
+          // Only allow names within the accessible set
+          const allowed = accessibleUsernames === null
+            ? names
+            : names.filter(n => accessibleUsernames.includes(n));
+          if (allowed.length === 1) {
+            query = query.eq('assignedTo', allowed[0]);
+          } else if (allowed.length > 1) {
+            query = query.in('assignedTo', allowed);
+          }
+        }
+
+        // ── Helper to build date range for IST-aware UTC timestamps ──
+        // All dates from frontend are "YYYY-MM-DD" (local date). Convert to UTC range.
+        function dayStart(dateStr) {
+          // Treat as IST (UTC+5:30): subtract 5h30m to get UTC
+          return new Date(`${dateStr}T00:00:00+05:30`).toISOString();
+        }
+        function dayEnd(dateStr) {
+          return new Date(`${dateStr}T23:59:59+05:30`).toISOString();
+        }
+
+        // ── Updated-At Date Filter (dateFilter) ──
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const yesterdayStr = new Date(now - 86400000).toISOString().slice(0, 10);
+        const weekAgoStr = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
+        const lastWeekStart = new Date(now - 14 * 86400000).toISOString().slice(0, 10);
+        const lastWeekEnd = yesterdayStr;
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+
+        if (dateFilter && dateFilter !== 'all') {
+          switch (dateFilter) {
+            case 'updated_today':
+              query = query.gte('updatedAt', dayStart(todayStr));
+              break;
+            case 'updated_yesterday':
+              query = query.gte('updatedAt', dayStart(yesterdayStr)).lte('updatedAt', dayEnd(yesterdayStr));
+              break;
+            case 'updated_this_week':
+              query = query.gte('updatedAt', dayStart(weekAgoStr));
+              break;
+            case 'updated_last_week':
+              query = query.gte('updatedAt', dayStart(lastWeekStart)).lte('updatedAt', dayEnd(lastWeekEnd));
+              break;
+            case 'updated_this_month':
+              query = query.gte('updatedAt', dayStart(monthStart));
+              break;
+            case 'today':
+              query = query.gte('updatedAt', new Date(now - 24 * 3600 * 1000).toISOString());
+              break;
+            case 'yesterday':
+              query = query.gte('updatedAt', new Date(now - 48 * 3600 * 1000).toISOString())
+                           .lte('updatedAt', new Date(now - 24 * 3600 * 1000).toISOString());
+              break;
+            case 'recently_imported':
+              query = query.gte('updatedAt', new Date(now - 7 * 86400 * 1000).toISOString());
+              break;
+            case 'custom': {
+              const type = dateFilterType || 'between';
+              if (type === 'on' && specificDate) {
+                query = query.gte('updatedAt', dayStart(specificDate)).lte('updatedAt', dayEnd(specificDate));
+              } else if (type === 'after' && specificDate) {
+                query = query.gte('updatedAt', dayStart(specificDate));
+              } else if (type === 'before' && specificDate) {
+                query = query.lte('updatedAt', dayEnd(specificDate));
+              } else if (type === 'between') {
+                if (dateFrom) query = query.gte('updatedAt', dayStart(dateFrom));
+                if (dateTo) query = query.lte('updatedAt', dayEnd(dateTo));
+              }
+              break;
+            }
+            default:
+              break;
+          }
+        }
+
+        // ── Created-At Date Filter ──
+        if (createdDateFilter && createdDateFilter !== 'all') {
+          switch (createdDateFilter) {
+            case 'today':
+              query = query.gte('createdAt', dayStart(todayStr));
+              break;
+            case 'yesterday':
+              query = query.gte('createdAt', dayStart(yesterdayStr)).lte('createdAt', dayEnd(yesterdayStr));
+              break;
+            case 'this_week':
+              query = query.gte('createdAt', dayStart(weekAgoStr));
+              break;
+            case 'this_month':
+              query = query.gte('createdAt', dayStart(monthStart));
+              break;
+            case 'last_7_days':
+              query = query.gte('createdAt', dayStart(weekAgoStr));
+              break;
+            case 'last_30_days':
+              query = query.gte('createdAt', new Date(now - 30 * 86400 * 1000).toISOString());
+              break;
+            case 'custom': {
+              const type = createdDateFilterType || 'between';
+              if (type === 'on' && createdSpecificDate) {
+                query = query.gte('createdAt', dayStart(createdSpecificDate)).lte('createdAt', dayEnd(createdSpecificDate));
+              } else if (type === 'after' && createdSpecificDate) {
+                query = query.gte('createdAt', dayStart(createdSpecificDate));
+              } else if (type === 'before' && createdSpecificDate) {
+                query = query.lte('createdAt', dayEnd(createdSpecificDate));
+              } else if (type === 'between') {
+                if (createdDateFrom) query = query.gte('createdAt', dayStart(createdDateFrom));
+                if (createdDateTo) query = query.lte('createdAt', dayEnd(createdDateTo));
+              }
+              break;
+            }
+            default:
+              break;
+          }
+        }
+
+        // ── Follow-Up Date Filter ──
+        const nowISO = now.toISOString();
+        if (showOverdueFollowUp === 'true' || followUpFilter === 'overdue') {
+          query = query.lt('followUp', nowISO).not('followUp', 'is', null);
+        } else if (followUpFilter && followUpFilter !== 'all') {
+          switch (followUpFilter) {
+            case 'today':
+              query = query.gte('followUp', dayStart(todayStr)).lte('followUp', dayEnd(todayStr));
+              break;
+            case 'yesterday':
+              query = query.gte('followUp', dayStart(yesterdayStr)).lte('followUp', dayEnd(yesterdayStr));
+              break;
+            case 'this_week':
+              query = query.gte('followUp', dayStart(weekAgoStr));
+              break;
+            case 'this_month':
+              query = query.gte('followUp', dayStart(monthStart));
+              break;
+            case 'custom': {
+              const type = followUpDateType || 'between';
+              if (type === 'on' && followUpSpecificDate) {
+                query = query.gte('followUp', dayStart(followUpSpecificDate)).lte('followUp', dayEnd(followUpSpecificDate));
+              } else if (type === 'after' && followUpSpecificDate) {
+                query = query.gte('followUp', dayStart(followUpSpecificDate));
+              } else if (type === 'before' && followUpSpecificDate) {
+                query = query.lte('followUp', dayEnd(followUpSpecificDate));
+              } else if (type === 'between') {
+                if (followUpDateFrom) query = query.gte('followUp', dayStart(followUpDateFrom));
+                if (followUpDateTo) query = query.lte('followUp', dayEnd(followUpDateTo));
+              }
+              break;
+            }
+            default:
+              break;
           }
         }
 
