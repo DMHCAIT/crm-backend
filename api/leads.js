@@ -368,27 +368,50 @@ module.exports = async (req, res) => {
         }
 
         // ── Created-At Date Filter ──
+        // Frontend sends values prefixed with 'created_' (e.g. 'created_today', 'created_this_week')
         if (createdDateFilter && createdDateFilter !== 'all') {
+          const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+          const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+          const lastWeekStartStr = new Date(now - 14 * 86400 * 1000).toISOString().slice(0, 10);
+          const lastWeekEndStr = new Date(now - 7 * 86400 * 1000).toISOString().slice(0, 10);
+
           switch (createdDateFilter) {
+            case 'created_today':
             case 'today':
               query = query.gte('createdAt', dayStart(todayStr));
               break;
+            case 'created_yesterday':
             case 'yesterday':
               query = query.gte('createdAt', dayStart(yesterdayStr)).lte('createdAt', dayEnd(yesterdayStr));
               break;
+            case 'created_this_week':
             case 'this_week':
+            case 'last_7_days':
               query = query.gte('createdAt', dayStart(weekAgoStr));
               break;
+            case 'created_last_week':
+              query = query.gte('createdAt', dayStart(lastWeekStartStr)).lte('createdAt', dayEnd(lastWeekEndStr));
+              break;
+            case 'created_this_month':
             case 'this_month':
               query = query.gte('createdAt', dayStart(monthStart));
               break;
-            case 'last_7_days':
-              query = query.gte('createdAt', dayStart(weekAgoStr));
+            case 'created_last_month':
+              query = query.gte('createdAt', dayStart(lastMonthStart)).lte('createdAt', dayEnd(lastMonthEnd));
               break;
             case 'last_30_days':
               query = query.gte('createdAt', new Date(now - 30 * 86400 * 1000).toISOString());
               break;
+            case 'created_custom':
             case 'custom': {
+              // Custom range: createdDateFrom and createdDateTo (both required for between)
+              if (createdDateFrom) query = query.gte('createdAt', dayStart(createdDateFrom));
+              if (createdDateTo) query = query.lte('createdAt', dayEnd(createdDateTo));
+              break;
+            }
+            case 'created_advanced':
+            case 'advanced': {
+              // Advanced: uses createdDateFilterType (on/after/before/between) + createdSpecificDate
               const type = createdDateFilterType || 'between';
               if (type === 'on' && createdSpecificDate) {
                 query = query.gte('createdAt', dayStart(createdSpecificDate)).lte('createdAt', dayEnd(createdSpecificDate));
