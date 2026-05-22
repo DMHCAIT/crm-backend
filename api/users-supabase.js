@@ -197,6 +197,7 @@ module.exports = async (req, res) => {
         fullName,
         username,
         email,
+        password,
         role,
         status,
         department,
@@ -216,6 +217,13 @@ module.exports = async (req, res) => {
         return res.status(400).json({
           success: false,
           error: 'Name, username, email, and role are required'
+        });
+      }
+
+      if (!password) {
+        return res.status(400).json({
+          success: false,
+          error: 'Password is required'
         });
       }
 
@@ -258,11 +266,15 @@ module.exports = async (req, res) => {
           }
         }
 
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         // Create new user
         const userData = {
           fullName: userName, // Use userName which supports both name and fullName
           username,
           email,
+          password_hash: hashedPassword,
           role,
           status: status || 'active',
           department: department || null,
