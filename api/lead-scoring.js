@@ -551,7 +551,7 @@ module.exports = async (req, res) => {
         .from('lead_scores')
         .select('*')
         .order('score', { ascending: false })
-        .limit(parseInt(limit as string));
+        .limit(parseInt(limit));
 
       if (error) throw error;
 
@@ -572,7 +572,7 @@ module.exports = async (req, res) => {
         .select('*')
         .gte('churn_risk', 40)
         .order('churn_risk', { ascending: false })
-        .limit(parseInt(limit as string));
+        .limit(parseInt(limit));
 
       if (error) throw error;
 
