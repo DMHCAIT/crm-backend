@@ -100,15 +100,22 @@ async function handleLogin(req, res) {
   }
 
   try {
-    // Step 1: Find user in DB - separate queries for email vs username (more reliable than OR)
+    // Step 1: Find user in DB - try email, username, then fullName
     let dbUser = null;
     try {
       if (isEmail) {
-        const { data } = await supabase.from('users').select('*').eq('email', loginIdentifier).single();
+        const { data } = await supabase.from('users').select('*').eq('email', loginIdentifier).maybeSingle();
         dbUser = data;
       } else {
-        const { data } = await supabase.from('users').select('*').eq('username', loginIdentifier).single();
-        dbUser = data;
+        // Try by username first
+        const { data: byUsername } = await supabase.from('users').select('*').eq('username', loginIdentifier).maybeSingle();
+        if (byUsername) {
+          dbUser = byUsername;
+        } else {
+          // Fallback: try by fullName (user may type their display name)
+          const { data: byFullName } = await supabase.from('users').select('*').eq('fullName', loginIdentifier).maybeSingle();
+          if (byFullName) dbUser = byFullName;
+        }
       }
     } catch (lookupErr) {
       console.warn('User lookup error:', lookupErr.message);
