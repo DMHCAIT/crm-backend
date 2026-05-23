@@ -155,8 +155,18 @@ async function handleLogin(req, res) {
       signInData = authResult.data;
       signInError = authResult.error;
     } else {
-      // If it's a username, only use database auth
-      signInError = { message: 'Invalid username or password' };
+      // Username login - if we found the user in DB, use their email for Supabase auth
+      if (dbUser && dbUser.email) {
+        const authResult = await supabase.auth.signInWithPassword({
+          email: dbUser.email,
+          password
+        });
+        signInData = authResult.data;
+        signInError = authResult.error;
+      } else {
+        // Username not found in DB at all
+        signInError = { message: 'Invalid username or password' };
+      }
     }
 
     if (signInError) {
