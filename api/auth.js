@@ -121,6 +121,14 @@ async function handleLogin(req, res) {
       console.warn('User lookup error:', lookupErr.message);
     }
 
+    // Block inactive users
+    if (dbUser && dbUser.status === 'inactive') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact the administrator.'
+      });
+    }
+
     // Step 2: If user has a local password_hash, verify it directly (bcrypt)
     if (dbUser && dbUser.password_hash) {
       const isValidPassword = await bcrypt.compare(password, dbUser.password_hash);
