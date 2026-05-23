@@ -204,6 +204,7 @@ module.exports = async (req, res) => {
         designation,
         phone,
         location,
+        branch,
         join_date,
         reports_to,
         company
@@ -281,6 +282,7 @@ module.exports = async (req, res) => {
           designation: designation || null,
           phone: phone || null,
           location: location || null,
+          branch: branch || null,
           join_date: join_date || new Date().toISOString().split('T')[0],
           reports_to: reports_to === '' ? null : (reports_to || null),
           company: company || null,
@@ -350,6 +352,7 @@ module.exports = async (req, res) => {
         designation,
         phone,
         location,
+        branch,
         join_date,
         reports_to,
         company,
@@ -409,6 +412,7 @@ module.exports = async (req, res) => {
         if (designation !== undefined) updateData.designation = designation;
         if (phone !== undefined) updateData.phone = phone;
         if (location !== undefined) updateData.location = location;
+        if (branch !== undefined) updateData.branch = branch;
         if (join_date !== undefined) updateData.join_date = join_date;
         if (reports_to !== undefined) updateData.reports_to = reports_to === '' ? null : reports_to;
         if (company !== undefined) updateData.company = company;
