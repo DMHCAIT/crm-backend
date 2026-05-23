@@ -899,7 +899,7 @@ module.exports = async (req, res) => {
           designation: designation || ''
         };
 
-        // Try insert with all fields first; if it fails due to missing column, retry with base fields only
+        // Try insert with all fields first; if it fails for any reason, retry with base fields only
         let lead = null;
         let insertError = null;
 
@@ -909,9 +909,9 @@ module.exports = async (req, res) => {
           .select()
           .single();
 
-        if (errorFull && (errorFull.code === '42703' || errorFull.message?.includes('column') || errorFull.message?.includes('schema cache'))) {
-          // Unknown column — retry with base fields only
-          console.warn('⚠️ Extended columns not in schema, retrying with base fields:', errorFull.message);
+        if (errorFull) {
+          // Any insert failure — retry with base fields only (no score/company/city/designation)
+          console.warn('⚠️ Full insert failed, retrying with base fields. Error:', errorFull.message);
           const { data: leadBase, error: errorBase } = await supabase
             .from('leads')
             .insert([baseLeadData])
@@ -921,16 +921,15 @@ module.exports = async (req, res) => {
           insertError = errorBase;
         } else {
           lead = leadFull;
-          insertError = errorFull;
+          insertError = null;
         }
 
         if (insertError) {
           console.log('❌ Lead insertion error:', insertError.message);
           return res.status(500).json({
             success: false,
-            error: 'Database error during lead creation',
-            message: `Database error: ${insertError.message}`,
-            details: insertError.details || 'Lead creation failed. Please check the data and try again.'
+            error: insertError.message || 'Database error during lead creation',
+            details: insertError.details || insertError.hint || 'Lead creation failed'
           });
         }
 
