@@ -88,8 +88,9 @@ module.exports = async (req, res) => {
 async function handleLogin(req, res) {
   const { email, password, username } = req.body;
   
-  // Accept either email or username (frontend sends it as email for backward compatibility)
+  // Accept either email or username
   const loginIdentifier = email || username;
+  const isEmail = loginIdentifier && loginIdentifier.includes('@');
 
   if (!loginIdentifier || !password) {
     return res.status(400).json({
@@ -99,20 +100,25 @@ async function handleLogin(req, res) {
   }
 
   try {
-    // First, try direct database authentication for admin users
-    // Check both email and username fields
-    const { data: dbUser, error: dbError } = await supabase
-      .from('users')
-      .select('*')
-      .or(`email.eq.${loginIdentifier},username.eq.${loginIdentifier}`)
-      .single();
+    // Step 1: Find user in DB - separate queries for email vs username (more reliable than OR)
+    let dbUser = null;
+    try {
+      if (isEmail) {
+        const { data } = await supabase.from('users').select('*').eq('email', loginIdentifier).single();
+        dbUser = data;
+      } else {
+        const { data } = await supabase.from('users').select('*').eq('username', loginIdentifier).single();
+        dbUser = data;
+      }
+    } catch (lookupErr) {
+      console.warn('User lookup error:', lookupErr.message);
+    }
 
+    // Step 2: If user has a local password_hash, verify it directly (bcrypt)
     if (dbUser && dbUser.password_hash) {
-      // This is a direct database user (admin), check password hash
       const isValidPassword = await bcrypt.compare(password, dbUser.password_hash);
       
       if (isValidPassword) {
-        // Generate JWT token for database user
         const token = jwt.sign(
           { 
             id: dbUser.id,
@@ -124,7 +130,6 @@ async function handleLogin(req, res) {
           { expiresIn: JWT_EXPIRES_IN }
         );
 
-        // Log the admin login session
         const sessionId = await createUserSession(dbUser.id, req);
 
         return res.json({
@@ -133,7 +138,7 @@ async function handleLogin(req, res) {
           user: {
             id: dbUser.id,
             email: dbUser.email,
-            name: dbUser.name,
+            name: dbUser.fullName || dbUser.name,
             username: dbUser.username,
             role: dbUser.role
           },
@@ -142,32 +147,22 @@ async function handleLogin(req, res) {
       }
     }
 
-    // If no direct database match, try Supabase auth (requires email format)
-    // If loginIdentifier looks like username, skip Supabase auth
-    let signInData = null;
-    let signInError = null;
-    
-    if (loginIdentifier.includes('@')) {
-      const authResult = await supabase.auth.signInWithPassword({
-        email: loginIdentifier,
-        password
+    // Step 3: Try Supabase auth.
+    // For email login: use the email directly.
+    // For username login: use the email found in DB for that username.
+    const authEmail = isEmail ? loginIdentifier : (dbUser ? dbUser.email : null);
+
+    if (!authEmail) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
       });
-      signInData = authResult.data;
-      signInError = authResult.error;
-    } else {
-      // Username login - if we found the user in DB, use their email for Supabase auth
-      if (dbUser && dbUser.email) {
-        const authResult = await supabase.auth.signInWithPassword({
-          email: dbUser.email,
-          password
-        });
-        signInData = authResult.data;
-        signInError = authResult.error;
-      } else {
-        // Username not found in DB at all
-        signInError = { message: 'Invalid username or password' };
-      }
     }
+
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: authEmail,
+      password
+    });
 
     if (signInError) {
       return res.status(401).json({
@@ -176,28 +171,13 @@ async function handleLogin(req, res) {
       });
     }
 
-    // Try to get user profile from users table, fallback to auth data
-    let userProfile = null;
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('users')
-        .select('*')
-        .or(`email.eq.${loginIdentifier},username.eq.${loginIdentifier}`)
-        .single();
-
-      if (!profileError && profileData) {
-        userProfile = profileData;
-      }
-    } catch (profileErr) {
-      console.warn('Could not fetch user profile:', profileErr.message);
-    }
-
-    // Use profile data if available, otherwise use auth data
-    const userData = userProfile || {
+    // Use already-fetched dbUser as profile, or fallback to Supabase auth data
+    const userData = dbUser || {
       id: signInData.user.id,
       email: signInData.user.email,
-      name: signInData.user.user_metadata?.name || email.split('@')[0],
-      role: 'user'
+      fullName: signInData.user.user_metadata?.name || authEmail.split('@')[0],
+      name: signInData.user.user_metadata?.name || authEmail.split('@')[0],
+      role: 'counselor'
     };
 
     // Generate JWT token
@@ -221,7 +201,8 @@ async function handleLogin(req, res) {
       user: {
         id: userData.id,
         email: userData.email,
-        name: userData.name,
+        name: userData.fullName || userData.name,
+        username: userData.username,
         role: userData.role
       },
       session_id: sessionId
