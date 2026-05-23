@@ -873,8 +873,8 @@ module.exports = async (req, res) => {
           enhancedNotes += `${enhancedNotes ? '\n' : ''}Campaign: ${campaignName}`;
         }
 
-        // Create lead data matching the schema
-        const leadData = {
+        // Base lead data (columns that always exist)
+        const baseLeadData = {
           fullName: fullName || '',
           email: email || '',
           phone: phone || '',
@@ -888,26 +888,49 @@ module.exports = async (req, res) => {
           followUp: followUp || null,
           priority,
           notes: enhancedNotes,
+        };
+
+        // Extended columns — added later to the schema; include only if they have a value
+        const extendedLeadData = {
+          ...baseLeadData,
           score: score || 0,
-          // New fields
           company: company || '',
           city: city || '',
           designation: designation || ''
         };
 
-        const { data: lead, error } = await supabase
+        // Try insert with all fields first; if it fails due to missing column, retry with base fields only
+        let lead = null;
+        let insertError = null;
+
+        const { data: leadFull, error: errorFull } = await supabase
           .from('leads')
-          .insert([leadData])
+          .insert([extendedLeadData])
           .select()
           .single();
 
-        if (error) {
-          console.log('❌ Lead insertion error:', error.message);
+        if (errorFull && (errorFull.code === '42703' || errorFull.message?.includes('column') || errorFull.message?.includes('schema cache'))) {
+          // Unknown column — retry with base fields only
+          console.warn('⚠️ Extended columns not in schema, retrying with base fields:', errorFull.message);
+          const { data: leadBase, error: errorBase } = await supabase
+            .from('leads')
+            .insert([baseLeadData])
+            .select()
+            .single();
+          lead = leadBase;
+          insertError = errorBase;
+        } else {
+          lead = leadFull;
+          insertError = errorFull;
+        }
+
+        if (insertError) {
+          console.log('❌ Lead insertion error:', insertError.message);
           return res.status(500).json({
             success: false,
             error: 'Database error during lead creation',
-            message: `Database error: ${error.message}`,
-            details: error.details || 'Lead creation failed. Please check the data and try again.'
+            message: `Database error: ${insertError.message}`,
+            details: insertError.details || 'Lead creation failed. Please check the data and try again.'
           });
         }
 
@@ -919,7 +942,6 @@ module.exports = async (req, res) => {
 
       } catch (dbError) {
         console.error('Database error:', dbError);
-        // Fallback response
         return res.status(500).json({
           success: false,
           error: 'Database error',
