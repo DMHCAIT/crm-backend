@@ -2,6 +2,7 @@
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
+const { TEAM_ROLES, loadReportingUsers, findReportingUser, getReportingTeam } = require('../utils/reportingHierarchy');
 
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -37,38 +38,6 @@ function verifyToken(req) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-// Get subordinate users recursively
-async function getSubordinateUsers(userId, allUsers) {
-  const subordinates = [];
-  const visited = new Set();
-  
-  logger.info(`🔍 Finding subordinates for user ID: ${userId}`);
-  console.log(`🔍 Available users with reports_to:`, allUsers.map(u => ({
-    id: u.id,
-    name: u.fullName || u.username,
-    username: u.username,
-    role: u.role,
-    reports_to: u.reports_to
-  })));
-  
-  function findSubordinates(supervisorId) {
-    if (visited.has(supervisorId)) return;
-    visited.add(supervisorId);
-    
-    allUsers.forEach(user => {
-      if (user.reports_to === supervisorId) {
-        logger.info(`📋 Found subordinate: ${user.fullName || user.username} (${user.role}) reports to ${supervisorId}`);
-        subordinates.push(user);
-        findSubordinates(user.id);
-      }
-    });
-  }
-  
-  findSubordinates(userId);
-  logger.info(`✅ Total subordinates found: ${subordinates.length}`, subordinates.map(s => ({ name: s.name, role: s.role })));
-  return subordinates;
-}
-
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -95,30 +64,17 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       try {
         // Get all users from database
-        const { data: allUsers, error } = await supabase
-          .from('users')
-          .select('*')
-          .order('fullName')
-          .limit(1000);
-
-        if (error) {
-          logger.error('❌ Error fetching users:', error.message);
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to fetch users',
-            details: error.message
-          });
-        }
+        const allUsers = await loadReportingUsers(supabase, '*');
 
         // Find current user - try multiple matching methods
-        let currentUser = allUsers.find(u => u.username === jwtUser.username);
+        let currentUser = findReportingUser(jwtUser, allUsers);
         if (!currentUser) {
           // Try matching by email
           currentUser = allUsers.find(u => u.email === jwtUser.email);
         }
         if (!currentUser) {
           // Try case-insensitive username matching
-          currentUser = allUsers.find(u => u.username?.toLowerCase() === jwtUser.username?.toLowerCase());
+          currentUser = allUsers.find(u => jwtUser.username && u.username?.toLowerCase() === jwtUser.username.toLowerCase());
         }
         
         console.log(`🔍 Current user lookup:`, {
@@ -147,7 +103,8 @@ module.exports = async (req, res) => {
         }
 
         // Get subordinate users
-        const subordinates = await getSubordinateUsers(currentUser.id, allUsers);
+        const subordinates = TEAM_ROLES.includes(currentUser.role)
+          ? getReportingTeam(currentUser.id, allUsers) : [];
         
         // Build assignable users list
         const assignableUsers = [];
@@ -160,6 +117,7 @@ module.exports = async (req, res) => {
           username: currentUser.username,
           email: currentUser.email,
           role: currentUser.role,
+          reports_to: currentUser.reports_to,
           department: currentUser.department,
           display_name: `${currentUser.fullName || currentUser.name} (${currentUser.role}) - You`
         });
@@ -173,6 +131,7 @@ module.exports = async (req, res) => {
             username: subordinate.username,
             email: subordinate.email,
             role: subordinate.role,
+            reports_to: subordinate.reports_to,
             department: subordinate.department,
             display_name: `${subordinate.fullName || subordinate.name} (${subordinate.role}) - ${subordinate.department || 'No Department'}`
           });
@@ -190,6 +149,7 @@ module.exports = async (req, res) => {
                 username: u.username,
                 email: u.email,
                 role: u.role,
+                reports_to: u.reports_to,
                 department: u.department,
                 display_name: `${u.fullName || u.name} (${u.role}) - ${u.department || 'No Department'}`
               });
@@ -197,42 +157,6 @@ module.exports = async (req, res) => {
           });
         }
         
-        // Senior managers can assign to managers, team leaders, and counselors
-        else if (currentUser.role === 'senior_manager') {
-          const assignableRoles = ['manager', 'team_leader', 'counselor'];
-          allUsers.filter(u => assignableRoles.includes(u.role)).forEach(u => {
-            if (!assignableUsers.find(au => au.id === u.id)) {
-              assignableUsers.push({
-                id: u.id,
-                name: u.name,
-                username: u.username,
-                email: u.email,
-                role: u.role,
-                department: u.department,
-                display_name: `${u.name} (${u.role}) - ${u.department || 'No Department'}`
-              });
-            }
-          });
-        }
-        
-        // Managers can assign to team leaders and counselors
-        else if (currentUser.role === 'manager') {
-          const assignableRoles = ['team_leader', 'counselor'];
-          allUsers.filter(u => assignableRoles.includes(u.role)).forEach(u => {
-            if (!assignableUsers.find(au => au.id === u.id)) {
-              assignableUsers.push({
-                id: u.id,
-                name: u.name,
-                username: u.username,
-                email: u.email,
-                role: u.role,
-                department: u.department,
-                display_name: `${u.name} (${u.role}) - ${u.department || 'No Department'}`
-              });
-            }
-          });
-        }
-
         logger.info(`✅ Found ${assignableUsers.length} assignable users for ${currentUser.name}`);
 
         return res.json({

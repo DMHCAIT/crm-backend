@@ -25,6 +25,25 @@ A comprehensive CRM backend API built with Node.js, Express, and integrated with
 
 ## API Endpoints
 
+### Team leader bulk transfers
+
+In the frontend Leads screen, team leaders can select multiple leads and click
+**Transfer**, then choose themselves or a member of their reporting hierarchy.
+There is no application-level limit on the number of selected leads.
+
+The frontend sends `POST /api/leads` with `operation: "bulk_update"`,
+`operationType: "transfer"`, `leadIds`, and `updateData.assignedTo` (a username).
+The backend validates both the destination and all selected leads against the
+team leader's recursive `reports_to` hierarchy before writing. Transfers are
+processed in batches of 200. If a batch fails or ownership changes concurrently,
+the API returns an explicit error; earlier batches may already have transferred,
+so refresh the list before retrying. Existing manager/admin bulk actions are
+unchanged.
+
+Run the isolated transfer and reporting regression tests with
+`node --test __tests__\team-leader-transfer.test.js __tests__\reporting-hierarchy.test.js`
+(Node.js 18+).
+
 ### Core APIs
 - `/api/health` - Health check endpoint
 - `/api/leads` - Lead management
@@ -37,11 +56,41 @@ A comprehensive CRM backend API built with Node.js, Express, and integrated with
 - `/api/communications` - Communication hub
 - `/api/integrations` - External integrations
 
+### Reporting team visibility
+
+Manager, senior-manager, and team-leader lead lists and statistics include their
+own leads and every descendant in the `users.reports_to` hierarchy. A senior
+manager can therefore see reporting managers, their team leaders, and those
+team leaders' members. Unrelated teams are excluded; admins retain full access.
+The assignable-user/workload cards use the same hierarchy and display the
+member's supervisor.
+
+`GET /api/users/:id/subordinates` returns recursive reporting members.
+`GET /api/users/:id/leads?includeTeam=true` includes the selected user's entire
+reporting team; `includeTeam=false` returns that user's own leads. Both endpoints
+require authentication and restrict non-admin viewers to their reporting team.
+User and drill-down lead queries are paginated internally so the database's
+default row limit does not hide members or leads.
+
+Set each user's **Reports To** field correctly in user management; sharing a
+role alone does not make users members of the same team.
+
 ### Integration APIs
 - `/api/whatsapp` - WhatsApp Business API integration
 - `/api/facebook` - Facebook API integration
 
 ## Environment Variables
+
+### Local frontend and backend
+
+Run the backend on port `3001` with `NODE_ENV=development` in its `.env`.
+In the separate frontend `.env.local`, set both `VITE_API_BASE_URL` and
+`VITE_API_BACKEND_URL` to `http://localhost:3001`. Run the frontend with
+`npm run dev` on port `5173`; do not use `5173` as the backend port.
+Restart the backend after changing its `.env` and restart the frontend after
+changing Vite configuration. The browser connection badge should identify the
+local/development backend, not production. Production builds continue using
+the frontend's explicit `--mode production` build script.
 
 Create a `.env` file with the following variables:
 

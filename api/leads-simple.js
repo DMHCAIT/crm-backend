@@ -2,6 +2,7 @@
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
+const { getAccessibleUsernames: getReportingUsernames } = require('../utils/reportingHierarchy');
 
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -60,40 +61,7 @@ function verifyToken(req) {
 
 // Return array of usernames this user can see leads for, or null for unrestricted access.
 async function getAccessibleUsernames(user) {
-  if (user.role === 'super_admin' || user.role === 'admin') return null;
-
-  // If username missing from token (old tokens), look it up by id or email
-  if (!user.username && (user.id || user.email)) {
-    const { data: dbUser } = await supabase
-      .from('users')
-      .select('username')
-      .or(user.id ? `id.eq.${user.id}` : `email.eq.${user.email}`)
-      .single();
-    if (dbUser?.username) user = { ...user, username: dbUser.username };
-  }
-
-  if (user.role === 'team_leader') {
-    const { data: allUsers } = await supabase.from('users').select('id, username, reports_to');
-    const visited = new Set();
-    const usernames = [user.username];
-    const self = (allUsers || []).find(u => u.username === user.username);
-    if (self) {
-      function collectSubordinates(supervisorId) {
-        if (visited.has(supervisorId)) return;
-        visited.add(supervisorId);
-        (allUsers || []).forEach(u => {
-          if (u.reports_to === supervisorId) {
-            usernames.push(u.username);
-            collectSubordinates(u.id);
-          }
-        });
-      }
-      collectSubordinates(self.id);
-    }
-    return usernames;
-  }
-
-  return [user.username];
+  return getReportingUsernames(supabase, user);
 }
 
 module.exports = async (req, res) => {

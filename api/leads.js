@@ -1,6 +1,7 @@
 // Enhanced leads API with Google Sheets support
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
+const { getAccessibleUsernames: getReportingUsernames } = require('../utils/reportingHierarchy');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -18,45 +19,7 @@ function verifyToken(req) {
 // Return array of usernames the requesting user is allowed to see leads for.
 // Returns null to mean "no filter" (admin / super_admin see everything).
 async function getAccessibleUsernames(user) {
-  if (!user) return null; // unauthenticated — handled separately
-  if (user.role === 'super_admin' || user.role === 'admin') return null;
-
-  // If username missing from token (old tokens), look it up by id or email
-  if (!user.username && (user.id || user.email)) {
-    const { data: dbUser } = await supabase
-      .from('users')
-      .select('username')
-      .or(user.id ? `id.eq.${user.id}` : `email.eq.${user.email}`)
-      .single();
-    if (dbUser?.username) user = { ...user, username: dbUser.username };
-  }
-
-  if (user.role === 'team_leader') {
-    // Include self + all users whose reports_to chain reaches this user
-    const { data: allUsers } = await supabase.from('users').select('id, username, reports_to');
-    const visited = new Set();
-    const usernames = [user.username];
-
-    // Find the team_leader's DB id first
-    const self = (allUsers || []).find(u => u.username === user.username);
-    if (self) {
-      function collectSubordinates(supervisorId) {
-        if (visited.has(supervisorId)) return;
-        visited.add(supervisorId);
-        (allUsers || []).forEach(u => {
-          if (u.reports_to === supervisorId) {
-            usernames.push(u.username);
-            collectSubordinates(u.id);
-          }
-        });
-      }
-      collectSubordinates(self.id);
-    }
-    return usernames;
-  }
-
-  // counselor or any other role — only their own leads
-  return [user.username];
+  return getReportingUsernames(supabase, user);
 }
 
 let supabase;
@@ -584,11 +547,68 @@ module.exports = async (req, res) => {
           return res.status(400).json({ success: false, error: 'updateData is required' });
         }
 
+        let accessibleUsernames;
+        const isTeamTransfer = user.role === 'team_leader' &&
+          (req.body.operationType === 'transfer' || Object.prototype.hasOwnProperty.call(updateData, 'assignedTo'));
+        const uniqueLeadIds = [...new Set(leadIds)];
+        if (isTeamTransfer) {
+          if (uniqueLeadIds.some(id => typeof id !== 'string' || !id.trim())) {
+            return res.status(400).json({ success: false, error: 'Each lead ID must be a non-empty string' });
+          }
+          accessibleUsernames = (await getAccessibleUsernames(user)).filter(Boolean);
+          if (!accessibleUsernames.includes(updateData.assignedTo)) {
+            return res.status(403).json({ success: false, error: 'You can only transfer leads to members of your team' });
+          }
+
+          // Check every selection before writing; batches avoid database row/URL limits.
+          for (let offset = 0; offset < uniqueLeadIds.length; offset += 200) {
+            const ids = uniqueLeadIds.slice(offset, offset + 200);
+            const { data: accessibleLeads, error } = await supabase
+              .from('leads')
+              .select('id')
+              .in('id', ids)
+              .in('assignedTo', accessibleUsernames);
+            if (error) {
+              return res.status(500).json({ success: false, error: 'Failed to verify selected leads', message: error.message });
+            }
+            if (!accessibleLeads || accessibleLeads.length !== ids.length) {
+              return res.status(403).json({ success: false, error: 'All selected leads must belong to you or your team' });
+            }
+          }
+        }
+
         const cleanUpdate = { ...updateData };
         delete cleanUpdate.id;
         if (Array.isArray(cleanUpdate.notes)) cleanUpdate.notes = JSON.stringify(cleanUpdate.notes);
         if (Array.isArray(cleanUpdate.tags)) cleanUpdate.tags = JSON.stringify(cleanUpdate.tags);
         cleanUpdate.updatedAt = new Date().toISOString();
+
+        if (isTeamTransfer) {
+          const updated = [];
+          for (let offset = 0; offset < uniqueLeadIds.length; offset += 200) {
+            const { data, error } = await supabase
+              .from('leads')
+              .update(cleanUpdate)
+              .in('id', uniqueLeadIds.slice(offset, offset + 200))
+              .in('assignedTo', accessibleUsernames)
+              .select();
+            if (error || !data || data.length !== Math.min(200, uniqueLeadIds.length - offset)) {
+              return res.status(error ? 500 : 409).json({
+                success: false,
+                error: 'Transfer did not complete. Some leads may have changed; refresh the list before retrying.',
+                message: error?.message,
+                count: updated.length + (data?.length || 0)
+              });
+            }
+            updated.push(...data);
+          }
+          return res.json({
+            success: true,
+            message: `${updated.length} leads transferred successfully`,
+            data: updated.map(normalizeLead),
+            count: updated.length
+          });
+        }
 
         const { data: updated, error } = await supabase
           .from('leads')

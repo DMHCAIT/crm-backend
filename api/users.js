@@ -3,6 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
+const { TEAM_ROLES, ADMIN_ROLES, loadReportingUsers, findReportingUser, getReportingTeam } = require('../utils/reportingHierarchy');
 
 // Initialize Supabase conditionally
 let supabase;
@@ -147,24 +148,40 @@ async function handleGetSubordinates(req, res) {
     if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
     if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
 
-    // Get the target user to find their username
-    const { data: targetUser } = await supabase.from('users').select('id, username, role').eq('id', userId).single();
+    const requester = verifyTeamViewer(req);
+    if (!requester) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const users = await loadReportingUsers(supabase);
+    const targetUser = users.find(user => user.id === userId);
     if (!targetUser) return res.status(404).json({ success: false, error: 'User not found' });
-
-    // Find users whose manager_id matches this user, or get all if super_admin/admin
-    let query = supabase.from('users').select('id, email, name, username, role, status');
-    if (targetUser.role === 'super_admin' || targetUser.role === 'admin') {
-      // Admin sees all
-    } else {
-      query = query.eq('manager_id', userId);
+    if (!canViewReportingUser(requester, userId, users)) {
+      return res.status(403).json({ success: false, error: 'You can only view users in your reporting team' });
     }
-    const { data: subordinates, error } = await query.limit(500);
-    if (error) throw error;
+    const subordinates = ADMIN_ROLES.includes(targetUser.role)
+      ? users.filter(user => user.id !== userId)
+      : TEAM_ROLES.includes(targetUser.role) ? getReportingTeam(userId, users) : [];
 
     return res.json({ success: true, data: subordinates || [], count: (subordinates || []).length });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Failed to get subordinates', message: err.message });
   }
+}
+
+function verifyTeamViewer(req) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return null;
+  try {
+    return jwt.verify(header.substring(7), JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
+
+function canViewReportingUser(requester, userId, users) {
+  if (ADMIN_ROLES.includes(requester.role)) return true;
+  const currentUser = findReportingUser(requester, users);
+  if (!currentUser) return false;
+  return currentUser.id === userId || (TEAM_ROLES.includes(requester.role) &&
+    getReportingTeam(currentUser.id, users).some(user => user.id === userId));
 }
 
 // ── GET /api/users/:id/leads?includeTeam=true ── return leads for a user ──
@@ -178,29 +195,36 @@ async function handleGetUserLeads(req, res) {
     if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
     if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
 
-    // Resolve username for the user
-    const { data: targetUser } = await supabase.from('users').select('id, username, role').eq('id', userId).single();
+    const requester = verifyTeamViewer(req);
+    if (!requester) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const users = await loadReportingUsers(supabase);
+    const targetUser = users.find(user => user.id === userId);
     if (!targetUser) return res.status(404).json({ success: false, error: 'User not found' });
+    if (!canViewReportingUser(requester, userId, users)) {
+      return res.status(403).json({ success: false, error: 'You can only view leads for users in your reporting team' });
+    }
 
     let usernames = [targetUser.username];
 
-    if (includeTeam && (targetUser.role === 'team_leader' || targetUser.role === 'manager' || targetUser.role === 'admin' || targetUser.role === 'super_admin')) {
-      // Get subordinate usernames
-      const { data: subs } = await supabase.from('users').select('username').eq('manager_id', userId);
-      if (subs && subs.length > 0) {
-        usernames = [...usernames, ...subs.map(s => s.username)];
-      }
-      if (targetUser.role === 'admin' || targetUser.role === 'super_admin') {
+    if (includeTeam) {
+      if (TEAM_ROLES.includes(targetUser.role)) {
+        usernames.push(...getReportingTeam(userId, users).map(user => user.username));
+      } else if (ADMIN_ROLES.includes(targetUser.role)) {
         usernames = null; // All leads
       }
     }
 
-    let leadsQuery = supabase.from('leads').select('*').order('createdAt', { ascending: false }).limit(1000);
-    if (usernames !== null) {
-      leadsQuery = leadsQuery.in('assignedTo', usernames);
+    const leads = [];
+    for (let offset = 0; ; offset += 500) {
+      let leadsQuery = supabase.from('leads').select('*')
+        .order('createdAt', { ascending: false }).order('id').range(offset, offset + 499);
+      if (usernames !== null) leadsQuery = leadsQuery.in('assignedTo', usernames.filter(Boolean));
+      const { data, error } = await leadsQuery;
+      if (error) throw error;
+      if (!data) throw new Error('Team leads query returned no data');
+      leads.push(...data);
+      if (data.length < 500) break;
     }
-    const { data: leads, error } = await leadsQuery;
-    if (error) throw error;
 
     return res.json({ success: true, leads: leads || [], count: (leads || []).length });
   } catch (err) {
