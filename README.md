@@ -39,6 +39,11 @@ Overdue means follow-up is in the past, status is neither Enrolled nor Not
 Interested, and the lead has not been updated after its follow-up. Lists and
 counts use this same view with reporting access filters, without a 5,000-row
 cap or large ID-in-query URLs. Missing migrations cause visible request errors.
+The view supports legacy text `followUp` columns as well as timestamp columns
+by explicitly converting nonblank values to timestamps. Blank or null follow-ups
+are excluded. Malformed nonblank dates raise an error rather than being silently
+discarded; correct those dates before querying the overdue bucket. The migration
+does not alter the column type or stored lead values.
 
 Configure `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and a strong `JWT_SECRET` on
 the backend host. Use Node.js 22 LTS for both projects. Configure
