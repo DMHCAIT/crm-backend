@@ -1,9 +1,39 @@
 // Enhanced leads API with Google Sheets support
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
-const { getAccessibleUsernames: getReportingUsernames } = require('../utils/reportingHierarchy');
+const { getAccessibleUsernames: getReportingUsernames, getOwnUsername } = require('../utils/reportingHierarchy');
+const { normalizeCallTime, isActiveCall } = require('../utils/callSchedule');
+const {
+  LEAD_STATUSES, validateLeadContact, isInternationalPhone, findContactMatches,
+  describeDuplicates, resolveLeadAssignee, reviewImport
+} = require('../utils/leadDuplicates');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
+function dayStart(dateStr) {
+  return new Date(`${dateStr}T00:00:00+05:30`).toISOString();
+}
+
+function dayEnd(dateStr) {
+  return new Date(`${dateStr}T23:59:59.999+05:30`).toISOString();
+}
+
+function getLeadDateRanges(now = new Date()) {
+  // Lead date filters use India calendar days, regardless of the server timezone.
+  const local = new Date(now.getTime() + 330 * 60000);
+  const dateAt = (daysAgo) => new Date(local.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth();
+  return {
+    todayStr: dateAt(0),
+    yesterdayStr: dateAt(1),
+    weekAgoStr: dateAt(7),
+    lastWeekStart: dateAt(14),
+    monthStart: new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10),
+    lastMonthStart: new Date(Date.UTC(year, month - 1, 1)).toISOString().slice(0, 10),
+    lastMonthEnd: new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10)
+  };
+}
 
 // Verify JWT and return decoded payload (returns null if missing/invalid)
 function verifyToken(req) {
@@ -106,10 +136,10 @@ module.exports = async (req, res) => {
 
       const accessibleUsernames = await getAccessibleUsernames(user);
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayISO = today.toISOString();
-      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+      const now = new Date();
+      const dates = getLeadDateRanges(now);
+      const todayISO = dayStart(dates.todayStr);
+      const firstOfMonth = dayStart(dates.monthStart);
 
       // Helper to apply role-based filter to each query
       function applyRoleFilter(q) {
@@ -119,41 +149,51 @@ module.exports = async (req, res) => {
         return q;
       }
 
-      const [
-        { count: total },
-        { count: hot },
-        { count: warm },
-        { count: followUps },
-        { count: thisMonth },
-        { count: converted },
-        { count: updatedToday },
-        { count: overdueFollowUps }
-      ] = await Promise.all([
-        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true })),
-        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Hot')),
-        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Warm')),
-        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).not('followUp', 'is', null)),
-        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).gte('createdAt', firstOfMonth)),
-        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'Enrolled')),
-        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).gte('updatedAt', todayISO)),
-        applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }).lt('followUp', todayISO).not('followUp', 'is', null))
-      ]);
+      const countQuery = () => applyRoleFilter(supabase.from('leads').select('*', { count: 'exact', head: true }));
+      const queries = {
+        total: countQuery(),
+        hot: countQuery().eq('status', 'Hot'),
+        warm: countQuery().eq('status', 'Warm'),
+        fresh: countQuery().eq('status', 'Fresh'),
+        followup: countQuery().eq('status', 'Follow Up'),
+        followUps: countQuery().not('followUp', 'is', null),
+        thisMonth: countQuery().gte('createdAt', firstOfMonth),
+        converted: countQuery().eq('status', 'Enrolled'),
+        updatedToday: countQuery().gte('updatedAt', todayISO),
+        updatedYesterday: countQuery().gte('updatedAt', dayStart(dates.yesterdayStr)).lte('updatedAt', dayEnd(dates.yesterdayStr)),
+        updatedThisWeek: countQuery().gte('updatedAt', dayStart(dates.weekAgoStr)),
+        updatedThisMonth: countQuery().gte('updatedAt', firstOfMonth),
+        recentlyImported: countQuery().gte('updatedAt', new Date(now.getTime() - 7 * 86400000).toISOString()),
+        createdToday: countQuery().gte('createdAt', todayISO),
+        createdYesterday: countQuery().gte('createdAt', dayStart(dates.yesterdayStr)).lte('createdAt', dayEnd(dates.yesterdayStr)),
+        createdThisWeek: countQuery().gte('createdAt', dayStart(dates.weekAgoStr)),
+        createdLastMonth: countQuery().gte('createdAt', dayStart(dates.lastMonthStart)).lte('createdAt', dayEnd(dates.lastMonthEnd)),
+        overdueFollowUps: applyRoleFilter(supabase.from('crm_overdue_leads').select('*', { count: 'exact', head: true }))
+      };
+      const results = await Promise.all(Object.entries(queries).map(async ([name, query]) => {
+        const { count, error } = await query;
+        if (error) throw error;
+        if (typeof count !== 'number') throw new Error(`No count returned for lead bucket: ${name}`);
+        return [name, count];
+      }));
+      const counts = Object.fromEntries(results);
 
       return res.json({
         success: true,
         stats: {
-          total: total || 0,
-          totalLeads: total || 0,
-          hot: hot || 0,
-          warm: warm || 0,
-          followUps: followUps || 0,
-          thisMonth: thisMonth || 0,
-          converted: converted || 0,
-          updatedToday: updatedToday || 0,
-          overdueFollowUps: overdueFollowUps || 0
+          ...counts,
+          totalLeads: counts.total,
+          statusCounts: {
+            Hot: counts.hot,
+            Warm: counts.warm,
+            Fresh: counts.fresh,
+            'Follow Up': counts.followup,
+            Enrolled: counts.converted
+          }
         }
       });
     } catch (err) {
+      console.error('Lead bucket statistics failed:', err.message);
       return res.status(500).json({ success: false, error: err.message });
     }
   }
@@ -177,7 +217,88 @@ module.exports = async (req, res) => {
   }
 
   try {
+    if (req.method === 'POST' && urlPath.split('?')[0].endsWith('/duplicate-check')) {
+      const user = verifyToken(req);
+      if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+      const { email, phone } = req.body || {};
+      if ((email !== undefined && typeof email !== 'string') ||
+          (phone !== undefined && typeof phone !== 'string')) {
+        return res.status(400).json({ success: false, error: 'Email and phone must be text' });
+      }
+      if (!(email?.trim() || phone?.trim())) {
+        return res.status(400).json({ success: false, error: 'Enter an email or phone to check' });
+      }
+      const matches = await findContactMatches(supabase, [{ email, phone }]);
+      const duplicates = await describeDuplicates(supabase, user, { email, phone }, matches, normalizeLead);
+      return res.json({ success: true, duplicates });
+    }
+
+    if (req.method === 'POST' && urlPath.split('?')[0].endsWith('/import-preview')) {
+      const user = verifyToken(req);
+      if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+      const { leads } = req.body || {};
+      if (!Array.isArray(leads) || leads.length === 0 || leads.length > 10000) {
+        return res.status(400).json({ success: false, error: 'Provide between 1 and 10000 lead rows' });
+      }
+      const review = await reviewImport(supabase, leads);
+      return res.json({ success: true, ...review });
+    }
+
     // Handle GET - Retrieve leads with optional filters
+    if (req.method === 'GET' && urlPath.split('?')[0].endsWith('/call-reminders')) {
+      const user = verifyToken(req);
+      if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+      const username = await getOwnUsername(supabase, user);
+      const calls = [];
+      for (let offset = 0; ; offset += 500) {
+        let query = supabase.from('leads').select('*')
+          .not('scheduledCallAt', 'is', null)
+          .is('scheduledCallDismissedAt', null)
+          .eq('assignedTo', username)
+          .order('id', { ascending: true })
+          .range(offset, offset + 499);
+        const { data, error } = await query;
+        if (error) {
+          console.error('Scheduled call reminders failed:', error.message);
+          return res.status(500).json({
+            success: false,
+            error: 'Unable to load scheduled calls. Ensure scheduled-calls-migration.sql has been applied.',
+            message: error.message
+          });
+        }
+        calls.push(...data.filter(isActiveCall).map(normalizeLead));
+        if (data.length < 500) break;
+      }
+      return res.json({ success: true, leads: calls });
+    }
+
+    if (req.method === 'POST' && req.body?.operation === 'dismiss_call') {
+      const user = verifyToken(req);
+      if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+      const { leadId, scheduledCallAt } = req.body;
+      if (typeof leadId !== 'string' || !leadId.trim() || !scheduledCallAt) {
+        return res.status(400).json({ success: false, error: 'Lead ID and scheduled call time are required' });
+      }
+      let callTime;
+      try { callTime = normalizeCallTime(scheduledCallAt); }
+      catch (error) { return res.status(400).json({ success: false, error: error.message }); }
+      const username = await getOwnUsername(supabase, user);
+      // Match the schedule as well as the lead so an old popup cannot dismiss a rescheduled call.
+      let query = supabase.from('leads')
+        .update({ scheduledCallDismissedAt: new Date().toISOString() })
+        .eq('id', leadId).eq('scheduledCallAt', callTime)
+        .eq('assignedTo', username);
+      const { data, error } = await query.select().maybeSingle();
+      if (error) {
+        console.error('Scheduled call dismissal failed:', error.message);
+        return res.status(500).json({ success: false, error: 'Unable to dismiss scheduled call', message: error.message });
+      }
+      if (!data) return res.status(409).json({
+        success: false, error: 'The call changed or is no longer accessible. Refresh and try again.'
+      });
+      return res.json({ success: true, data: normalizeLead(data) });
+    }
+
     if (req.method === 'GET') {
       try {
         const user = verifyToken(req);
@@ -188,7 +309,7 @@ module.exports = async (req, res) => {
         const accessibleUsernames = await getAccessibleUsernames(user);
 
         const {
-          email, phone, status, source,
+          id, email, phone, status, source,
           assignedTo,
           limit, offset,
           page, pageSize,
@@ -213,15 +334,17 @@ module.exports = async (req, res) => {
 
         // Build query with pagination
         let query = supabase
-          .from('leads')
+          .from(showOverdueFollowUp === 'true' || followUpFilter === 'overdue' ? 'crm_overdue_leads' : 'leads')
           .select('*', { count: 'exact' })
           .range(parsedOffset, parsedOffset + parsedLimit - 1)
-          .order('createdAt', { ascending: false });
+          .order('createdAt', { ascending: false })
+          .order('id', { ascending: false });
 
         // ── Role-based access: restrict to assigned leads for non-admin roles ──
         if (accessibleUsernames !== null) {
           query = query.in('assignedTo', accessibleUsernames);
         }
+        if (id) query = query.eq('id', id);
 
         // ── Search ──
         if (search && search.trim()) {
@@ -267,22 +390,10 @@ module.exports = async (req, res) => {
 
         // ── Helper to build date range for IST-aware UTC timestamps ──
         // All dates from frontend are "YYYY-MM-DD" (local date). Convert to UTC range.
-        function dayStart(dateStr) {
-          // Treat as IST (UTC+5:30): subtract 5h30m to get UTC
-          return new Date(`${dateStr}T00:00:00+05:30`).toISOString();
-        }
-        function dayEnd(dateStr) {
-          return new Date(`${dateStr}T23:59:59+05:30`).toISOString();
-        }
-
         // ── Updated-At Date Filter (dateFilter) ──
         const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-        const yesterdayStr = new Date(now - 86400000).toISOString().slice(0, 10);
-        const weekAgoStr = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
-        const lastWeekStart = new Date(now - 14 * 86400000).toISOString().slice(0, 10);
+        const { todayStr, yesterdayStr, weekAgoStr, lastWeekStart, monthStart, lastMonthStart, lastMonthEnd } = getLeadDateRanges(now);
         const lastWeekEnd = yesterdayStr;
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 
         if (dateFilter && dateFilter !== 'all') {
           switch (dateFilter) {
@@ -333,8 +444,6 @@ module.exports = async (req, res) => {
         // ── Created-At Date Filter ──
         // Frontend sends values prefixed with 'created_' (e.g. 'created_today', 'created_this_week')
         if (createdDateFilter && createdDateFilter !== 'all') {
-          const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
-          const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
           const lastWeekStartStr = new Date(now - 14 * 86400 * 1000).toISOString().slice(0, 10);
           const lastWeekEndStr = new Date(now - 7 * 86400 * 1000).toISOString().slice(0, 10);
 
@@ -579,6 +688,10 @@ module.exports = async (req, res) => {
 
         const cleanUpdate = { ...updateData };
         delete cleanUpdate.id;
+        delete cleanUpdate.scheduledCallDismissedAt;
+        if (Object.prototype.hasOwnProperty.call(cleanUpdate, 'scheduledCallAt')) {
+          return res.status(400).json({ success: false, error: 'Schedule calls individually from lead details' });
+        }
         if (Array.isArray(cleanUpdate.notes)) cleanUpdate.notes = JSON.stringify(cleanUpdate.notes);
         if (Array.isArray(cleanUpdate.tags)) cleanUpdate.tags = JSON.stringify(cleanUpdate.tags);
         cleanUpdate.updatedAt = new Date().toISOString();
@@ -660,10 +773,16 @@ module.exports = async (req, res) => {
         const user = verifyToken(req);
         if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
 
-        const { leads: leadsToCreate } = req.body;
-        if (!Array.isArray(leadsToCreate) || leadsToCreate.length === 0) {
-          return res.status(400).json({ success: false, error: 'leads array is required' });
+        const { leads: submittedLeads, assignedTo: requestedAssignee, status: importStatus } = req.body;
+        if (!Array.isArray(submittedLeads) || submittedLeads.length === 0 || submittedLeads.length > 10000) {
+          return res.status(400).json({ success: false, error: 'Provide between 1 and 10000 lead rows' });
         }
+        if (typeof requestedAssignee !== 'string' || !requestedAssignee.trim() || !LEAD_STATUSES.has(importStatus)) {
+          return res.status(400).json({ success: false, error: 'Choose an assignee and valid status before importing' });
+        }
+        const importAssignee = await resolveLeadAssignee(supabase, user, requestedAssignee);
+        const review = await reviewImport(supabase, submittedLeads);
+        const leadsToCreate = review.accepted;
 
         // Helper: safely parse a date string into ISO format for TIMESTAMP columns.
         // Returns null if the string is empty or not parseable.
@@ -673,17 +792,10 @@ module.exports = async (req, res) => {
           return isNaN(d.getTime()) ? null : d.toISOString();
         }
 
-        // Map any frontend status values to the values actually stored in the DB.
-        // The DB started with 'new','contacted','qualified','converted','lost' but the app
-        // uses 'Fresh','Hot','Warm', etc.  Both sets are accepted here; if a CSV row
-        // has none of these, fall back to 'new' so the insert never violates a CHECK constraint.
-        const VALID_STATUSES = new Set([
-          'new','contacted','qualified','converted','lost',
-          'Fresh','Hot','Warm','Follow Up','Enrolled','Will Enroll Later',
-          'Not Answering','Not Interested','Junk'
-        ]);
-
-        const results = { success: 0, failed: 0, errors: [] };
+        const results = {
+          success: 0, failed: review.invalid.length, duplicates: review.duplicates.length,
+          errors: review.invalid.map(row => `Row ${row.rowNumber}: ${row.error}`)
+        };
 
         // Build insert objects using ONLY the columns confirmed in the leads schema.
         // Do not include score / city / designation — they may not exist as DB columns.
@@ -712,7 +824,7 @@ module.exports = async (req, res) => {
             }
           }
 
-          const statusValue = lead.status && VALID_STATUSES.has(lead.status) ? lead.status : 'new';
+          const statusValue = importStatus;
 
           // Base row — only columns that are guaranteed to exist
           const row = {
@@ -725,7 +837,7 @@ module.exports = async (req, res) => {
             source: lead.source || 'import',
             course: lead.course || '',
             status: statusValue,
-            assignedTo: lead.assignedTo || null,
+            assignedTo: importAssignee,
             followUp: safeDate(lead.followUp),
             priority: lead.priority || 'medium',
             notes: JSON.stringify(notesArr),
@@ -739,24 +851,26 @@ module.exports = async (req, res) => {
         }
 
         // ── Attempt batch insert ──
-        if (insertBatch.length > 0) {
+        for (let batchStart = 0; batchStart < insertBatch.length; batchStart += 200) {
+          const batch = insertBatch.slice(batchStart, batchStart + 200);
           const { data: inserted, error: batchError } = await supabase
             .from('leads')
-            .insert(insertBatch)
+            .insert(batch)
             .select();
 
           if (!batchError) {
-            results.success = inserted?.length || 0;
+            if (!Array.isArray(inserted)) throw new Error('Import insert returned no rows');
+            results.success += inserted.length;
           } else {
             // Batch failed — fall back to per-row inserts so we get individual error info
             // and can succeed on the rows that are valid.
             console.warn('⚠️  Batch insert failed, falling back to per-row inserts. Error:', batchError.message);
 
             // If the error is about an unknown column, strip company and retry
-            const unknownCol = batchError.code === '42703' || batchError.message?.includes('column') || batchError.message?.includes('schema cache');
+            const unknownCol = batchError.code === '42703' || batchError.code === 'PGRST204';
 
-            for (let i = 0; i < insertBatch.length; i++) {
-              const row = { ...insertBatch[i] };
+            for (let i = 0; i < batch.length; i++) {
+              const row = { ...batch[i] };
               if (unknownCol) {
                 // Remove any column that might not exist in the base schema
                 delete row.company;
@@ -767,8 +881,12 @@ module.exports = async (req, res) => {
                 .insert([row]);
 
               if (rowError) {
+                if (rowError.code === '23505' && /leads_unique_contact_(email|phone)/.test(rowError.message || '')) {
+                  results.duplicates++;
+                  continue;
+                }
                 results.failed++;
-                results.errors.push(`Row ${i + 1} (${row.fullName}): ${rowError.message}`);
+                results.errors.push(`Row ${leadsToCreate[batchStart + i].rowNumber} (${row.fullName}): ${rowError.message}`);
                 console.error(`❌ Row ${i + 1} insert error:`, rowError.message);
               } else {
                 results.success++;
@@ -779,7 +897,7 @@ module.exports = async (req, res) => {
 
         // Return 200 even when some rows failed so the frontend can show the report.
         // Only return 500 if zero rows succeeded and there were rows to insert.
-        if (results.success === 0 && insertBatch.length > 0) {
+        if (results.success === 0 && results.failed > 0 && insertBatch.length > 0) {
           return res.status(500).json({
             success: false,
             error: 'All rows failed to import',
@@ -790,7 +908,7 @@ module.exports = async (req, res) => {
 
         return res.json({
           success: true,
-          message: `${results.success} leads imported, ${results.failed} failed`,
+          message: `${results.success} leads imported, ${results.duplicates} duplicates skipped, ${results.failed} failed`,
           results
         });
       }
@@ -809,15 +927,26 @@ module.exports = async (req, res) => {
       
       // Support both old and new field names
       const fullName = requestData.fullName || requestData.name;
-      const email = requestData.email;
-      const phone = requestData.phone;
+      const email = typeof requestData.email === 'string' ? requestData.email.trim() : requestData.email;
+      const phone = typeof requestData.phone === 'string' ? requestData.phone.trim() : requestData.phone;
       const country = requestData.country;
       const branch = requestData.branch;
       const qualification = requestData.qualification;
       const source = requestData.source || 'manual';
       const course = requestData.course || requestData.course_interest;
-      const assignedTo = requestData.assignedTo;
+      let assignedTo = requestData.assignedTo;
       const followUp = requestData.followUp;
+      let scheduledCallAt;
+      if (Object.prototype.hasOwnProperty.call(requestData, 'scheduledCallAt')) {
+        try {
+          scheduledCallAt = normalizeCallTime(requestData.scheduledCallAt);
+          if (scheduledCallAt && Date.parse(scheduledCallAt) <= Date.now()) {
+            throw new Error('Please schedule the call for a future date and time');
+          }
+        } catch (error) {
+          return res.status(400).json({ success: false, error: error.message });
+        }
+      }
       const priority = requestData.priority || 'medium';
       const notes = requestData.notes;
       const status = requestData.status || 'new';
@@ -829,6 +958,14 @@ module.exports = async (req, res) => {
       const company = requestData.company;
       const city = requestData.city;
       const designation = requestData.designation;
+
+      if (!isGoogleSheetsSync) {
+        const user = verifyToken(req);
+        if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+        const contactError = validateLeadContact({ ...requestData, email, phone });
+        if (contactError) return res.status(400).json({ success: false, error: contactError });
+        assignedTo = await resolveLeadAssignee(supabase, user, assignedTo);
+      }
 
       // Validate required fields
       if (!fullName && !email) {
@@ -847,39 +984,20 @@ module.exports = async (req, res) => {
       }
 
       // Validate phone format
-      if (phone && !isValidPhone(phone)) {
+      if (!isInternationalPhone(phone)) {
         return res.status(400).json({ 
           success: false,
-          error: 'Invalid phone format' 
+          error: 'Phone must include +country code and 7 to 15 digits (for example +91 9876543210)'
         });
       }
 
-      // Check for duplicates if email or phone provided
       if (email || phone) {
-        try {
-          let duplicateQuery = supabase.from('leads').select('id, email, phone');
-          
-          if (email && phone) {
-            duplicateQuery = duplicateQuery.or(`email.eq.${email},phone.eq.${phone}`);
-          } else if (email) {
-            duplicateQuery = duplicateQuery.eq('email', email);
-          } else if (phone) {
-            duplicateQuery = duplicateQuery.eq('phone', phone);
-          }
-          
-          const { data: existingLeads, error: duplicateError } = await duplicateQuery;
-          
-          if (!duplicateError && existingLeads && existingLeads.length > 0) {
-            return res.status(409).json({
-              success: false,
-              error: 'Duplicate lead detected',
-              message: 'A lead with this email or phone already exists',
-              existingLead: existingLeads[0]
-            });
-          }
-        } catch (duplicateCheckError) {
-          console.warn('⚠️ Duplicate check failed:', duplicateCheckError.message);
-          // Continue with insertion even if duplicate check fails
+        const existing = await findContactMatches(supabase, [{ email, phone }]);
+        if (existing.length) {
+          return res.status(409).json({
+            success: false, error: 'Duplicate lead detected',
+            message: 'A lead with this email or phone already exists'
+          });
         }
       }
 
@@ -908,6 +1026,7 @@ module.exports = async (req, res) => {
           followUp: followUp || null,
           priority,
           notes: enhancedNotes,
+          ...(scheduledCallAt !== undefined ? { scheduledCallAt } : {}),
         };
 
         // Extended columns — added later to the schema; include only if they have a value
@@ -929,8 +1048,8 @@ module.exports = async (req, res) => {
           .select()
           .single();
 
-        if (errorFull) {
-          // Any insert failure — retry with base fields only (no score/company/city/designation)
+        if (errorFull && (errorFull.code === '42703' || errorFull.code === 'PGRST204')) {
+          // Retry only when older schemas lack extended columns.
           console.warn('⚠️ Full insert failed, retrying with base fields. Error:', errorFull.message);
           const { data: leadBase, error: errorBase } = await supabase
             .from('leads')
@@ -941,10 +1060,13 @@ module.exports = async (req, res) => {
           insertError = errorBase;
         } else {
           lead = leadFull;
-          insertError = null;
+          insertError = errorFull;
         }
 
         if (insertError) {
+          if (insertError.code === '23505' && /leads_unique_contact_(email|phone)/.test(insertError.message || '')) {
+            return res.status(409).json({ success: false, error: 'Duplicate lead detected', message: 'A lead with this email or phone already exists' });
+          }
           console.log('❌ Lead insertion error:', insertError.message);
           return res.status(500).json({
             success: false,
@@ -982,6 +1104,35 @@ module.exports = async (req, res) => {
 
       const updateData = { ...req.body };
       delete updateData.id; // Remove ID from update data
+      delete updateData.scheduledCallDismissedAt;
+      let scheduleUsernames;
+
+      if (Object.prototype.hasOwnProperty.call(updateData, 'scheduledCallAt')) {
+        const user = verifyToken(req);
+        if (!user) return res.status(401).json({ success: false, error: 'Authentication required' });
+        try { updateData.scheduledCallAt = normalizeCallTime(updateData.scheduledCallAt); }
+        catch (error) { return res.status(400).json({ success: false, error: error.message }); }
+        const usernames = await getAccessibleUsernames(user);
+        scheduleUsernames = usernames;
+        let query = supabase.from('leads').select('id, scheduledCallAt').eq('id', leadId);
+        if (usernames !== null) query = query.in('assignedTo', usernames);
+        const { data: existing, error } = await query.maybeSingle();
+        if (error) {
+          console.error('Scheduled call lookup failed:', error.message);
+          return res.status(500).json({
+            success: false, error: 'Unable to save scheduled call. Ensure scheduled-calls-migration.sql has been applied.',
+            message: error.message
+          });
+        }
+        if (!existing) return res.status(403).json({ success: false, error: 'Lead is not accessible' });
+        const existingTime = existing.scheduledCallAt ? normalizeCallTime(existing.scheduledCallAt) : null;
+        if (existingTime !== updateData.scheduledCallAt) {
+          if (updateData.scheduledCallAt && Date.parse(updateData.scheduledCallAt) <= Date.now()) {
+            return res.status(400).json({ success: false, error: 'Please schedule the call for a future date and time' });
+          }
+          updateData.scheduledCallDismissedAt = null;
+        }
+      }
 
       // Remove frontend-only / read-only fields that don't exist in the DB schema
       delete updateData.assigned_to; // alias for assignedTo — DB uses assignedTo
@@ -1041,12 +1192,14 @@ module.exports = async (req, res) => {
       updateData.updatedAt = new Date().toISOString();
 
       try {
-        const { data: updatedLead, error } = await supabase
+        let updateQuery = supabase
           .from('leads')
           .update(updateData)
-          .eq('id', leadId)
-          .select()
-          .single();
+          .eq('id', leadId);
+        if (scheduleUsernames !== undefined && scheduleUsernames !== null) {
+          updateQuery = updateQuery.in('assignedTo', scheduleUsernames);
+        }
+        const { data: updatedLead, error } = await updateQuery.select().single();
 
         if (error) {
           console.error('❌ Lead update error:', error.message);
@@ -1126,10 +1279,9 @@ module.exports = async (req, res) => {
 
   } catch (error) {
     console.error('Leads API error:', error);
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
-      error: 'Internal server error',
-      message: 'Please check database configuration'
+      error: error.message || 'Internal server error'
     });
   }
 };

@@ -240,8 +240,8 @@ module.exports = async (req, res) => {
 
       // Pagination
       query = query.range(
-        parseInt(offset as string),
-        parseInt(offset as string) + parseInt(limit as string) - 1
+        parseInt(offset, 10),
+        parseInt(offset, 10) + parseInt(limit, 10) - 1
       );
 
       const { data, error, count } = await query;
@@ -255,9 +255,9 @@ module.exports = async (req, res) => {
         data: data || [],
         pagination: {
           total: count || 0,
-          limit: parseInt(limit as string),
-          offset: parseInt(offset as string),
-          hasMore: (count || 0) > (parseInt(offset as string) + parseInt(limit as string))
+          limit: parseInt(limit, 10),
+          offset: parseInt(offset, 10),
+          hasMore: (count || 0) > (parseInt(offset, 10) + parseInt(limit, 10))
         }
       });
     }
@@ -269,7 +269,7 @@ module.exports = async (req, res) => {
       const { days = 30 } = req.query;
       
       const fromDate = new Date();
-      fromDate.setDate(fromDate.getDate() - parseInt(days as string));
+      fromDate.setDate(fromDate.getDate() - parseInt(days, 10));
 
       // Get event counts by type
       const { data: eventCounts, error: countError } = await supabase
@@ -280,8 +280,8 @@ module.exports = async (req, res) => {
       if (countError) throw countError;
 
       // Calculate statistics
-      const eventStats: { [key: string]: number } = {};
-      eventCounts?.forEach((event: any) => {
+      const eventStats = {};
+      eventCounts?.forEach((event) => {
         eventStats[event.event_type] = (eventStats[event.event_type] || 0) + 1;
       });
 
@@ -297,7 +297,7 @@ module.exports = async (req, res) => {
           dateRange: {
             from: fromDate.toISOString(),
             to: new Date().toISOString(),
-            days: parseInt(days as string)
+            days: parseInt(days, 10)
           }
         }
       });
@@ -312,7 +312,7 @@ module.exports = async (req, res) => {
       const { data, error } = await supabase
         .from('vw_recent_activities')
         .select('*')
-        .limit(parseInt(limit as string));
+        .limit(parseInt(limit, 10));
 
       if (error) throw error;
 
@@ -330,7 +330,7 @@ module.exports = async (req, res) => {
       const { days = 7, limit = 100 } = req.query;
 
       const fromDate = new Date();
-      fromDate.setDate(fromDate.getDate() - parseInt(days as string));
+      fromDate.setDate(fromDate.getDate() - parseInt(days, 10));
 
       const { data, error } = await supabase
         .from('analytics_events')
@@ -338,13 +338,13 @@ module.exports = async (req, res) => {
         .eq('user_id', targetUserId)
         .gte('timestamp', fromDate.toISOString())
         .order('timestamp', { ascending: false })
-        .limit(parseInt(limit as string));
+        .limit(parseInt(limit, 10));
 
       if (error) throw error;
 
       // Group by date
-      const activityByDate: { [key: string]: any[] } = {};
-      data?.forEach((event: any) => {
+      const activityByDate = {};
+      data?.forEach((event) => {
         const date = event.timestamp.split('T')[0];
         if (!activityByDate[date]) {
           activityByDate[date] = [];
@@ -372,7 +372,7 @@ module.exports = async (req, res) => {
       error: 'Endpoint not found'
     });
 
-  } catch (error: any) {
+  } catch (error) {
     logger.error('❌ Analytics Events API Error:', error);
     return res.status(500).json({
       success: false,

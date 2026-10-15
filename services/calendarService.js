@@ -136,7 +136,8 @@ class CalendarService {
         .select('id, title, start_time, end_time')
         .eq('user_id', user_id)
         .eq('status', 'scheduled')
-        .or(`start_time.lte.${end_time},end_time.gte.${start_time}`);
+        .lte('start_time', end_time)
+        .gte('end_time', start_time);
 
       if (exclude_event_id) {
         query = query.neq('id', exclude_event_id);

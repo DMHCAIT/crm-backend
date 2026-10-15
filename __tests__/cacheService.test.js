@@ -1,116 +1,139 @@
-const cacheService = require('../services/cacheService');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { loadModule, logger } = require('../test-support/isolated-module');
 
-describe('CacheService', () => {
-  beforeAll(async () => {
-    // Connect to Redis
-    await cacheService.connect();
-  });
+async function fixture({ failConnect = false } = {}) {
+  const values = new Map();
+  const events = {};
+  const calls = [];
+  let now = 0;
+  const client = {
+    on(event, handler) { events[event] = handler; },
+    async connect() {
+      if (failConnect) throw new Error('offline');
+      events.connect();
+      events.ready();
+    },
+    async get(key) {
+      const value = values.get(key);
+      return value && value.expires > now ? value.text : null;
+    },
+    async setEx(key, ttl, text) {
+      calls.push([key, ttl, text]);
+      values.set(key, { text, expires: now + ttl * 1000 });
+    },
+    async del(keys) {
+      for (const key of Array.isArray(keys) ? keys : [keys]) values.delete(key);
+    },
+    async keys(pattern) {
+      return [...values.keys()].filter(key => key.startsWith(pattern.replace(/\*$/, '')));
+    },
+    async flushAll() { values.clear(); },
+    async quit() { events.end(); }
+  };
+  let options;
+  const service = loadModule('services/cacheService.js', {
+    redis: { createClient(config) { options = config; return client; } },
+    '../utils/logger': logger
+  }, { REDIS_URL: 'redis://isolated.invalid:6379' });
+  // The singleton starts connecting at module load; settle that mocked operation.
+  await Promise.resolve();
+  await Promise.resolve();
+  return { service, client, events, calls, options, advance(ms) { now += ms; } };
+}
 
-  afterAll(async () => {
-    // Clean up and disconnect
-    await cacheService.flush();
-    await cacheService.disconnect();
-  });
+test('cache round trips JSON, uses default TTL, misses and deletes keys', async () => {
+  const { service, calls } = await fixture();
+  const value = { name: 'Test', count: 42 };
+  assert.equal(await service.set('test:key', value), true);
+  assert.deepEqual(await service.get('test:key'), value);
+  assert.equal(calls[0][1], 3600);
+  assert.equal(await service.get('missing'), null);
+  assert.equal(await service.delete('test:key'), true);
+  assert.equal(await service.get('test:key'), null);
+});
 
-  afterEach(async () => {
-    // Clear cache between tests
-    await cacheService.flush();
-  });
+test('cache forwards TTL and observes expiration without a wall-clock delay', async () => {
+  const { service, calls, advance } = await fixture();
+  await service.set('ttl', 'expires soon', 1);
+  assert.deepEqual(calls[0], ['ttl', 1, '"expires soon"']);
+  assert.equal(await service.get('ttl'), 'expires soon');
+  advance(1100);
+  assert.equal(await service.get('ttl'), null);
+});
 
-  describe('Basic Operations', () => {
-    test('should set and get a value', async () => {
-      const key = 'test:key';
-      const value = { name: 'Test', count: 42 };
+test('cache deletes matching keys only and flushes all keys', async () => {
+  const { service } = await fixture();
+  await service.set('user:1', 1);
+  await service.set('user:2', 2);
+  await service.set('product:1', 3);
+  assert.equal(await service.deletePattern('user:*'), 2);
+  assert.equal(await service.get('user:1'), null);
+  assert.equal(await service.get('user:2'), null);
+  assert.equal(await service.get('product:1'), 3);
+  assert.equal(await service.deletePattern('absent:*'), 0);
+  assert.equal(await service.flush(), true);
+  assert.equal(await service.get('product:1'), null);
+});
 
-      await cacheService.set(key, value);
-      const retrieved = await cacheService.get(key);
+test('cache-aside fetches once, caches falsy values, ignores null and propagates fetch errors', async () => {
+  const { service } = await fixture();
+  let count = 0;
+  const fetch = async () => { count++; return { data: 'fetched' }; };
+  assert.deepEqual(await service.getOrSet('key', fetch), { data: 'fetched' });
+  assert.deepEqual(await service.getOrSet('key', fetch), { data: 'fetched' });
+  assert.equal(count, 1);
+  for (const value of [false, 0, '']) {
+    await service.set('falsy', value);
+    assert.equal(await service.getOrSet('falsy', fetch), value);
+  }
+  for (const value of [null, undefined]) {
+    assert.equal(await service.getOrSet('empty', async () => value), value);
+    assert.equal(await service.get('empty'), null);
+  }
+  await assert.rejects(service.getOrSet('error', async () => { throw new Error('fetch failed'); }), /fetch failed/);
+});
 
-      expect(retrieved).toEqual(value);
-    });
+test('cache generates namespaced keys', async () => {
+  const { service } = await fixture();
+  assert.equal(service.generateKey('users', '123', 'profile'), 'users:123:profile');
+  assert.equal(service.generateKey('global'), 'global:');
+});
 
-    test('should return null for non-existent key', async () => {
-      const result = await cacheService.get('nonexistent:key');
-      expect(result).toBeNull();
-    });
+test('cache connection lifecycle and bounded retries use the configured Redis URL', async () => {
+  const { service, client, events, options } = await fixture();
+  assert.equal(options.url, 'redis://isolated.invalid:6379');
+  assert.equal(await service.connect(), client);
+  assert.equal(options.socket.reconnectStrategy(2), 200);
+  assert.match(options.socket.reconnectStrategy(11).message, /connection failed/);
+  events.error(new Error('connection lost'));
+  assert.equal(service.isConnected, false);
+  events.ready();
+  await service.disconnect();
+  assert.equal(service.isConnected, false);
+});
 
-    test('should delete a key', async () => {
-      const key = 'test:delete';
-      await cacheService.set(key, 'value');
-      
-      await cacheService.delete(key);
-      const result = await cacheService.get(key);
+test('cache degrades safely when Redis is unavailable', async () => {
+  const { service } = await fixture({ failConnect: true });
+  assert.equal(await service.connect(), null);
+  assert.equal(await service.get('key'), null);
+  assert.equal(await service.set('key', 1), false);
+  assert.equal(await service.delete('key'), false);
+  assert.equal(await service.deletePattern('*'), 0);
+  assert.equal(await service.flush(), false);
+  assert.equal(await service.getOrSet('key', async () => 'uncached'), 'uncached');
+});
 
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('TTL', () => {
-    test('should expire after TTL', async () => {
-      const key = 'test:ttl';
-      const value = 'expires soon';
-
-      await cacheService.set(key, value, 1); // 1 second TTL
-      
-      // Should exist immediately
-      let result = await cacheService.get(key);
-      expect(result).toBe(value);
-
-      // Wait for expiration
-      await new Promise(resolve => setTimeout(resolve, 1100));
-
-      // Should be expired
-      result = await cacheService.get(key);
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('Pattern Operations', () => {
-    test('should delete keys matching pattern', async () => {
-      await cacheService.set('user:1', { id: 1 });
-      await cacheService.set('user:2', { id: 2 });
-      await cacheService.set('product:1', { id: 1 });
-
-      const deletedCount = await cacheService.deletePattern('user:*');
-
-      expect(deletedCount).toBe(2);
-      expect(await cacheService.get('user:1')).toBeNull();
-      expect(await cacheService.get('user:2')).toBeNull();
-      expect(await cacheService.get('product:1')).not.toBeNull();
-    });
-  });
-
-  describe('getOrSet Pattern', () => {
-    test('should fetch and cache on miss', async () => {
-      const key = 'test:getOrSet';
-      let fetchCalled = false;
-
-      const fetchFunction = async () => {
-        fetchCalled = true;
-        return { data: 'fetched' };
-      };
-
-      // First call should fetch
-      const result1 = await cacheService.getOrSet(key, fetchFunction);
-      expect(fetchCalled).toBe(true);
-      expect(result1).toEqual({ data: 'fetched' });
-
-      // Second call should use cache
-      fetchCalled = false;
-      const result2 = await cacheService.getOrSet(key, fetchFunction);
-      expect(fetchCalled).toBe(false);
-      expect(result2).toEqual({ data: 'fetched' });
-    });
-  });
-
-  describe('Key Generation', () => {
-    test('should generate namespaced keys', () => {
-      const key = cacheService.generateKey('users', '123', 'profile');
-      expect(key).toBe('users:123:profile');
-    });
-
-    test('should handle single part', () => {
-      const key = cacheService.generateKey('global');
-      expect(key).toBe('global:');
-    });
-  });
+test('cache client errors and invalid cached JSON return safe fallbacks', async () => {
+  const { service, client } = await fixture();
+  await client.setEx('invalid', 60, 'not JSON');
+  assert.equal(await service.get('invalid'), null);
+  for (const method of ['get', 'setEx', 'del', 'keys', 'flushAll']) {
+    client[method] = async () => { throw new Error('Redis operation failed'); };
+  }
+  assert.equal(await service.get('key'), null);
+  assert.equal(await service.set('key', 1), false);
+  assert.equal(await service.delete('key'), false);
+  assert.equal(await service.deletePattern('*'), 0);
+  assert.equal(await service.flush(), false);
 });

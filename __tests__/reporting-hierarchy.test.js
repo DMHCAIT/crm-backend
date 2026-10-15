@@ -49,6 +49,8 @@ async function request(moduleName, viewer, { url = '/api/leads', query = {}, cli
       if (name === '@supabase/supabase-js') return { createClient: () => client };
       if (name === 'jsonwebtoken') return { verify: () => viewer };
       if (name === '../utils/reportingHierarchy') return hierarchy;
+      if (name === '../utils/callSchedule') return require('../utils/callSchedule');
+      if (name === '../utils/leadDuplicates') return require('../utils/leadDuplicates');
       if (name === '../utils/logger') return { info() {}, error() {} };
       if (name === 'bcrypt') return {};
       if (name === 'uuid') return { v4() {} };
@@ -182,7 +184,18 @@ test('database failures are explicit errors, not empty successful team views', a
       url: moduleName === 'users' ? '/api/users/leader/leads' : '/api/leads',
       query: { includeTeam: 'true' }
     });
+
     assert.equal(result.statusCode, 500);
     assert.equal(result.body.success, false);
   }
+});
+
+test('personal call ownership resolves the database username without expanding role visibility', async () => {
+  const client = database();
+  for (const role of ['counselor', 'team_leader', 'manager', 'senior_manager', 'super_admin', 'admin']) {
+    assert.equal(await hierarchy.getOwnUsername(client, { id: 'member', role, username: 'stale-name' }), 'member');
+    assert.equal(await hierarchy.getOwnUsername(client, { username: 'member', role }), 'member');
+  }
+  await assert.rejects(hierarchy.getOwnUsername(client, { id: 'missing', role: 'super_admin' }), /assignment username/);
+  await assert.rejects(hierarchy.getOwnUsername(database(users, leads, true), users[1]), /Database unavailable/);
 });

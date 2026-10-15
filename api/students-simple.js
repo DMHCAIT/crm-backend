@@ -20,39 +20,6 @@ try {
   logger.error('❌ Students Simple API: Supabase initialization failed:', error.message);
 }
 
-// Removed DEMO_STUDENTS - Database-only mode
-    course: 'Web Development',
-    batch_year: 2025,
-    status: 'active',
-    progress: 65.5,
-    admission_date: '2025-01-15',
-    expected_completion_date: '2025-12-15',
-    total_fees: 50000,
-    fees_paid: 30000,
-    fees_pending: 20000,
-    created_at: '2025-01-15T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z'
-  },
-  {
-    id: '2',
-    student_id: 'STD002',
-    name: 'Bob Martinez',
-    email: 'bob.martinez@email.com',
-    phone: '+91-9876543221',
-    course: 'Data Science',
-    batch_year: 2025,
-    status: 'active',
-    progress: 45.2,
-    admission_date: '2025-02-01',
-    expected_completion_date: '2026-01-31',
-    total_fees: 75000,
-    fees_paid: 45000,
-    fees_pending: 30000,
-    created_at: '2025-02-01T00:00:00.000Z',
-    updated_at: '2025-09-19T00:00:00.000Z'
-  }
-];
-
 // Get subordinate users for hierarchical access control
 async function getSubordinateUsers(userId) {
   if (!supabase) {

@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const { getAccessibleUsernames: getReportingUsernames } = require('../utils/reportingHierarchy');
+const { validateLeadContact, findContactMatches } = require('../utils/leadDuplicates');
 
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -164,12 +165,10 @@ module.exports = async (req, res) => {
       try {
         const { fullName, email, phone, course, source, country, branch, qualification, priority, notes, company } = req.body;
         
-        // Validate required fields
-        if (!fullName) {
-          return res.status(400).json({
-            success: false,
-            error: 'Full name is required'
-          });
+        const contactError = validateLeadContact(req.body);
+        if (contactError) return res.status(400).json({ success: false, error: contactError });
+        if ((await findContactMatches(supabase, [{ email, phone }])).length) {
+          return res.status(409).json({ success: false, error: 'Duplicate lead detected' });
         }
 
         // Create new lead in database
@@ -199,6 +198,9 @@ module.exports = async (req, res) => {
           .single();
 
         if (error) {
+          if (error.code === '23505' && /leads_unique_contact_(email|phone)/.test(error.message || '')) {
+            return res.status(409).json({ success: false, error: 'Duplicate lead detected' });
+          }
           logger.info('❌ Create lead error:', error);
           return res.status(500).json({
             success: false,

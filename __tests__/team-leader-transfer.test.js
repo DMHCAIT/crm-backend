@@ -18,6 +18,7 @@ async function transfer({
   role = 'team_leader',
   token = true,
   operationType = 'transfer',
+  status,
   rows = [
     { id: 'lead-1', assignedTo: 'leader' },
     { id: 'lead-2', assignedTo: 'member' }
@@ -67,6 +68,8 @@ async function transfer({
       if (name === '@supabase/supabase-js') return { createClient: () => client };
       if (name === 'jsonwebtoken') return { verify: () => ({ username: 'leader', role }) };
       if (name === '../utils/reportingHierarchy') return require('../utils/reportingHierarchy');
+      if (name === '../utils/callSchedule') return require('../utils/callSchedule');
+      if (name === '../utils/leadDuplicates') return require('../utils/leadDuplicates');
       throw new Error(`Unexpected dependency: ${name}`);
     }
   };
@@ -82,7 +85,9 @@ async function transfer({
     method: 'POST',
     headers: token ? { authorization: 'Bearer test-token' } : {},
     query: {},
-    body: { operation: 'bulk_update', operationType, leadIds: ids, updateData: { assignedTo: target } }
+    body: { operation: 'bulk_update', operationType, leadIds: ids, updateData: {
+      assignedTo: target, ...(status !== undefined ? { status } : {})
+    } }
   }, response);
   return { response, rows, writes };
 }
@@ -94,6 +99,30 @@ test('team leaders transfer multiple leads to direct and nested team members or 
     assert.equal(response.body.success, true);
     assert.equal(response.body.count, 2);
     assert.ok(rows.every(row => row.assignedTo === target));
+  }
+});
+
+test('transfers preserve mixed stages when no new stage is selected', async () => {
+  for (const role of ['team_leader', 'manager', 'senior_manager', 'super_admin', 'admin']) {
+    const { response, rows } = await transfer({ role, rows: [
+      { id: 'lead-1', assignedTo: 'leader', status: 'Follow Up' },
+      { id: 'lead-2', assignedTo: 'member', status: 'Hot' }
+    ] });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(rows.map(row => row.status), ['Follow Up', 'Hot']);
+    assert.ok(rows.every(row => row.assignedTo === 'member'));
+  }
+});
+
+test('transfers update assignment and selected stage together for every transfer role', async () => {
+  for (const role of ['team_leader', 'manager', 'senior_manager', 'super_admin', 'admin']) {
+    const { response, rows } = await transfer({ role, status: 'Warm', rows: [
+      { id: 'lead-1', assignedTo: 'leader', status: 'Follow Up' },
+      { id: 'lead-2', assignedTo: 'member', status: 'Hot' }
+    ] });
+    assert.equal(response.statusCode, 200);
+    assert.ok(rows.every(row => row.assignedTo === 'member' && row.status === 'Warm'));
+    assert.ok(response.body.data.every(row => row.status === 'Warm'));
   }
 });
 

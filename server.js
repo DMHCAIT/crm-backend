@@ -227,6 +227,8 @@ const studentsHandler = loadHandler('students', './api/students.js');
 const dashboardHandler = loadHandler('dashboard', './api/dashboard.js');
 const communicationsHandler = loadHandler('communications', './api/enhanced-communications.js');
 const analyticsHandler = loadHandler('analytics', './api/enhanced-analytics.js');
+const analyticsEventsHandler = loadHandler('analytics-events', './api/analytics-events.js');
+const analyticsTrackingHandler = loadHandler('analytics-tracking', './api/analytics-tracking.js');
 const automationsHandler = loadHandler('automations', './api/enhanced-automation.js');
 const documentsHandler = loadHandler('documents', './api/enhanced-documents.js');
 const integrationsHandler = loadHandler('integrations', './api/integrations.js');
@@ -307,6 +309,18 @@ if (communicationsHandler) {
 if (analyticsHandler) {
   app.all('/api/analytics/*', analyticsHandler);
   app.all('/api/analytics', analyticsHandler);
+  app.all('/api/enhanced-analytics/*', analyticsHandler);
+  app.all('/api/enhanced-analytics', analyticsHandler);
+}
+
+if (analyticsEventsHandler) {
+  app.all('/api/analytics-events/*', analyticsEventsHandler);
+  app.all('/api/analytics-events', analyticsEventsHandler);
+}
+
+if (analyticsTrackingHandler) {
+  app.all('/api/analytics-tracking/*', analyticsTrackingHandler);
+  app.all('/api/analytics-tracking', analyticsTrackingHandler);
 }
 
 if (automationsHandler) {
@@ -413,8 +427,7 @@ if (webhookLeadsHandler) {
 }
 
 if (scheduledExportsHandler) {
-  app.all('/api/scheduled-exports/*', scheduledExportsHandler);
-  app.all('/api/scheduled-exports', scheduledExportsHandler);
+  app.use('/api/scheduled-exports', scheduledExportsHandler);
 }
 
 if (facebookLeadsHandler) {

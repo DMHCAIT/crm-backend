@@ -19,13 +19,19 @@ class EmailService {
   }
 
   initSMTP() {
+    const password = process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
+    if (!process.env.SMTP_USER || !password) {
+      logger.warn('SMTP email is unavailable: configure SMTP_USER and SMTP_PASS (SMTP_PASSWORD is also supported)');
+      return;
+    }
+
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT || '587'),
       secure: process.env.SMTP_SECURE === 'true',
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+        pass: password
       }
     });
 

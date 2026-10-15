@@ -53,7 +53,9 @@ module.exports = async (req, res) => {
 
   try {
     // Parse URL to determine endpoint
-    const urlParts = req.url.split('/').filter(part => part);
+    const urlPath = req.url.split('?')[0]
+      .replace(/^\/(?:api\/)?(?:enhanced-analytics|analytics)(?=\/|$)/, '/analytics');
+    const urlParts = urlPath.split('/').filter(part => part);
     const endpoint = urlParts.join('/');
 
     switch (endpoint) {

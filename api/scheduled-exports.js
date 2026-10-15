@@ -2,18 +2,18 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const emailService = require('../services/emailService');
 const cron = require('node-cron');
 const logger = require('../utils/logger');
 
 
 // Initialize Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
 let supabase;
 
 if (!supabaseUrl || !supabaseKey) {
-  logger.error('Missing Supabase credentials for scheduled exports');
+  logger.error('Scheduled exports require SUPABASE_URL and SUPABASE_SERVICE_KEY');
 } else {
   supabase = createClient(supabaseUrl, supabaseKey);
 }
@@ -33,19 +33,6 @@ const verifyToken = (req, res, next) => {
   } catch (error) {
     return res.status(401).json({ error: 'Invalid token' });
   }
-};
-
-// Email transporter
-const createEmailTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD
-    }
-  });
 };
 
 // Export data functions
@@ -109,7 +96,6 @@ const generateCSV = (data) => {
 
 const sendExportEmail = async (email, exportType, format, data) => {
   try {
-    const transporter = createEmailTransporter();
     const csv = generateCSV(data);
     
     const mailOptions = {
@@ -136,7 +122,7 @@ const sendExportEmail = async (email, exportType, format, data) => {
       }]
     };
     
-    await transporter.sendMail(mailOptions);
+    await emailService.send(mailOptions);
     return true;
   } catch (error) {
     logger.error('Send export email error:', error);

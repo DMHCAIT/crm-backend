@@ -46,4 +46,11 @@ async function getAccessibleUsernames(supabase, user) {
   return [currentUser, ...team].map(member => member.username).filter(Boolean);
 }
 
-module.exports = { TEAM_ROLES, ADMIN_ROLES, loadReportingUsers, findReportingUser, getReportingTeam, getAccessibleUsernames };
+async function getOwnUsername(supabase, user) {
+  const users = await loadReportingUsers(supabase);
+  const currentUser = findReportingUser(user, users);
+  if (!currentUser?.username) throw new Error('Current user has no lead assignment username');
+  return currentUser.username;
+}
+
+module.exports = { TEAM_ROLES, ADMIN_ROLES, loadReportingUsers, findReportingUser, getReportingTeam, getAccessibleUsernames, getOwnUsername };
